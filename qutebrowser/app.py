@@ -49,7 +49,8 @@ from qutebrowser.config import style, config, websettings, configexc
 from qutebrowser.browser import urlmarks, cookies, cache, adblock, history
 from qutebrowser.browser.network import qutescheme, proxy, networkmanager
 from qutebrowser.mainwindow import mainwindow
-from qutebrowser.misc import readline, ipc, savemanager, sessions, crashsignal
+from qutebrowser.misc import (readline, ipc, savemanager, sessions,
+                              crashsignal, domains)
 from qutebrowser.misc import utilcmds  # pylint: disable=unused-import
 from qutebrowser.utils import (log, version, message, utils, qtutils, urlutils,
                                objreg, usertypes, standarddir, error, debug)
@@ -187,6 +188,7 @@ def _process_args(args):
             message.error('current', "set: {} - {}".format(
                 e.__class__.__name__, e))
 
+    domains.init()
     if not args.override_restore:
         _load_session(args.session)
     session_manager = objreg.get('session-manager')
