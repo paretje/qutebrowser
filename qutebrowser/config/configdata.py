@@ -1509,6 +1509,11 @@ KEY_DATA = collections.OrderedDict([
         ('open qute:settings', ['Ss']),
         ('follow-selected', RETURN_KEYS),
         ('follow-selected -t', ['<Ctrl-Return>', '<Ctrl-Enter>']),
+        ('script-toggle', ['sth']),
+        ('script-toggle -p', ['stu']),
+        ('script-toggle -r', ['srh']),
+        ('script-toggle -p -r', ['sru']),
+        ('set content allow-javascript!', ['sta']),
     ])),
 
     ('insert', collections.OrderedDict([
