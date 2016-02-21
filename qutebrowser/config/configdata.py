@@ -1513,6 +1513,8 @@ KEY_DATA = collections.OrderedDict([
         ('domain javascript! -p', ['stu']),
         ('domain javascript! -r', ['srh']),
         ('domain javascript! -p -r', ['sru']),
+        ('domain cookies!', ['ct']),
+        ('domain cookies! -r', ['cr']),
         ('set content allow-javascript!', ['sta']),
     ])),
 
