@@ -23,6 +23,7 @@ import base64
 import binascii
 
 from PyQt5.QtWebKitWidgets import QWebInspector
+from PyQt5.QtWebKit import QWebSettings
 
 from qutebrowser.utils import log, objreg
 
@@ -35,12 +36,17 @@ class WebInspector(QWebInspector):
         super().__init__(parent)
         self._load_state_geometry()
 
+    def showEvent(self, e):
+        QWebSettings.globalSettings().setAttribute(QWebSettings.JavascriptEnabled, True)
+        super().showEvent(e)
+
     def closeEvent(self, e):
         """Save the geometry when closed."""
         state_config = objreg.get('state-config')
         data = bytes(self.saveGeometry())
         geom = base64.b64encode(data).decode('ASCII')
         state_config['geometry']['inspector'] = geom
+        QWebSettings.globalSettings().setAttribute(QWebSettings.JavascriptEnabled, False)
         super().closeEvent(e)
 
     def _load_state_geometry(self):
