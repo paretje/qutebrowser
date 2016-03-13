@@ -1498,6 +1498,13 @@ KEY_DATA = collections.OrderedDict([
         ('open qute:settings', ['Ss']),
         ('follow-selected', RETURN_KEYS),
         ('follow-selected -t', ['<Ctrl-Return>', '<Ctrl-Enter>']),
+        ('domain javascript!', ['sth']),
+        ('domain javascript! -p', ['stu']),
+        ('domain javascript! -r', ['srh']),
+        ('domain javascript! -p -r', ['sru']),
+        ('domain cookies!', ['ct']),
+        ('domain cookies! -r', ['cr']),
+        ('set content allow-javascript!', ['sta']),
     ])),
 
     ('insert', collections.OrderedDict([
