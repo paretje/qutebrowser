@@ -948,22 +948,30 @@ class DownloadManager(QAbstractListModel):
 
     @cmdutils.register(instance='download-manager', scope='window',
                        count='count')
-    def download_cancel(self, count=0):
+    def download_cancel(self, all_=False, count=0):
         """Cancel the last/[count]th download.
 
         Args:
+            all_: Cancel all running downloads
             count: The index of the download to cancel.
         """
-        try:
-            download = self.downloads[count - 1]
-        except IndexError:
-            self.raise_no_download(count)
-        if download.done:
-            if not count:
-                count = len(self.downloads)
-            raise cmdexc.CommandError("Download {} is already done!"
-                                      .format(count))
-        download.cancel()
+        if all_:
+            # We need to make a copy as we're indirectly mutating
+            # self.downloads here
+            for download in self.downloads[:]:
+                if not download.done:
+                    download.cancel()
+        else:
+            try:
+                download = self.downloads[count - 1]
+            except IndexError:
+                self.raise_no_download(count)
+            if download.done:
+                if not count:
+                    count = len(self.downloads)
+                raise cmdexc.CommandError("Download {} is already done!"
+                                        .format(count))
+            download.cancel()
 
     @cmdutils.register(instance='download-manager', scope='window',
                        count='count')
@@ -971,7 +979,7 @@ class DownloadManager(QAbstractListModel):
         """Delete the last/[count]th download from disk.
 
         Args:
-            count: The index of the download to cancel.
+            count: The index of the download to delete.
         """
         try:
             download = self.downloads[count - 1]
@@ -990,7 +998,7 @@ class DownloadManager(QAbstractListModel):
         """Open the last/[count]th download.
 
         Args:
-            count: The index of the download to cancel.
+            count: The index of the download to open.
         """
         try:
             download = self.downloads[count - 1]
@@ -1008,7 +1016,7 @@ class DownloadManager(QAbstractListModel):
         """Retry the first failed/[count]th download.
 
         Args:
-            count: The index of the download to cancel.
+            count: The index of the download to retry.
         """
         if count:
             try:
@@ -1094,12 +1102,10 @@ class DownloadManager(QAbstractListModel):
         """Remove the last/[count]th download from the list.
 
         Args:
-            all_: Deprecated argument for removing all finished downloads.
-            count: The index of the download to cancel.
+            all_: Remove all finished downloads.
+            count: The index of the download to remove.
         """
         if all_:
-            message.warning(self._win_id, ":download-remove --all is "
-                            "deprecated - use :download-clear instead!")
             self.download_clear()
         else:
             try:
