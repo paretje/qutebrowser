@@ -182,6 +182,7 @@ Contributors, sorted by the number of commits in descending order:
 * rikn00
 * Michael Ilsaas
 * Martin Zimmermann
+* Clayton Craft
 * Brian Jackson
 * sbinix
 * neeasade

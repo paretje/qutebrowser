@@ -166,10 +166,8 @@ class BrowserPage(QWebPage):
             log.webview.debug("Error domain: {}, error code: {}".format(
                 info.domain, info.error))
             title = "Error loading page: {}".format(urlstr)
-            template = jinja.env.get_template('error.html')
-            # pylint: disable=no-member
-            # WORKAROUND for https://bitbucket.org/logilab/pylint/issue/490/
-            html = template.render(
+            html = jinja.render(
+                'error.html',
                 title=title, url=urlstr, error=error_str, icon='')
             errpage.content = html.encode('utf-8')
             errpage.encoding = 'utf-8'
@@ -221,14 +219,14 @@ class BrowserPage(QWebPage):
     def _show_pdfjs(self, reply):
         """Show the reply with pdfjs."""
         try:
-            page = pdfjs.generate_pdfjs_page(reply.url()).encode('utf-8')
+            page = pdfjs.generate_pdfjs_page(reply.url())
         except pdfjs.PDFJSNotFound:
             # pylint: disable=no-member
             # WORKAROUND for https://bitbucket.org/logilab/pylint/issue/490/
-            page = (jinja.env.get_template('no_pdfjs.html')
-                    .render(url=reply.url().toDisplayString())
-                    .encode('utf-8'))
-        self.mainFrame().setContent(page, 'text/html', reply.url())
+            page = jinja.render('no_pdfjs.html',
+                                url=reply.url().toDisplayString())
+        self.mainFrame().setContent(page.encode('utf-8'), 'text/html',
+                                    reply.url())
         reply.deleteLater()
 
     def shutdown(self):
