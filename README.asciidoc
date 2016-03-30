@@ -163,14 +163,16 @@ Contributors, sorted by the number of commits in descending order:
 * Artur Shaik
 * Nathan Isom
 * Thorsten Wißmann
+* Philipp Hansch
 * Austin Anderson
 * Alexey "Averrin" Nabrodov
+* avk
 * ZDarian
 * Milan Svoboda
 * John ShaggyTwoDope Jenkins
 * Peter Vilim
+* Clayton Craft
 * Oliver Caldwell
-* Philipp Hansch
 * Jonas Schürmann
 * Jimmy
 * Panagiotis Ktistakis
@@ -182,7 +184,6 @@ Contributors, sorted by the number of commits in descending order:
 * rikn00
 * Michael Ilsaas
 * Martin Zimmermann
-* Clayton Craft
 * Brian Jackson
 * sbinix
 * neeasade
@@ -192,7 +193,6 @@ Contributors, sorted by the number of commits in descending order:
 * Link
 * Larry Hynes
 * Johannes Altmanninger
-* avk
 * Samir Benmendil
 * Regina Hug
 * Mathias Fussenegger
@@ -202,6 +202,7 @@ Contributors, sorted by the number of commits in descending order:
 * Corentin Jule
 * zwarag
 * xd1le
+* issue
 * haxwithaxe
 * evan
 * dylan araps
