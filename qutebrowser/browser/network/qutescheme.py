@@ -148,6 +148,7 @@ def qute_pyeval(_win_id, _request):
 
 
 @add_handler('version')
+@add_handler('verizon')
 def qute_version(_win_id, _request):
     """Handler for qute:version. Return HTML content as bytes."""
     html = jinja.render('version.html', title='Version info',
@@ -210,7 +211,11 @@ def qute_help(win_id, request):
         message.error(win_id, "Your documentation is outdated! Please re-run "
                       "scripts/asciidoc2html.py.")
     path = 'html/doc/{}'.format(urlpath)
-    return utils.read_file(path).encode('UTF-8', errors='xmlcharrefreplace')
+    if urlpath.endswith('.png'):
+        return utils.read_file(path, binary=True)
+    else:
+        data = utils.read_file(path)
+        return data.encode('UTF-8', errors='xmlcharrefreplace')
 
 
 @add_handler('settings')
