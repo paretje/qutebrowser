@@ -164,8 +164,8 @@ Contributors, sorted by the number of commits in descending order:
 * Nathan Isom
 * Thorsten Wißmann
 * Philipp Hansch
-* Austin Anderson
 * Kevin Velghe
+* Austin Anderson
 * Alexey "Averrin" Nabrodov
 * avk
 * ZDarian
@@ -195,6 +195,7 @@ Contributors, sorted by the number of commits in descending order:
 * Larry Hynes
 * Johannes Altmanninger
 * Samir Benmendil
+* Ryan Roden-Corrent
 * Regina Hug
 * Mathias Fussenegger
 * Marcelo Santos
