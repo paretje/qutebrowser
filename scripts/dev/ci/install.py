@@ -34,6 +34,7 @@ import sys
 import subprocess
 import urllib
 import contextlib
+import time
 
 try:
     import _winreg as winreg
@@ -69,7 +70,14 @@ def folded_cmd(argv):
 
 
 def apt_get(args):
-    folded_cmd(['sudo', 'apt-get', '-y', '-q'] + args)
+    try:
+        folded_cmd(['sudo', 'apt-get', '-y', '-q'] + args)
+    except subprocess.CalledProcessError:
+        print()
+        print("apt-get failed... trying a second time in 30s...")
+        print()
+        time.sleep(30)
+        folded_cmd(['sudo', 'apt-get', '-y', '-q'] + args)
 
 
 def brew(args):
@@ -102,6 +110,7 @@ if 'APPVEYOR' in os.environ:
     print("Installing PyQt5...")
     subprocess.check_call([r'C:\install-PyQt5.exe', '/S'])
 
+    folded_cmd([r'C:\Python34\python', '-m', 'pip', 'install', '-U', 'pip'])
     folded_cmd([r'C:\Python34\Scripts\pip', 'install', '-U'] + pip_packages)
 
     print("Linking Python...")
@@ -112,7 +121,8 @@ if 'APPVEYOR' in os.environ:
 elif TRAVIS_OS == 'linux' and 'DOCKER' in os.environ:
     pass
 elif TRAVIS_OS == 'linux':
-    folded_cmd(['sudo', 'pip', 'install'] + pip_packages)
+    folded_cmd(['sudo', '-H', 'pip', 'install', '-U', 'pip'])
+    folded_cmd(['sudo', '-H', 'pip', 'install', '-U'] + pip_packages)
 
     pkgs = []
 
@@ -127,7 +137,7 @@ elif TRAVIS_OS == 'linux':
 
     if pkgs:
         apt_get(['update'])
-        apt_get(['install'] + pkgs)
+        apt_get(['install', '--no-install-recommends'] + pkgs)
 
     if TESTENV == 'flake8':
         apt_get(['update'])
@@ -136,6 +146,7 @@ elif TRAVIS_OS == 'linux':
         apt_get(['install', '-t', 'trusty-updates', 'python3.4'])
 
     if TESTENV == 'eslint':
+        folded_cmd(['sudo', 'npm', 'install', '-g', 'npm'])
         folded_cmd(['sudo', 'npm', 'install', '-g', 'eslint'])
     else:
         check_setup('python3')
