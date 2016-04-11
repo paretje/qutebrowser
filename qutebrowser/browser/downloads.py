@@ -104,6 +104,11 @@ def create_full_filename(basename, filename):
     Return:
         The full absolute path, or None if filename creation was not possible.
     """
+    # Remove chars which can't be encoded in the filename encoding.
+    # See https://github.com/The-Compiler/qutebrowser/issues/427
+    encoding = sys.getfilesystemencoding()
+    filename = utils.force_encoding(filename, encoding)
+    basename = utils.force_encoding(basename, encoding)
     if os.path.isabs(filename) and os.path.isdir(filename):
         # We got an absolute directory from the user, so we save it under
         # the default filename in that directory.
@@ -523,10 +528,6 @@ class DownloadItem(QObject):
                              "existing: {}, fileobj {}".format(
                                  filename, self._filename, self.fileobj))
         filename = os.path.expanduser(filename)
-        # Remove chars which can't be encoded in the filename encoding.
-        # See https://github.com/The-Compiler/qutebrowser/issues/427
-        encoding = sys.getfilesystemencoding()
-        filename = utils.force_encoding(filename, encoding)
         self._filename = create_full_filename(self.basename, filename)
         if self._filename is None:
             # We only got a filename (without directory) or a relative path
@@ -1228,7 +1229,8 @@ class DownloadManager(QAbstractListModel):
     def flags(self, _index):
         """Override flags so items aren't selectable.
 
-        The default would be Qt.ItemIsEnabled | Qt.ItemIsSelectable."""
+        The default would be Qt.ItemIsEnabled | Qt.ItemIsSelectable.
+        """
         return Qt.ItemIsEnabled | Qt.ItemNeverHasChildren
 
     def rowCount(self, parent=QModelIndex()):
