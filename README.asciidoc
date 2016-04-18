@@ -208,6 +208,7 @@ Contributors, sorted by the number of commits in descending order:
 * haxwithaxe
 * evan
 * dylan araps
+* Xitian9
 * Tomasz Kramkowski
 * Tomas Orsava
 * Tobias Werth
@@ -221,6 +222,7 @@ Contributors, sorted by the number of commits in descending order:
 * Johannes Martinsson
 * Jean-Christophe Petkovich
 * Jay Kamat
+* Jan Verbeek
 * Helen Sherwood-Taylor
 * HalosGhost
 * Gregor Pohl
@@ -233,7 +235,8 @@ Contributors, sorted by the number of commits in descending order:
 
 The following people have contributed graphics:
 
-* WOFall (icon)
+* Jad/http://yelostudio.com[yelo] (new icon)
+* WOFall (original icon)
 * regines (key binding cheatsheet)
 
 Thanks / Similar projects
