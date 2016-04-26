@@ -22,12 +22,6 @@ on Python, PyQt5 and QtWebKit and free software, licensed under the GPL.
 
 It was inspired by other browsers/addons like dwb and Vimperator/Pentadactyl.
 
-// QUTE_WEB_HIDE
-**qutebrowser is currently running a crowdfunding campaign to add support for
-the QtWebEngine backend, which fixes many issues. Please
-link:http://igg.me/at/qutebrowser[check it out]!**
-// QUTE_WEB_HIDE_END
-
 Screenshots
 -----------
 
@@ -156,6 +150,7 @@ Contributors, sorted by the number of commits in descending order:
 * Felix Van der Jeugt
 * Raphael Pierzina
 * Joel Torstensson
+* Ryan Roden-Corrent
 * Patric Schmitz
 * Claude
 * meles5
@@ -166,6 +161,7 @@ Contributors, sorted by the number of commits in descending order:
 * Philipp Hansch
 * Kevin Velghe
 * Austin Anderson
+* Panagiotis Ktistakis
 * Alexey "Averrin" Nabrodov
 * avk
 * ZDarian
@@ -176,14 +172,13 @@ Contributors, sorted by the number of commits in descending order:
 * Clayton Craft
 * Oliver Caldwell
 * Jonas Schürmann
-* Panagiotis Ktistakis
 * Jakub Klinkovský
 * skinnay
 * error800
 * Zach-Button
 * Halfwit
 * rikn00
-* Ryan Roden-Corrent
+* kanikaa1234
 * Michael Ilsaas
 * Martin Zimmermann
 * Brian Jackson
@@ -199,6 +194,7 @@ Contributors, sorted by the number of commits in descending order:
 * Regina Hug
 * Mathias Fussenegger
 * Marcelo Santos
+* Jan Verbeek
 * Fritz V155 Reichwald
 * Franz Fellner
 * Corentin Jule
@@ -222,7 +218,6 @@ Contributors, sorted by the number of commits in descending order:
 * Johannes Martinsson
 * Jean-Christophe Petkovich
 * Jay Kamat
-* Jan Verbeek
 * Helen Sherwood-Taylor
 * HalosGhost
 * Gregor Pohl

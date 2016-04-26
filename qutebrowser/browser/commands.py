@@ -430,6 +430,7 @@ class CommandDispatcher:
             new_url = urlutils.incdec_number(url, incdec, segments=segments)
         except urlutils.IncDecError as error:
             raise cmdexc.CommandError(error.msg)
+
         self._open(new_url, tab, background, window)
 
     def _navigate_up(self, url, tab, background, window):
@@ -472,10 +473,13 @@ class CommandDispatcher:
             bg: Open in a background tab.
             window: Open in a new window.
         """
+        # save the pre-jump position in the special ' mark
+        self.set_mark("'")
+
         cmdutils.check_exclusive((tab, bg, window), 'tbw')
         widget = self._current_widget()
         frame = widget.page().currentFrame()
-        url = self._current_url()
+        url = self._current_url().adjusted(QUrl.RemoveFragment)
         if frame is None:
             raise cmdexc.CommandError("No frame focused!")
         hintmanager = objreg.get('hintmanager', scope='tab', tab='current')
@@ -500,7 +504,7 @@ class CommandDispatcher:
 
         Args:
             dx: How much to scroll in x-direction.
-            dy: How much to scroll in x-direction.
+            dy: How much to scroll in y-direction.
             count: multiplier
         """
         dx *= count
@@ -582,6 +586,9 @@ class CommandDispatcher:
             horizontal: Scroll horizontally instead of vertically.
             count: Percentage to scroll.
         """
+        # save the pre-jump position in the special ' mark
+        self.set_mark("'")
+
         if perc is None and count is None:
             perc = 100
         elif perc is None:
@@ -654,13 +661,14 @@ class CommandDispatcher:
         frame.scroll(dx, dy)
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
-    def yank(self, title=False, sel=False, domain=False):
+    def yank(self, title=False, sel=False, domain=False, pretty=False):
         """Yank the current URL/title to the clipboard or primary selection.
 
         Args:
             sel: Use the primary selection instead of the clipboard.
             title: Yank the title instead of the URL.
             domain: Yank only the scheme, domain, and port number.
+            pretty: Yank the URL in pretty decoded form.
         """
         if title:
             s = self._tabbed_browser.page_title(self._current_index())
@@ -672,8 +680,10 @@ class CommandDispatcher:
                                    ':' + str(port) if port > -1 else '')
             what = 'domain'
         else:
-            s = self._current_url().toString(
-                QUrl.FullyEncoded | QUrl.RemovePassword)
+            flags = QUrl.RemovePassword
+            if not pretty:
+                flags |= QUrl.FullyEncoded
+            s = self._current_url().toString(flags)
             what = 'URL'
 
         if sel and QApplication.clipboard().supportsSelection():
@@ -776,6 +786,10 @@ class CommandDispatcher:
         Args:
             count: How many tabs to switch back.
         """
+        if self._count() == 0:
+            # Running :tab-prev after last tab was closed
+            # See https://github.com/The-Compiler/qutebrowser/issues/1448
+            return
         newidx = self._current_index() - count
         if newidx >= 0:
             self._set_current_index(newidx)
@@ -792,6 +806,10 @@ class CommandDispatcher:
         Args:
             count: How many tabs to switch forward.
         """
+        if self._count() == 0:
+            # Running :tab-next after last tab was closed
+            # See https://github.com/The-Compiler/qutebrowser/issues/1448
+            return
         newidx = self._current_index() + count
         if newidx < self._count():
             self._set_current_index(newidx)
@@ -974,8 +992,10 @@ class CommandDispatcher:
     def spawn(self, cmdline, userscript=False, verbose=False, detach=False):
         """Spawn a command in a shell.
 
-        Note the {url} variable which gets replaced by the current URL might be
-        useful here.
+        Note the `{url}` and `{url:pretty}` variables might be useful here.
+        `{url}` gets replaced by the URL in fully encoded format and
+        `{url:pretty}` uses a "pretty form" with most percent-encoded
+        characters decoded.
 
         Args:
             userscript: Run the command as a userscript. You can use an
@@ -1409,6 +1429,7 @@ class CommandDispatcher:
             text: The text to search for.
             reverse: Reverse search direction.
         """
+        self.set_mark("'")
         view = self._current_widget()
         self._clear_search(view, text)
         flags = 0
@@ -1439,6 +1460,7 @@ class CommandDispatcher:
         Args:
             count: How many elements to ignore.
         """
+        self.set_mark("'")
         view = self._current_widget()
 
         self._clear_search(view, self._tabbed_browser.search_text)
@@ -1459,6 +1481,7 @@ class CommandDispatcher:
         Args:
             count: How many elements to ignore.
         """
+        self.set_mark("'")
         view = self._current_widget()
         self._clear_search(view, self._tabbed_browser.search_text)
 
@@ -1877,3 +1900,21 @@ class CommandDispatcher:
             self.openurl, bg=bg, tab=tab, window=window, count=count))
 
         ed.edit(url or self._current_url().toString())
+
+    @cmdutils.register(instance='command-dispatcher', scope='window')
+    def set_mark(self, key):
+        """Set a mark at the current scroll position in the current tab.
+
+        Args:
+            key: mark identifier; capital indicates a global mark
+        """
+        self._tabbed_browser.set_mark(key)
+
+    @cmdutils.register(instance='command-dispatcher', scope='window')
+    def jump_mark(self, key):
+        """Jump to the mark named by `key`.
+
+        Args:
+            key: mark identifier; capital indicates a global mark
+        """
+        self._tabbed_browser.jump_mark(key)

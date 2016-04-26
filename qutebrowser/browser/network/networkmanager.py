@@ -253,7 +253,7 @@ class NetworkManager(QNetworkAccessManager):
         except KeyError:
             pass
 
-    @pyqtSlot('QNetworkReply', 'QAuthenticator')
+    @pyqtSlot('QNetworkReply*', 'QAuthenticator*')
     def on_authentication_required(self, reply, authenticator):
         """Called when a website needs authentication."""
         user, password = None, None
@@ -286,7 +286,7 @@ class NetworkManager(QNetworkAccessManager):
             authenticator.setUser(user)
             authenticator.setPassword(password)
 
-    @pyqtSlot('QNetworkProxy', 'QAuthenticator')
+    @pyqtSlot('QNetworkProxy', 'QAuthenticator*')
     def on_proxy_authentication_required(self, proxy, authenticator):
         """Called when a proxy needs authentication."""
         proxy_id = ProxyId(proxy.type(), proxy.hostName(), proxy.port())
@@ -397,6 +397,13 @@ class NetworkManager(QNetworkAccessManager):
             dnt = '0'.encode('ascii')
         req.setRawHeader('DNT'.encode('ascii'), dnt)
         req.setRawHeader('X-Do-Not-Track'.encode('ascii'), dnt)
+
+        # Load custom headers
+        custom_headers = config.get('network', 'custom-headers')
+
+        if custom_headers is not None:
+            for header, value in custom_headers.items():
+                req.setRawHeader(header.encode('ascii'), value.encode('ascii'))
 
         # There are some scenarios where we can't figure out current_url:
         # - There's a generic NetworkManager, e.g. for downloads

@@ -28,7 +28,6 @@ import collections
 import textwrap
 
 import pytest
-import yaml
 import pytest_bdd as bdd
 
 from helpers import utils
@@ -180,6 +179,7 @@ def wait_in_log(quteproc, is_regex, pattern, do_skip):
                          r'"(?P<message>.*)"'))
 def wait_for_message(quteproc, httpbin, category, message):
     """Wait for a given statusbar message/error/warning."""
+    quteproc.log_summary('Waiting for {} "{}"'.format(category, message))
     expect_message(quteproc, httpbin, category, message)
 
 
@@ -275,10 +275,12 @@ def expect_message(quteproc, httpbin, category, message):
 
 @bdd.then(bdd.parsers.re(r'(?P<is_regex>regex )?"(?P<pattern>[^"]+)" should '
                          r'be logged'))
-def should_be_logged(quteproc, is_regex, pattern):
+def should_be_logged(quteproc, httpbin, is_regex, pattern):
     """Expect the given pattern on regex in the log."""
     if is_regex:
         pattern = re.compile(pattern)
+    else:
+        pattern = pattern.replace('(port)', str(httpbin.port))
     line = quteproc.wait_for(message=pattern)
     line.expected = True
 
@@ -312,14 +314,7 @@ def compare_session(quteproc, expected):
     partial_compare is used, which means only the keys/values listed will be
     compared.
     """
-    # Translate ... to ellipsis in YAML.
-    loader = yaml.SafeLoader(expected)
-    loader.add_constructor('!ellipsis', lambda loader, node: ...)
-    loader.add_implicit_resolver('!ellipsis', re.compile(r'\.\.\.'), None)
-
-    data = quteproc.get_session()
-    expected = loader.get_data()
-    assert utils.partial_compare(data, expected)
+    quteproc.compare_session(expected)
 
 
 @bdd.then("no crash should happen")

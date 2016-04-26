@@ -320,6 +320,11 @@ class QuteProc(testprocess.Process):
 
     def send_cmd(self, command, count=None):
         """Send a command to the running qutebrowser instance."""
+        summary = command
+        if count is not None:
+            summary += ' (count {})'.format(count)
+        self.log_summary(summary)
+
         assert self._ipc_socket is not None
 
         time.sleep(self._delay / 1000)
@@ -380,6 +385,8 @@ class QuteProc(testprocess.Process):
     def wait_for_load_finished(self, path, *, port=None, https=False,
                                timeout=None, load_status='success'):
         """Wait until any tab has finished loading."""
+        __tracebackhide__ = True
+
         if timeout is None:
             if 'CI' in os.environ:
                 timeout = 15000
@@ -395,7 +402,12 @@ class QuteProc(testprocess.Process):
             r"tab_id=\d+ url='{url}/?'>: LoadStatus\.{load_status}|fetch: "
             r"PyQt5\.QtCore\.QUrl\('{url}'\) -> .*)".format(
                 load_status=re.escape(load_status), url=re.escape(url)))
-        self.wait_for(message=pattern, timeout=timeout)
+
+        try:
+            self.wait_for(message=pattern, timeout=timeout)
+        except testprocess.WaitForTimeout:
+            raise testprocess.WaitForTimeout("Timed out while waiting for {} "
+                                             "to be loaded".format(url))
 
     def get_session(self):
         """Save the session and get the parsed session data."""
@@ -407,7 +419,7 @@ class QuteProc(testprocess.Process):
             with open(session, encoding='utf-8') as f:
                 data = f.read()
 
-        self._log(data)
+        self._log('\nCurrent session data:\n' + data)
         return yaml.load(data)
 
     def get_content(self, plain=True):
@@ -451,6 +463,26 @@ class QuteProc(testprocess.Process):
         elif not message.endswith('qute:okay'):
             raise ValueError('Invalid response from qutebrowser: {}'
                              .format(message))
+
+    def compare_session(self, expected):
+        """Compare the current sessions against the given template.
+
+        partial_compare is used, which means only the keys/values listed will
+        be compared.
+        """
+        __tracebackhide__ = True
+        # Translate ... to ellipsis in YAML.
+        loader = yaml.SafeLoader(expected)
+        loader.add_constructor('!ellipsis', lambda loader, node: ...)
+        loader.add_implicit_resolver('!ellipsis', re.compile(r'\.\.\.'), None)
+
+        data = self.get_session()
+        expected = loader.get_data()
+        outcome = testutils.partial_compare(data, expected)
+        if not outcome:
+            msg = "Session comparison failed: {}".format(outcome.error)
+            msg += '\nsee stdout for details'
+            pytest.fail(msg)
 
 
 def _xpath_escape(text):
