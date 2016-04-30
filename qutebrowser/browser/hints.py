@@ -611,8 +611,7 @@ class HintManager(QObject):
     def _find_prevnext(self, frame, prev=False):
         """Find a prev/next element in frame."""
         # First check for <link rel="prev(ious)|next">
-        elems = frame.findAllElements(
-            webelem.SELECTORS[webelem.Group.links])
+        elems = frame.findAllElements(webelem.SELECTORS[webelem.Group.links])
         rel_values = ('prev', 'previous') if prev else ('next')
         for e in elems:
             e = webelem.WebElementWrapper(e)
@@ -924,19 +923,20 @@ class HintManager(QObject):
         }
         elem = self._context.elems[keystr].elem
         if elem.webFrame() is None:
-            message.error(self._win_id, "This element has no webframe.",
+            message.error(self._win_id,
+                          "This element has no webframe.",
                           immediately=True)
             return
         if self._context.target in elem_handlers:
-            handler = functools.partial(
-                elem_handlers[self._context.target], elem, self._context)
+            handler = functools.partial(elem_handlers[self._context.target],
+                                        elem, self._context)
         elif self._context.target in url_handlers:
             url = self._resolve_url(elem, self._context.baseurl)
             if url is None:
                 self._show_url_error()
                 return
-            handler = functools.partial(
-                url_handlers[self._context.target], url, self._context)
+            handler = functools.partial(url_handlers[self._context.target],
+                                        url, self._context)
         else:
             raise ValueError("No suitable handler found!")
         if not self._context.rapid:
@@ -1004,11 +1004,14 @@ class WordHinter:
     def __init__(self):
         # will be initialized on first use.
         self.words = set()
+        self.dictionary = None
 
     def ensure_initialized(self):
         """Generate the used words if yet uninialized."""
-        if not self.words:
-            dictionary = config.get("hints", "dictionary")
+        dictionary = config.get("hints", "dictionary")
+        if not self.words or self.dictionary != dictionary:
+            self.words.clear()
+            self.dictionary = dictionary
             try:
                 with open(dictionary, encoding="UTF-8") as wordfile:
                     alphabet = set(string.ascii_lowercase)
@@ -1041,13 +1044,11 @@ class WordHinter:
             "text": str,
         }
 
-        extractable_attrs = collections.defaultdict(
-            list, {
-                "IMG": ["alt", "title", "src"],
-                "A": ["title", "href", "text"],
-                "INPUT": ["name"]
-            }
-        )
+        extractable_attrs = collections.defaultdict(list, {
+            "IMG": ["alt", "title", "src"],
+            "A": ["title", "href", "text"],
+            "INPUT": ["name"]
+        })
 
         return (attr_extractors[attr](elem)
                 for attr in extractable_attrs[elem.tagName()]
@@ -1065,15 +1066,19 @@ class WordHinter:
                 yield candidate[match.start():match.end()].lower()
 
     def any_prefix(self, hint, existing):
-        return any(hint.startswith(e) or e.startswith(hint)
-                   for e in existing)
+        return any(hint.startswith(e) or e.startswith(hint) for e in existing)
 
-    def new_hint_for(self, elem, existing):
+    def filter_prefixes(self, hints, existing):
+        return (h for h in hints if not self.any_prefix(h, existing))
+
+    def new_hint_for(self, elem, existing, fallback):
         """Return a hint for elem, not conflicting with the existing."""
         new = self.tag_words_to_hints(self.extract_tag_words(elem))
-        no_prefixes = (h for h in new if not self.any_prefix(h, existing))
+        new_no_prefixes = self.filter_prefixes(new, existing)
+        fallback_no_prefixes = self.filter_prefixes(fallback, existing)
         # either the first good, or None
-        return next(no_prefixes, None)
+        return (next(new_no_prefixes, None) or
+                next(fallback_no_prefixes, None))
 
     def hint(self, elems):
         """Produce hint labels based on the html tags.
@@ -1093,7 +1098,9 @@ class WordHinter:
         used_hints = set()
         words = iter(self.words)
         for elem in elems:
-            hint = self.new_hint_for(elem, used_hints) or next(words)
+            hint = self.new_hint_for(elem, used_hints, words)
+            if not hint:
+                raise WordHintingError("Not enough words in the dictionary.")
             used_hints.add(hint)
             hints.append(hint)
         return hints

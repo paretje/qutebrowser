@@ -27,6 +27,8 @@ Added
     - New `:jump-mark` command to jump to a mark, bound to `'`
     - New `:set-mark` command to set a mark, bound to ```(backtick)
     - The `'` mark gets set when moving away (hinting link with anchor, searching, etc.) so you can move back with `''`
+- New `--force-color` argument to force colored logging even if stdout is not a
+  terminal
 
 Changed
 ~~~~~~~
@@ -36,6 +38,12 @@ Changed
   the right.
 - `:yank` can now yank the pretty/decoded URL by adding `--pretty`
 - `:navigate` now clears the URL fragment
+- `:completion-item-del` (`Ctrl-D`) can now be used in `:buffer` completion to
+  close a tab
+- Counts can now be used with special keybindings (e.g. with modifiers)
+
+v0.6.2
+------
 
 Fixed
 ~~~~~
@@ -44,7 +52,9 @@ Fixed
   tab with `last-close` set to `close`.
 - Fixed crash when doing `:undo` in a new instance with `tabs -> last-close` set
   to `default-page`.
-
+- Fixed crash when starting with --cachedir=""
+- Fixed crash in some circumstances when using dictionary hints
+- Fixed various crashes related to PyQt 5.6
 
 v0.6.1
 -----
