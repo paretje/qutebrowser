@@ -69,7 +69,7 @@ class LogLine(testprocess.Line):
     LOG_RE = re.compile(r"""
         (?P<timestamp>\d\d:\d\d:\d\d)
         \ (?P<loglevel>VDEBUG|DEBUG|INFO|WARNING|ERROR)
-        \ +(?P<category>\w+)
+        \ +(?P<category>[\w.]+)
         \ +(?P<module>(\w+|Unknown\ module)):
            (?P<function>[^"][^:]*|"[^"]+"):
            (?P<line>\d+)
@@ -169,6 +169,11 @@ class QuteProc(testprocess.Process):
             self.ready.emit()
 
     def _parse_line(self, line):
+        # http://stackoverflow.com/a/14693789/2085149
+        colored_line = line
+        ansi_escape = re.compile(r'\x1b[^m]*m')
+        line = ansi_escape.sub('', line)
+
         try:
             log_line = LogLine(line)
         except testprocess.InvalidLine:
@@ -182,7 +187,7 @@ class QuteProc(testprocess.Process):
             else:
                 raise
 
-        self._log(line)
+        self._log(colored_line)
 
         start_okay_message_load = (
             "load status for <qutebrowser.browser.webview.WebView tab_id=0 "
@@ -237,7 +242,8 @@ class QuteProc(testprocess.Process):
         return executable, args
 
     def _default_args(self):
-        return ['--debug', '--no-err-windows', '--temp-basedir', 'about:blank']
+        return ['--debug', '--no-err-windows', '--temp-basedir',
+                '--force-color', 'about:blank']
 
     def path_to_url(self, path, *, port=None, https=False):
         """Get a URL based on a filename for the localhost webserver.
