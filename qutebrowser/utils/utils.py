@@ -132,7 +132,7 @@ def actute_warning():
     try:
         with open('/usr/share/X11/locale/en_US.UTF-8/Compose', 'r',
                   encoding='utf-8') as f:
-            for line in f:  # pragma: no branch
+            for line in f:
                 if '<dead_actute>' in line:
                     if sys.stdout is not None:
                         sys.stdout.flush()
@@ -140,7 +140,7 @@ def actute_warning():
                           "that is not a bug in qutebrowser! See "
                           "https://bugs.freedesktop.org/show_bug.cgi?id=69476 "
                           "for details.")
-                    break  # pragma: no branch
+                    break
     except OSError:
         log.init.exception("Failed to read Compose file")
 
@@ -440,9 +440,14 @@ class KeyParseError(Exception):
         super().__init__("Could not parse {!r}: {}".format(keystr, error))
 
 
+def is_special_key(keystr):
+    """True if keystr is a 'special' keystring (e.g. <ctrl-x> or <space>)."""
+    return keystr.startswith('<') and keystr.endswith('>')
+
+
 def _parse_single_key(keystr):
     """Convert a single key string to a (Qt.Key, Qt.Modifiers, text) tuple."""
-    if keystr.startswith('<') and keystr.endswith('>'):
+    if is_special_key(keystr):
         # Special key
         keystr = keystr[1:-1]
     elif len(keystr) == 1:
@@ -489,7 +494,7 @@ def _parse_single_key(keystr):
 
 def parse_keystring(keystr):
     """Parse a keystring like <Ctrl-x> or xyz and return a KeyInfo list."""
-    if keystr.startswith('<') and keystr.endswith('>'):
+    if is_special_key(keystr):
         return [_parse_single_key(keystr)]
     else:
         return [_parse_single_key(char) for char in keystr]
@@ -757,22 +762,20 @@ def newest_slice(iterable, count):
 
 def set_clipboard(data, selection=False):
     """Set the clipboard to some given data."""
-    clipboard = QApplication.clipboard()
-    if selection and not clipboard.supportsSelection():
+    if selection and not supports_selection():
         raise SelectionUnsupportedError
     if log_clipboard:
         what = 'primary selection' if selection else 'clipboard'
         log.misc.debug("Setting fake {}: {}".format(what, json.dumps(data)))
     else:
         mode = QClipboard.Selection if selection else QClipboard.Clipboard
-        clipboard.setText(data, mode=mode)
+        QApplication.clipboard().setText(data, mode=mode)
 
 
 def get_clipboard(selection=False):
     """Get data from the clipboard."""
     global fake_clipboard
-    clipboard = QApplication.clipboard()
-    if selection and not clipboard.supportsSelection():
+    if selection and not supports_selection():
         raise SelectionUnsupportedError
 
     if fake_clipboard is not None:
@@ -780,6 +783,11 @@ def get_clipboard(selection=False):
         fake_clipboard = None
     else:
         mode = QClipboard.Selection if selection else QClipboard.Clipboard
-        data = clipboard.text(mode=mode)
+        data = QApplication.clipboard().text(mode=mode)
 
     return data
+
+
+def supports_selection():
+    """Check if the OS supports primary selection."""
+    return QApplication.clipboard().supportsSelection()

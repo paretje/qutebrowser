@@ -20,6 +20,7 @@
 """Module containing command managers (SearchRunner and CommandRunner)."""
 
 import collections
+import traceback
 
 from PyQt5.QtCore import pyqtSlot, QUrl, QObject
 
@@ -71,10 +72,12 @@ class CommandRunner(QObject):
 
     Attributes:
         _win_id: The window this CommandRunner is associated with.
+        _partial_match: Whether to allow partial command matches.
     """
 
-    def __init__(self, win_id, parent=None):
+    def __init__(self, win_id, partial_match=False, parent=None):
         super().__init__(parent)
+        self._partial_match = partial_match
         self._win_id = win_id
 
     def _get_alias(self, text):
@@ -147,6 +150,15 @@ class CommandRunner(QObject):
             count = None
         return (count, cmdstr)
 
+    def _parse_fallback(self, text, count, keep):
+        """Parse the given commandline without a valid command."""
+        if keep:
+            cmdstr, sep, argstr = text.partition(' ')
+            cmdline = [cmdstr, sep] + argstr.split()
+        else:
+            cmdline = text.split()
+        return ParseResult(cmd=None, args=None, cmdline=cmdline, count=count)
+
     def parse(self, text, *, aliases=True, fallback=False, keep=False):
         """Split the commandline text into command and arguments.
 
@@ -165,35 +177,51 @@ class CommandRunner(QObject):
 
         if not cmdstr and not fallback:
             raise cmdexc.NoSuchCommandError("No command given")
+
         if aliases:
             new_cmd = self._get_alias(text)
             if new_cmd is not None:
                 log.commands.debug("Re-parsing with '{}'.".format(new_cmd))
                 return self.parse(new_cmd, aliases=False, fallback=fallback,
                                   keep=keep)
+
+        if self._partial_match:
+            cmdstr = self._completion_match(cmdstr)
+
         try:
             cmd = cmdutils.cmd_dict[cmdstr]
         except KeyError:
-            if fallback:
-                cmd = None
-                args = None
-                if keep:
-                    cmdstr, sep, argstr = text.partition(' ')
-                    cmdline = [cmdstr, sep] + argstr.split()
-                else:
-                    cmdline = text.split()
-            else:
-                raise cmdexc.NoSuchCommandError('{}: no such command'.format(
-                    cmdstr))
+            if not fallback:
+                raise cmdexc.NoSuchCommandError(
+                    '{}: no such command'.format(cmdstr))
+            return self._parse_fallback(text, count, keep)
+
+        args = self._split_args(cmd, argstr, keep)
+        if keep and args:
+            cmdline = [cmdstr, sep + args[0]] + args[1:]
+        elif keep:
+            cmdline = [cmdstr, sep]
         else:
-            args = self._split_args(cmd, argstr, keep)
-            if keep and args:
-                cmdline = [cmdstr, sep + args[0]] + args[1:]
-            elif keep:
-                cmdline = [cmdstr, sep]
-            else:
-                cmdline = [cmdstr] + args[:]
+            cmdline = [cmdstr] + args[:]
+
         return ParseResult(cmd=cmd, args=args, cmdline=cmdline, count=count)
+
+    def _completion_match(self, cmdstr):
+        """Replace cmdstr with a matching completion if there's only one match.
+
+        Args:
+            cmdstr: The string representing the entered command so far
+
+        Return:
+            cmdstr modified to the matching completion or unmodified
+        """
+        matches = []
+        for valid_command in cmdutils.cmd_dict.keys():
+            if valid_command.find(cmdstr) == 0:
+                matches.append(valid_command)
+        if len(matches) == 1:
+            cmdstr = matches[0]
+        return cmdstr
 
     def _split_args(self, cmd, argstr, keep):
         """Split the arguments from an arg string.
@@ -264,7 +292,8 @@ class CommandRunner(QObject):
         try:
             self.run(text, count)
         except (cmdexc.CommandMetaError, cmdexc.CommandError) as e:
-            message.error(self._win_id, e, immediately=True)
+            message.error(self._win_id, e, immediately=True,
+                          stack=traceback.format_exc())
 
     @pyqtSlot(str, int)
     def run_safely_init(self, text, count=None):
@@ -276,4 +305,4 @@ class CommandRunner(QObject):
         try:
             self.run(text, count)
         except (cmdexc.CommandMetaError, cmdexc.CommandError) as e:
-            message.error(self._win_id, e)
+            message.error(self._win_id, e, stack=traceback.format_exc())

@@ -91,6 +91,8 @@ PERFECT_FILES = [
         'qutebrowser/misc/cmdhistory.py'),
     ('tests/unit/misc/test_ipc.py',
         'qutebrowser/misc/ipc.py'),
+    ('tests/unit/misc/test_keyhints.py',
+        'qutebrowser/misc/keyhintwidget.py'),
 
     (None,
         'qutebrowser/mainwindow/statusbar/keystring.py'),
@@ -136,10 +138,12 @@ PERFECT_FILES = [
         'qutebrowser/utils/jinja.py'),
     ('tests/unit/utils/test_error.py',
         'qutebrowser/utils/error.py'),
+    ('tests/unit/utils/test_typing.py',
+        'qutebrowser/utils/typing.py'),
 ]
 
 
-# 100% coverage because of integration tests, but no perfect unit tests yet.
+# 100% coverage because of end2end tests, but no perfect unit tests yet.
 WHITELISTED_FILES = []
 
 

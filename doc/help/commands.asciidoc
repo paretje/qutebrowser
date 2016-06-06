@@ -31,6 +31,7 @@
 |<<jseval,jseval>>|Evaluate a JavaScript string.
 |<<jump-mark,jump-mark>>|Jump to the mark named by `key`.
 |<<later,later>>|Execute a command after some time.
+|<<messages,messages>>|Show a log of past messages.
 |<<navigate,navigate>>|Open typical prev/next links or navigate using the URL path.
 |<<open,open>>|Open a URL in the current/[count]th tab.
 |<<paste,paste>>|Open a page from the clipboard.
@@ -94,13 +95,14 @@ How many pages to go back.
 
 [[bind]]
 === bind
-Syntax: +:bind [*--mode* 'MODE'] [*--force*] 'key' 'command'+
+Syntax: +:bind [*--mode* 'mode'] [*--force*] 'key' ['command']+
 
 Bind a key to a command.
 
 ==== positional arguments
 * +'key'+: The keychain or special key (inside `<...>`) to bind.
-* +'command'+: The command to execute, with optional args.
+* +'command'+: The command to execute, with optional args, or not given to print the current binding.
+
 
 ==== optional arguments
 * +*-m*+, +*--mode*+: A comma-separated list of modes to bind the key in (default: `normal`).
@@ -126,7 +128,6 @@ Delete a bookmark.
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-* With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
 [[bookmark-load]]
 === bookmark-load
@@ -144,7 +145,6 @@ Load a bookmark.
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-* With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
 [[buffer]]
 === buffer
@@ -164,7 +164,7 @@ Close the current window.
 
 [[download]]
 === download
-Syntax: +:download [*--mhtml*] [*--dest* 'DEST'] ['url'] ['dest-old']+
+Syntax: +:download [*--mhtml*] [*--dest* 'dest'] ['url'] ['dest-old']+
 
 Download a given URL, or current page if no URL given.
 
@@ -353,6 +353,9 @@ Start hinting.
  `window`, `run`, `hover`, `userscript` and `spawn`.
 
 
+==== note
+* This command does not split arguments after the last argument and handles quotes literally.
+
 [[home]]
 === home
 Open main startpage in current tab.
@@ -402,6 +405,22 @@ Execute a command after some time.
 * This command does not split arguments after the last argument and handles quotes literally.
 * With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
+[[messages]]
+=== messages
+Syntax: +:messages [*--plain*] [*--tab*] [*--bg*] [*--window*] ['level']+
+
+Show a log of past messages.
+
+==== positional arguments
+* +'level'+: Include messages with `level` or higher severity. Valid values: vdebug, debug, info, warning, error, critical.
+
+
+==== optional arguments
+* +*-p*+, +*--plain*+: Whether to show plaintext (as opposed to html).
+* +*-t*+, +*--tab*+: Open in a new tab.
+* +*-b*+, +*--bg*+: Open in a background tab.
+* +*-w*+, +*--window*+: Open in a new window.
+
 [[navigate]]
 === navigate
 Syntax: +:navigate [*--tab*] [*--bg*] [*--window*] 'where'+
@@ -446,7 +465,6 @@ The tab index to open the URL in.
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-* With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
 [[paste]]
 === paste
@@ -495,7 +513,6 @@ Delete a quickmark.
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-* With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
 [[quickmark-load]]
 === quickmark-load
@@ -513,7 +530,6 @@ Load a quickmark.
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-* With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
 [[quickmark-save]]
 === quickmark-save
@@ -581,7 +597,6 @@ Search for a text on the current page. With no text, clear results.
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-* With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
 [[session-delete]]
 === session-delete
@@ -649,6 +664,8 @@ Syntax: +:set-cmd-text [*--space*] [*--append*] 'text'+
 
 Preset the statusbar to some text.
 
+You can use the `{url}` and `{url:pretty}` variables here which will get replaced by the encoded/decoded URL.
+
 ==== positional arguments
 * +'text'+: The commandline to set.
 
@@ -658,7 +675,6 @@ Preset the statusbar to some text.
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-* With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
 [[set-mark]]
 === set-mark
@@ -692,7 +708,6 @@ Note the `{url}` and `{url:pretty}` variables might be useful here. `{url}` gets
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-* With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
 [[stop]]
 === stop

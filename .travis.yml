@@ -1,7 +1,6 @@
 sudo: required
 dist: trusty
-# Not really, but this is here so we can do stuff by hand.
-language: c
+language: generic
 
 matrix:
   include:
@@ -15,6 +14,9 @@ matrix:
       services: docker
     - os: linux
       env: DOCKER=ubuntu-wily
+      services: docker
+    - os: linux
+      env: DOCKER=ubuntu-xenial
       services: docker
     - os: osx
       env: TESTENV=py35
@@ -34,9 +36,6 @@ matrix:
       env: TESTENV=check-manifest
     - os: linux
       env: TESTENV=eslint
-  allow_failures:
-    - os: osx
-      env: TESTENV=py35
 
 cache:
   directories:
@@ -48,7 +47,7 @@ before_install:
   - 'export PATH="/usr/bin:$PATH"'
 
 install:
-  - python scripts/dev/ci/install.py
+  - bash scripts/dev/ci/travis_install.sh
 
 script:
   - bash scripts/dev/ci/travis_run.sh

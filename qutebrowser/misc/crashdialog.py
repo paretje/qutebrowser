@@ -29,13 +29,13 @@ import traceback
 import datetime
 
 import pkg_resources
-from PyQt5.QtCore import pyqtSlot, Qt, QSize, qVersion
+from PyQt5.QtCore import pyqtSlot, Qt, QSize
 from PyQt5.QtWidgets import (QDialog, QLabel, QTextEdit, QPushButton,
                              QVBoxLayout, QHBoxLayout, QCheckBox,
                              QDialogButtonBox, QMessageBox, QApplication)
 
 import qutebrowser
-from qutebrowser.utils import version, log, utils, objreg, qtutils
+from qutebrowser.utils import version, log, utils, objreg
 from qutebrowser.misc import miscwidgets, autoupdate, msgbox, httpclient
 from qutebrowser.browser.network import pastebin
 from qutebrowser.config import config
@@ -79,19 +79,21 @@ def get_fatal_crash_dialog(debug, data):
         debug: Whether the debug flag (--debug) was given.
         data: The crash log data.
     """
+    ignored_frames = ['qt_mainloop', 'paintEvent']
     errtype, frame = parse_fatal_stacktrace(data)
-    if (qtutils.version_check('5.4') or errtype != 'Segmentation fault' or
-            frame != 'qt_mainloop'):
-        return FatalCrashDialog(debug, data)
-    else:
+
+    if errtype == 'Segmentation fault' and frame in ignored_frames:
         title = "qutebrowser was restarted after a fatal crash!"
         text = ("<b>qutebrowser was restarted after a fatal crash!</b><br/>"
                 "Unfortunately, this crash occurred in Qt (the library "
-                "qutebrowser uses), and your version ({}) is outdated - "
-                "Qt 5.4 or later is recommended. Unfortunately Debian and "
-                "Ubuntu don't ship a newer version (yet?)...".format(
-                    qVersion()))
+                "qutebrowser uses), and QtWebKit (the current backend) is not "
+                "maintained anymore.<br/><br/>Since I can't do much about "
+                "those crashes I disabled the crash reporter for this case, "
+                "but this will likely be resolved in the future with the new "
+                "QtWebEngine backend.")
         return QMessageBox(QMessageBox.Critical, title, text, QMessageBox.Ok)
+    else:
+        return FatalCrashDialog(debug, data)
 
 
 def _get_environment_vars():

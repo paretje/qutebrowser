@@ -16,7 +16,10 @@ RUN apt-get -y update && \
             wget \
             herbstluftwm \
             language-pack-en \
-            libjs-pdf
+            libjs-pdf \
+            dbus
+
+RUN dbus-uuidgen --ensure
 
 RUN useradd user && mkdir /home/user && chown -R user:users /home/user
 USER user

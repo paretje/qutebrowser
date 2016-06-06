@@ -36,7 +36,6 @@ from qutebrowser.keyinput import modeman, modeparsers
 from qutebrowser.browser import webelem
 from qutebrowser.commands import userscripts, cmdexc, cmdutils, runners
 from qutebrowser.utils import usertypes, log, qtutils, message, objreg, utils
-from qutebrowser.misc import guiprocess
 
 
 ElemTuple = collections.namedtuple('ElemTuple', ['elem', 'label'])
@@ -351,7 +350,7 @@ class HintManager(QObject):
             ('display', 'inline !important'),
             ('z-index', '{} !important'.format(int(2 ** 32 / 2 - 1))),
             ('pointer-events', 'none !important'),
-            ('position', 'absolute !important'),
+            ('position', 'fixed !important'),
             ('color', config.get('colors', 'hints.fg') + ' !important'),
             ('background', config.get('colors', 'hints.bg') + ' !important'),
             ('font', config.get('fonts', 'hints') + ' !important'),
@@ -377,15 +376,11 @@ class HintManager(QObject):
             elem: The QWebElement to set the style attributes for.
             label: The label QWebElement.
         """
-        rect = elem.geometry()
+        rect = elem.rect_on_view(adjust_zoom=False)
         left = rect.x()
         top = rect.y()
-        zoom = elem.webFrame().zoomFactor()
-        if not config.get('ui', 'zoom-text-only'):
-            left /= zoom
-            top /= zoom
-        log.hints.vdebug("Drawing label '{!r}' at {}/{} for element '{!r}', "
-                         "zoom level {}".format(label, left, top, elem, zoom))
+        log.hints.vdebug("Drawing label '{!r}' at {}/{} for element '{!r}'"
+                         .format(label, left, top, elem))
         label.setStyleProperty('left', '{}px !important'.format(left))
         label.setStyleProperty('top', '{}px !important'.format(top))
 
@@ -441,14 +436,22 @@ class HintManager(QObject):
             target_mapping[Target.tab] = usertypes.ClickTarget.tab_bg
         else:
             target_mapping[Target.tab] = usertypes.ClickTarget.tab
-        # FIXME Instead of clicking the center, we could have nicer heuristics.
-        # e.g. parse (-webkit-)border-radius correctly and click text fields at
-        # the bottom right, and everything else on the top left or so.
-        # https://github.com/The-Compiler/qutebrowser/issues/70
-        pos = elem.rect_on_view().center()
+
+        # Click the center of the largest square fitting into the top/left
+        # corner of the rectangle, this will help if part of the <a> element
+        # is hidden behind other elements
+        # https://github.com/The-Compiler/qutebrowser/issues/1005
+        rect = elem.rect_on_view()
+        if rect.width() > rect.height():
+            rect.setWidth(rect.height())
+        else:
+            rect.setHeight(rect.width())
+        pos = rect.center()
+
         action = "Hovering" if context.target == Target.hover else "Clicking"
-        log.hints.debug("{} on '{}' at {}/{}".format(
-            action, elem, pos.x(), pos.y()))
+        log.hints.debug("{} on '{}' at position {}".format(
+            action, elem.debug_text(), pos))
+
         self.start_hinting.emit(target_mapping[context.target])
         if context.target in [Target.tab, Target.tab_fg, Target.tab_bg,
                               Target.window]:
@@ -490,7 +493,9 @@ class HintManager(QObject):
             url: The URL to open as a QUrl.
             context: The HintContext to use.
         """
-        sel = context.target == Target.yank_primary
+        sel = (context.target == Target.yank_primary and
+               utils.supports_selection())
+
         urlstr = url.toString(QUrl.FullyEncoded | QUrl.RemovePassword)
         utils.set_clipboard(urlstr, selection=sel)
 
@@ -579,9 +584,8 @@ class HintManager(QObject):
         """
         urlstr = url.toString(QUrl.FullyEncoded | QUrl.RemovePassword)
         args = context.get_args(urlstr)
-        cmd, *args = args
-        proc = guiprocess.GUIProcess(self._win_id, what='command', parent=self)
-        proc.start(cmd, args)
+        commandrunner = runners.CommandRunner(self._win_id)
+        commandrunner.run_safely('spawn ' + ' '.join(args))
 
     def _resolve_url(self, elem, baseurl):
         """Resolve a URL and check if we want to keep it.
@@ -735,9 +739,10 @@ class HintManager(QObject):
             webview.openurl(url)
 
     @cmdutils.register(instance='hintmanager', scope='tab', name='hint',
-                       win_id='win_id')
+                       star_args_optional=True, maxsplit=2)
+    @cmdutils.argument('win_id', win_id=True)
     def start(self, rapid=False, group=webelem.Group.all, target=Target.normal,
-              *args: {'nargs': '*'}, win_id):
+              *args, win_id):
         """Start hinting.
 
         Args:
@@ -801,7 +806,7 @@ class HintManager(QObject):
         if rapid:
             if target in [Target.tab_bg, Target.window, Target.run,
                           Target.hover, Target.userscript, Target.spawn,
-                          Target.download]:
+                          Target.download, Target.normal, Target.current]:
                 pass
             elif (target == Target.tab and
                   config.get('tabs', 'background-tabs')):
@@ -885,7 +890,9 @@ class HintManager(QObject):
         if not visible:
             # Whoops, filtered all hints
             modeman.leave(self._win_id, usertypes.KeyMode.hint, 'all filtered')
-        elif len(visible) == 1 and config.get('hints', 'auto-follow'):
+        elif (len(visible) == 1 and
+              config.get('hints', 'auto-follow') and
+              filterstr is not None):
             # unpacking gets us the first (and only) key in the dict.
             self.fire(*visible)
 
@@ -1007,7 +1014,7 @@ class WordHinter:
         self.dictionary = None
 
     def ensure_initialized(self):
-        """Generate the used words if yet uninialized."""
+        """Generate the used words if yet uninitialized."""
         dictionary = config.get("hints", "dictionary")
         if not self.words or self.dictionary != dictionary:
             self.words.clear()

@@ -38,7 +38,7 @@ from qutebrowser.utils import log, usertypes, utils
 
 
 Group = usertypes.enum('Group', ['all', 'links', 'images', 'url', 'prevnext',
-                                 'focus'])
+                                 'focus', 'inputs'])
 
 
 SELECTORS = {
@@ -50,6 +50,9 @@ SELECTORS = {
     Group.url: '[src], [href]',
     Group.prevnext: 'a, area, button, link, [role=button]',
     Group.focus: '*:focus',
+    Group.inputs: ('input[type=text], input[type=email], input[type=url], '
+                   'input[type=tel], input[type=number], '
+                   'input[type=password], input[type=search], textarea'),
 }
 
 
@@ -170,9 +173,14 @@ class WebElementWrapper(collections.abc.MutableMapping):
         """
         return is_visible(self._elem, mainframe)
 
-    def rect_on_view(self):
-        """Get the geometry of the element relative to the webview."""
-        return rect_on_view(self._elem)
+    def rect_on_view(self, *, adjust_zoom=True):
+        """Get the geometry of the element relative to the webview.
+
+        Args:
+            adjust_zoom: Whether to adjust the element position based on the
+                         current zoom level.
+        """
+        return rect_on_view(self._elem, adjust_zoom=adjust_zoom)
 
     def is_writable(self):
         """Check whether an element is writable."""
@@ -253,7 +261,6 @@ class WebElementWrapper(collections.abc.MutableMapping):
         Return:
             True if we should switch to insert mode, False otherwise.
         """
-        # pylint: disable=too-many-return-statements
         self._check_vanished()
         roles = ('combobox', 'textbox')
         log.misc.debug("Checking if element is editable: {}".format(
@@ -361,29 +368,79 @@ def focus_elem(frame):
     return WebElementWrapper(elem)
 
 
-def rect_on_view(elem, elem_geometry=None):
+def rect_on_view(elem, *, elem_geometry=None, adjust_zoom=True):
     """Get the geometry of the element relative to the webview.
 
     We need this as a standalone function (as opposed to a WebElementWrapper
     method) because we want to run is_visible before wrapping when hinting for
     performance reasons.
 
+    Uses the getClientRects() JavaScript method to obtain the collection of
+    rectangles containing the element and returns the first rectangle which is
+    large enough (larger than 1px times 1px). If all rectangles returned by
+    getClientRects() are too small, falls back to elem.rect_on_view().
+
+    Skipping of small rectangles is due to <a> elements containing other
+    elements with "display:block" style, see
+    https://github.com/The-Compiler/qutebrowser/issues/1298
+
     Args:
         elem: The QWebElement to get the rect for.
         elem_geometry: The geometry of the element, or None.
                        Calling QWebElement::geometry is rather expensive so we
                        want to avoid doing it twice.
+        adjust_zoom: Whether to adjust the element position based on the
+                     current zoom level.
     """
     if elem.isNull():
         raise IsNullError("Got called on a null element!")
+
+    # First try getting the element rect via JS, as that's usually more
+    # accurate
     if elem_geometry is None:
-        elem_geometry = elem.geometry()
+        rects = elem.evaluateJavaScript("this.getClientRects()")
+        text = utils.compact_text(elem.toOuterXml(), 500)
+        log.hints.vdebug("Client rectangles of element '{}': {}".format(text,
+                                                                        rects))
+        for i in range(int(rects.get("length", 0))):
+            rect = rects[str(i)]
+            width = rect.get("width", 0)
+            height = rect.get("height", 0)
+            if width > 1 and height > 1:
+                # fix coordinates according to zoom level
+                zoom = elem.webFrame().zoomFactor()
+                if not config.get('ui', 'zoom-text-only') and adjust_zoom:
+                    rect["left"] *= zoom
+                    rect["top"] *= zoom
+                    width *= zoom
+                    height *= zoom
+                rect = QRect(rect["left"], rect["top"], width, height)
+                frame = elem.webFrame()
+                while frame is not None:
+                    # Translate to parent frames' position
+                    # (scroll position is taken care of inside getClientRects)
+                    rect.translate(frame.geometry().topLeft())
+                    frame = frame.parentFrame()
+                return rect
+
+    # No suitable rects found via JS, try via the QWebElement API
+    if elem_geometry is None:
+        geometry = elem.geometry()
+    else:
+        geometry = elem_geometry
     frame = elem.webFrame()
-    rect = QRect(elem_geometry)
+    rect = QRect(geometry)
     while frame is not None:
         rect.translate(frame.geometry().topLeft())
         rect.translate(frame.scrollPosition() * -1)
         frame = frame.parentFrame()
+    # We deliberately always adjust the zoom here, even with adjust_zoom=False
+    if elem_geometry is None:
+        zoom = elem.webFrame().zoomFactor()
+        if not config.get('ui', 'zoom-text-only'):
+            rect.moveTo(rect.left() / zoom, rect.top() / zoom)
+            rect.setWidth(rect.width() / zoom)
+            rect.setHeight(rect.height() / zoom)
     return rect
 
 

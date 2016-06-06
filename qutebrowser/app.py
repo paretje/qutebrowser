@@ -31,7 +31,7 @@ import atexit
 import datetime
 import tokenize
 
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtWebKit import QWebSettings
 from PyQt5.QtGui import QDesktopServices, QPixmap, QIcon, QCursor, QWindow
 from PyQt5.QtCore import (pyqtSlot, qInstallMessageHandler, QTimer, QUrl,
@@ -345,18 +345,18 @@ def _save_version():
 @pyqtSlot('QWidget*', 'QWidget*')
 def on_focus_changed(_old, new):
     """Register currently focused main window in the object registry."""
-    if new is None:
-        window = None
-    else:
-        window = new.window()
-    if window is None or not isinstance(window, mainwindow.MainWindow):
+    if not isinstance(new, QWidget):
+        log.misc.debug("on_focus_changed called with non-QWidget {!r}".format(
+            new))
+
+    if new is None or not isinstance(new, mainwindow.MainWindow):
         try:
             objreg.delete('last-focused-main-window')
         except KeyError:
             pass
         qApp.restoreOverrideCursor()
     else:
-        objreg.register('last-focused-main-window', window, update=True)
+        objreg.register('last-focused-main-window', new.window(), update=True)
         _maybe_hide_mouse_cursor()
 
 
@@ -724,8 +724,8 @@ class Quitter:
         # segfaults.
         QTimer.singleShot(0, functools.partial(qApp.exit, status))
 
-    @cmdutils.register(instance='quitter', name='wq',
-                       completion=[usertypes.Completion.sessions])
+    @cmdutils.register(instance='quitter', name='wq')
+    @cmdutils.argument('name', completion=usertypes.Completion.sessions)
     def save_and_quit(self, name=sessions.default):
         """Save open pages and quit.
 

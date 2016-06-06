@@ -43,7 +43,6 @@ _proxy_auth_cache = {}
 
 def _is_secure_cipher(cipher):
     """Check if a given SSL cipher (hopefully) isn't broken yet."""
-    # pylint: disable=too-many-return-statements
     tokens = [e.upper() for e in cipher.name().split('-')]
     if cipher.usedBits() < 128:
         # https://codereview.qt-project.org/#/c/75943/
@@ -226,9 +225,13 @@ class NetworkManager(QNetworkAccessManager):
         self.shutting_down.connect(q.abort)
         if owner is not None:
             owner.destroyed.connect(q.abort)
-        webview = objreg.get('webview', scope='tab', window=self._win_id,
-                             tab=self._tab_id)
-        webview.loadStarted.connect(q.abort)
+
+        # This might be a generic network manager, e.g. one belonging to a
+        # DownloadManager. In this case, just skip the webview thing.
+        if self._tab_id is not None:
+            webview = objreg.get('webview', scope='tab', window=self._win_id,
+                                 tab=self._tab_id)
+            webview.loadStarted.connect(q.abort)
         bridge = objreg.get('message-bridge', scope='window',
                             window=self._win_id)
         bridge.ask(q, blocking=True)
@@ -270,6 +273,9 @@ class NetworkManager(QNetworkAccessManager):
             is_rejected = set(errors).issubset(
                 self._rejected_ssl_errors[host_tpl])
 
+        log.webview.debug("Already accepted: {} / "
+                          "rejected {}".format(is_accepted, is_rejected))
+
         if (ssl_strict and ssl_strict != 'ask') or is_rejected:
             return
         elif is_accepted:
@@ -280,6 +286,7 @@ class NetworkManager(QNetworkAccessManager):
             err_string = '\n'.join('- ' + err.errorString() for err in errors)
             answer = self._ask('SSL errors - continue?\n{}'.format(err_string),
                                mode=usertypes.PromptMode.yesno, owner=reply)
+            log.webview.debug("Asked for SSL errors, answer {}".format(answer))
             if answer:
                 reply.ignoreSslErrors()
                 err_dict = self._accepted_ssl_errors
@@ -288,6 +295,7 @@ class NetworkManager(QNetworkAccessManager):
             if host_tpl is not None:
                 err_dict[host_tpl] += errors
         else:
+            log.webview.debug("ssl-strict is False, only warning about errors")
             for err in errors:
                 # FIXME we might want to use warn here (non-fatal error)
                 # https://github.com/The-Compiler/qutebrowser/issues/114

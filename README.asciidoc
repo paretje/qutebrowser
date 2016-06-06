@@ -15,6 +15,8 @@ image:https://requires.io/github/The-Compiler/qutebrowser/requirements.svg?branc
 image:https://travis-ci.org/The-Compiler/qutebrowser.svg?branch=master["Build Status", link="https://travis-ci.org/The-Compiler/qutebrowser"]
 image:https://ci.appveyor.com/api/projects/status/9gmnuip6i1oq7046?svg=true["AppVeyor build status", link="https://ci.appveyor.com/project/The-Compiler/qutebrowser"]
 image:https://codecov.io/github/The-Compiler/qutebrowser/coverage.svg?branch=master["coverage badge",link="https://codecov.io/github/The-Compiler/qutebrowser?branch=master"]
+
+link:http://www.qutebrowser.org[website] | link:http://blog.qutebrowser.org[blog] | link:https://github.com/The-Compiler/qutebrowser/releases[releases]
 // QUTE_WEB_HIDE_END
 
 qutebrowser is a keyboard-focused browser with a minimal GUI. It's based
@@ -109,11 +111,8 @@ The following libraries are optional and provide a better user experience:
 To generate the documentation for the `:help` command, when using the git
 repository (rather than a release), http://asciidoc.org/[asciidoc] is needed.
 
-The following libraries are optional and provide colored logging in the
-console:
-
-* https://pypi.python.org/pypi/colorlog/[colorlog]
-* On Windows: https://pypi.python.org/pypi/colorama/[colorama]
+On Windows, https://pypi.python.org/pypi/colorama/[colorama] is needed to
+display colored log output.
 
 See link:INSTALL.asciidoc[INSTALL] for directions on how to install qutebrowser
 and its dependencies.
@@ -143,6 +142,7 @@ Contributors, sorted by the number of commits in descending order:
 * Florian Bruhin
 * Daniel Schadt
 * Antoni Boucher
+* Ryan Roden-Corrent
 * Lamar Pavel
 * Bruno Oliveira
 * Alexander Cogneau
@@ -150,18 +150,19 @@ Contributors, sorted by the number of commits in descending order:
 * Martin Tournoij
 * Raphael Pierzina
 * Joel Torstensson
-* Ryan Roden-Corrent
-* Patric Schmitz
-* Claude
-* meles5
 * Tarcisio Fedrizzi
+* Patric Schmitz
+* Jakub Klinkovský
+* Claude
+* Corentin Julé
+* meles5
+* Philipp Hansch
+* Panagiotis Ktistakis
 * Artur Shaik
 * Nathan Isom
 * Thorsten Wißmann
-* Philipp Hansch
 * Kevin Velghe
 * Austin Anderson
-* Panagiotis Ktistakis
 * Jimmy
 * Alexey "Averrin" Nabrodov
 * avk
@@ -172,13 +173,15 @@ Contributors, sorted by the number of commits in descending order:
 * Clayton Craft
 * Oliver Caldwell
 * Jonas Schürmann
-* Jakub Klinkovský
-* skinnay
 * error800
+* Liam BEGUIN
+* skinnay
 * Zach-Button
 * Halfwit
 * rikn00
 * kanikaa1234
+* haitaka
+* Nick Ginther
 * Michael Ilsaas
 * Martin Zimmermann
 * Brian Jackson
@@ -186,10 +189,13 @@ Contributors, sorted by the number of commits in descending order:
 * neeasade
 * jnphilipp
 * Tobias Patzl
+* Stefan Tatschner
 * Peter Michely
 * Link
 * Larry Hynes
 * Johannes Altmanninger
+* Ismail
+* adam
 * Samir Benmendil
 * Regina Hug
 * Mathias Fussenegger
@@ -197,9 +203,9 @@ Contributors, sorted by the number of commits in descending order:
 * Jan Verbeek
 * Fritz V155 Reichwald
 * Franz Fellner
-* Corentin Jule
 * zwarag
 * xd1le
+* oniondreams
 * issue
 * haxwithaxe
 * evan
@@ -210,9 +216,9 @@ Contributors, sorted by the number of commits in descending order:
 * Tobias Werth
 * Tim Harder
 * Thiago Barroso Perrotta
-* Stefan Tatschner
 * Sorokin Alexei
 * Samuel Loury
+* Noah Huesser
 * Matthias Lisin
 * Marcel Schilling
 * Johannes Martinsson
@@ -230,7 +236,7 @@ Contributors, sorted by the number of commits in descending order:
 
 The following people have contributed graphics:
 
-* Jad/http://yelostudio.com[yelo] (new icon)
+* Jad/link:http://yelostudio.com[yelo] (new icon)
 * WOFall (original icon)
 * regines (key binding cheatsheet)
 

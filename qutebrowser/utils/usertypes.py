@@ -65,7 +65,7 @@ class NeighborList(collections.abc.Sequence):
         _mode: The current mode.
     """
 
-    Modes = enum('Modes', ['block', 'wrap', 'exception'])
+    Modes = enum('Modes', ['edge', 'exception'])
 
     def __init__(self, items=None, default=_UNSET, mode=Modes.exception):
         """Constructor.
@@ -74,8 +74,7 @@ class NeighborList(collections.abc.Sequence):
             items: The list of items to iterate in.
             _default: The initially selected value.
             _mode: Behavior when the first/last item is reached.
-                   Modes.block: Stay on the selected item
-                   Modes.wrap: Wrap around to the other end
+                   Modes.edge: Go to the first/last item
                    Modes.exception: Raise an IndexError.
         """
         if not isinstance(mode, self.Modes):
@@ -141,12 +140,12 @@ class NeighborList(collections.abc.Sequence):
             else:
                 raise IndexError
         except IndexError:
-            if self._mode == self.Modes.block:
-                new = self.curitem()
-            elif self._mode == self.Modes.wrap:
-                self._idx += offset
-                self._idx %= len(self.items)
-                new = self.curitem()
+            if self._mode == self.Modes.edge:
+                assert offset != 0
+                if offset > 0:
+                    new = self.lastitem()
+                else:
+                    new = self.firstitem()
             elif self._mode == self.Modes.exception:  # pragma: no branch
                 raise
         else:
@@ -238,7 +237,8 @@ KeyMode = enum('KeyMode', ['normal', 'hint', 'command', 'yesno', 'prompt',
 # Available command completions
 Completion = enum('Completion', ['command', 'section', 'option', 'value',
                                  'helptopic', 'quickmark_by_name',
-                                 'bookmark_by_url', 'url', 'tab', 'sessions'])
+                                 'bookmark_by_url', 'url', 'tab', 'sessions',
+                                 'empty'])
 
 
 # Exit statuses for errors. Needs to be an int for sys.exit.

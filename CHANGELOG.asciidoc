@@ -29,6 +29,9 @@ Added
     - The `'` mark gets set when moving away (hinting link with anchor, searching, etc.) so you can move back with `''`
 - New `--force-color` argument to force colored logging even if stdout is not a
   terminal
+- New `:messages` command to show error messages
+- New pop-up showing possible keybinding when the first key of a keychain is
+  pressed. This can be turned off using `:set ui keyhint-blacklist *`.
 
 Changed
 ~~~~~~~
@@ -44,6 +47,39 @@ Changed
 - Various SSL ciphers are now disabled by default. With recent Qt/OpenSSL
   versions those already all are disabled, but with older versions they might
   not be.
+- Show favicons as window icon with `tabs-are-windows` set.
+- `:bind <key>` without a command now shows the existing binding
+- The optional `colorlog` dependency got removed, as qutebrowser now displays
+  colored logs without it.
+- URLs are now shown decoded when hovering.
+- Keybindings are now shown in the command completion
+- Improved behavior when pasting multiple lines
+- Rapid hints can now also be used for the `normal` hint target, which can be
+  useful with javascript click handlers or checkboxes which don't actually open
+  a new page.
+- `:zoom-in` or `:zoom-out` (`+`/`-`) with a too large count now zooms to the
+  smallest/largest zoom instead of doing nothing.
+- The commandline now accepts partially typed commands if they're unique.
+
+Fixed
+-----
+
+- Fixed using `:hint links spawn` with flags - you can now use things like the
+  `-v` argument for `:spawn` or pass flags to the spawned commands.
+- Various fixes for hinting corner-cases where following a link didn't work or
+  the hint was drawn at the wrong position.
+- Fixed crash when downloading from an URL with SSL errors
+- Close file handles correctly when a download failed
+- Fixed crash when using `;Y` (`:hint links yank-primary`) on a system without
+  primary selection
+- Don't display quit confirmation with finished downloads
+- Fixed updating the tab index in the statusbar when opening a background tab
+- Fixed a crash when entering `:-- ` in the commandline
+- Fixed `:debug-console` with PyQt 5.6
+- Fixed qutebrowser not starting when `sys.stderr` is `None`
+- Fixed crash when cancelling a download which belongs to a MHTML download
+- Fixed rebinding of keybindings being case-sensitive
+- Fix for tab indicators getting lost when moving tabs
 
 v0.6.2
 ------

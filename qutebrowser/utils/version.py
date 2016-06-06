@@ -114,7 +114,7 @@ def _release_info():
     for fn in glob.glob("/etc/*-release"):
         try:
             with open(fn, 'r', encoding='utf-8') as f:
-                data.append((fn, f.read()))  # pragma: no branch
+                data.append((fn, f.read()))
         except OSError:
             log.misc.exception("Error while reading {}.".format(fn))
     return data
@@ -129,13 +129,13 @@ def _module_versions():
     lines = []
     modules = collections.OrderedDict([
         ('sip', ['SIP_VERSION_STR']),
-        ('colorlog', []),
         ('colorama', ['VERSION', '__version__']),
         ('pypeg2', ['__version__']),
         ('jinja2', ['__version__']),
         ('pygments', ['__version__']),
         ('yaml', ['__version__']),
         ('cssutils', ['__version__']),
+        ('typing', []),
     ])
     for name, attributes in modules.items():
         try:

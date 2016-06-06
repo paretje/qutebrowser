@@ -71,6 +71,8 @@ class _QtFIFOReader(QObject):
     def cleanup(self):
         """Clean up so the FIFO can be closed."""
         self._notifier.setEnabled(False)
+        for line in self._fifo:
+            self.got_line.emit(line.rstrip('\r\n'))
         self._fifo.close()
 
 
@@ -217,7 +219,7 @@ class _POSIXUserscriptRunner(_BaseUserscriptRunner):
         self._cleanup()
 
     def _cleanup(self):
-        """Clean up reader and temorary files."""
+        """Clean up reader and temporary files."""
         if self._cleaned_up:
             return
         log.procs.debug("Cleaning up")
@@ -365,7 +367,7 @@ def run(cmd, *args, win_id, env, verbose=False):
     """
     tabbed_browser = objreg.get('tabbed-browser', scope='window',
                                 window=win_id)
-    commandrunner = runners.CommandRunner(win_id, tabbed_browser)
+    commandrunner = runners.CommandRunner(win_id, parent=tabbed_browser)
     runner = UserscriptRunner(win_id, tabbed_browser)
     runner.got_cmd.connect(
         lambda cmd:
