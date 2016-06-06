@@ -432,6 +432,21 @@ class WebView(QWebView):
         self.settings().setAttribute(QWebSettings.JavascriptEnabled,
                         default_policy)
 
+    def apply_local_zoom_policy(self, url):
+        domains = objreg.get('domain-manager')
+        zoom_policy = domains.get_setting(url.host()+url.path(),
+                                          'zoom', None)
+        if not zoom_policy:
+            zoom_policy = domains.get_setting(url.host(),
+                                          'zoom', None)
+        if zoom_policy:
+            try:
+                zoom_policy = int(zoom_policy)
+            except ValueError:
+                log.webview.error("Invalid zoom value for {}".format(url))
+                return
+            self.zoom_perc(zoom_policy)
+
     @pyqtSlot('QUrl')
     def on_url_changed(self, url):
         """Update cur_url when URL has changed.
@@ -440,6 +455,7 @@ class WebView(QWebView):
         """
         if url.isValid():
             self.cur_url = url
+            self.apply_local_zoom_policy(url)
             self.apply_local_js_policy(url)
             self.url_text_changed.emit(url.toDisplayString())
             if not self.title():
