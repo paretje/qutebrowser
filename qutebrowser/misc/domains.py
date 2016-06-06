@@ -93,8 +93,8 @@ class DomainManager(QObject):
         except (OSError, UnicodeEncodeError, yaml.YAMLError) as e:
             raise DomainError(e)
 
-    @cmdutils.register(name=['domain'], win_id='win_id',
-                       instance='domain-manager')
+    @cmdutils.register(name=['domain'], instance='domain-manager')
+    @cmdutils.argument('win_id', win_id=True)
     def set(self, option, value=None, page=False, remove=False, win_id=None):
         """Set an option for the current domain or page.
 
