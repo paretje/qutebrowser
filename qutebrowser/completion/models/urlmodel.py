@@ -74,8 +74,10 @@ class UrlCompletionModel(base.BaseCompletionModel):
         self._max_history = config.get('completion', 'web-history-max-items')
         history = utils.newest_slice(self._history, self._max_history)
         for entry in history:
-            self._add_history_entry(entry)
+            if not entry.redirect:
+                self._add_history_entry(entry)
         self._history.add_completion_item.connect(self.on_history_item_added)
+        self._history.cleared.connect(self.on_history_cleared)
 
         objreg.get('config').changed.connect(self.reformat_timestamps)
 
@@ -99,7 +101,8 @@ class UrlCompletionModel(base.BaseCompletionModel):
 
     def _add_history_entry(self, entry):
         """Add a new history entry to the completion."""
-        self.new_item(self._history_cat, entry.url.toDisplayString(), "",
+        self.new_item(self._history_cat, entry.url.toDisplayString(),
+                      entry.title,
                       self._fmt_atime(entry.atime), sort=int(entry.atime),
                       userdata=entry.url)
 
@@ -122,13 +125,19 @@ class UrlCompletionModel(base.BaseCompletionModel):
         for i in range(self._history_cat.rowCount()):
             url_item = self._history_cat.child(i, self.URL_COLUMN)
             atime_item = self._history_cat.child(i, self.TIME_COLUMN)
+            title_item = self._history_cat.child(i, self.TEXT_COLUMN)
             url = url_item.data(base.Role.userdata)
             if url == entry.url:
                 atime_item.setText(self._fmt_atime(entry.atime))
+                title_item.setText(entry.title)
                 url_item.setData(int(entry.atime), base.Role.sort)
                 break
         else:
             self._add_history_entry(entry)
+
+    @pyqtSlot()
+    def on_history_cleared(self):
+        self._history_cat.removeRows(0, self._history_cat.rowCount())
 
     def _remove_item(self, data, category, column):
         """Helper function for on_quickmark_removed and on_bookmark_removed.

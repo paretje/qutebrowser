@@ -177,6 +177,7 @@ Contributors, sorted by the number of commits in descending order:
 * Liam BEGUIN
 * skinnay
 * Zach-Button
+* Tomasz Kramkowski
 * Halfwit
 * rikn00
 * kanikaa1234
@@ -184,12 +185,14 @@ Contributors, sorted by the number of commits in descending order:
 * Nick Ginther
 * Michael Ilsaas
 * Martin Zimmermann
+* Fritz Reichwald
 * Brian Jackson
 * sbinix
 * neeasade
 * jnphilipp
 * Tobias Patzl
 * Stefan Tatschner
+* Samuel Loury
 * Peter Michely
 * Link
 * Larry Hynes
@@ -211,13 +214,11 @@ Contributors, sorted by the number of commits in descending order:
 * evan
 * dylan araps
 * Xitian9
-* Tomasz Kramkowski
 * Tomas Orsava
 * Tobias Werth
 * Tim Harder
 * Thiago Barroso Perrotta
 * Sorokin Alexei
-* Samuel Loury
 * Noah Huesser
 * Matthias Lisin
 * Marcel Schilling

@@ -19,15 +19,12 @@
 
 """Tests for qutebrowser.browser.cookies."""
 
-from unittest import mock
-
 from PyQt5.QtNetwork import QNetworkCookie
 from PyQt5.QtCore import QUrl
 import pytest
 
 from qutebrowser.browser import cookies
-from qutebrowser.utils import objreg
-from qutebrowser.misc import lineparser, savemanager
+from qutebrowser.misc import lineparser
 
 CONFIG_ALL_COOKIES = {'content': {'cookies-accept': 'all'}}
 CONFIG_NEVER_COOKIES = {'content': {'cookies-accept': 'never'}}
@@ -57,20 +54,14 @@ class LineparserSaveStub(lineparser.BaseLineParser):
     def save(self):
         self.saved = self.data
 
+    def clear(self):
+        pass
+
     def __iter__(self):
         return iter(self.data)
 
     def __getitem__(self, key):
         return self.data[key]
-
-
-@pytest.yield_fixture
-def fake_save_manager():
-    """Create a mock of save-manager and register it into objreg."""
-    fake_save_manager = mock.Mock(spec=savemanager.SaveManager)
-    objreg.register('save-manager', fake_save_manager)
-    yield
-    objreg.delete('save-manager')
 
 
 def test_set_cookies_accept(config_stub, qtbot, monkeypatch):
@@ -106,7 +97,7 @@ def test_cookie_jar_init(config_stub, fake_save_manager):
     """Test the CookieJar constructor."""
     line_parser_stub = [COOKIE1, COOKIE2]
     jar = cookies.CookieJar(line_parser=line_parser_stub)
-    assert objreg.get('save-manager').add_saveable.called
+    assert fake_save_manager.add_saveable.called
 
     # Test that cookies are added to the jar
     assert len(jar.allCookies()) == 2

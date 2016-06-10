@@ -28,14 +28,18 @@ import sys
 import collections
 import itertools
 import textwrap
+import unittest.mock
 
 import pytest
 
 import helpers.stubs as stubsmod
 from qutebrowser.config import config
 from qutebrowser.utils import objreg
+from qutebrowser.browser import cookies
+from qutebrowser.misc import savemanager
 
 from PyQt5.QtCore import QEvent, QSize, Qt
+from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
 from PyQt5.QtNetwork import QNetworkCookieJar
 try:
@@ -262,12 +266,9 @@ def webframe(webpage):
 @pytest.fixture
 def fake_keyevent_factory():
     """Fixture that when called will return a mock instance of a QKeyEvent."""
-    from unittest import mock
-    from PyQt5.QtGui import QKeyEvent
-
     def fake_keyevent(key, modifiers=0, text='', typ=QEvent.KeyPress):
         """Generate a new fake QKeyPressEvent."""
-        evtmock = mock.create_autospec(QKeyEvent, instance=True)
+        evtmock = unittest.mock.create_autospec(QKeyEvent, instance=True)
         evtmock.key.return_value = key
         evtmock.modifiers.return_value = modifiers
         evtmock.text.return_value = text
@@ -281,11 +282,14 @@ def fake_keyevent_factory():
 def cookiejar_and_cache(stubs):
     """Fixture providing a fake cookie jar and cache."""
     jar = QNetworkCookieJar()
+    ram_jar = cookies.RAMCookieJar()
     cache = stubs.FakeNetworkCache()
     objreg.register('cookie-jar', jar)
+    objreg.register('ram-cookie-jar', ram_jar)
     objreg.register('cache', cache)
     yield
     objreg.delete('cookie-jar')
+    objreg.delete('ram-cookie-jar')
     objreg.delete('cache')
 
 
@@ -299,3 +303,12 @@ def py_proc():
         return (sys.executable, ['-c', textwrap.dedent(code.strip('\n'))])
 
     return func
+
+
+@pytest.yield_fixture
+def fake_save_manager():
+    """Create a mock of save-manager and register it into objreg."""
+    fake_save_manager = unittest.mock.Mock(spec=savemanager.SaveManager)
+    objreg.register('save-manager', fake_save_manager)
+    yield fake_save_manager
+    objreg.delete('save-manager')

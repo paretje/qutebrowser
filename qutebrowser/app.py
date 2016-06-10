@@ -428,7 +428,9 @@ def _init_modules(args, crash_handler):
     proxy.init()
     log.init.debug("Initializing cookies...")
     cookie_jar = cookies.CookieJar(qApp)
+    ram_cookie_jar = cookies.RAMCookieJar(qApp)
     objreg.register('cookie-jar', cookie_jar)
+    objreg.register('ram-cookie-jar', ram_cookie_jar)
     log.init.debug("Initializing cache...")
     diskcache = cache.DiskCache(standarddir.cache(), parent=qApp)
     objreg.register('cache', diskcache)
@@ -499,7 +501,7 @@ class Quitter:
 
         for dirpath, _dirnames, filenames in os.walk(path):
             for fn in filenames:
-                if os.path.splitext(fn)[1] == '.py':
+                if os.path.splitext(fn)[1] == '.py' and os.path.isfile(fn):
                     with tokenize.open(os.path.join(dirpath, fn)) as f:
                         compile(f.read(), fn, 'exec')
 

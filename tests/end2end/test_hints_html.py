@@ -38,7 +38,9 @@ def collect_tests():
 @pytest.mark.parametrize('test_name', collect_tests())
 @pytest.mark.parametrize('zoom_text_only', [True, False])
 @pytest.mark.parametrize('zoom_level', [100, 66, 33])
-def test_hints(test_name, zoom_text_only, zoom_level, quteproc):
+@pytest.mark.parametrize('find_implementation', ['javascript', 'python'])
+def test_hints(test_name, zoom_text_only, zoom_level, find_implementation,
+               quteproc):
     file_path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                              'data', 'hints', 'html', test_name)
     url_path = 'data/hints/html/{}'.format(test_name)
@@ -68,7 +70,8 @@ def test_hints(test_name, zoom_text_only, zoom_level, quteproc):
                         test_name, ', '.join(set(parsed.keys()))))
 
     # setup
-    quteproc.send_cmd(':set ui zoom-text-only {}'.format(zoom_text_only))
+    quteproc.set_setting('ui', 'zoom-text-only', str(zoom_text_only))
+    quteproc.set_setting('hints', 'find-implementation', find_implementation)
     quteproc.send_cmd(':zoom {}'.format(zoom_level))
     # follow hint
     quteproc.send_cmd(':hint links normal')
@@ -77,7 +80,8 @@ def test_hints(test_name, zoom_text_only, zoom_level, quteproc):
     quteproc.wait_for_load_finished('data/' + parsed['target'])
     # reset
     quteproc.send_cmd(':zoom 100')
-    quteproc.send_cmd(':set ui zoom-text-only false')
+    quteproc.set_setting('ui', 'zoom-text-only', 'false')
+    quteproc.set_setting('hints', 'find-implementation', 'javascript')
 
 
 def test_word_hints_issue1393(quteproc, tmpdir):

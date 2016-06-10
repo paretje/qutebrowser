@@ -14,8 +14,8 @@ This project adheres to http://semver.org/[Semantic Versioning].
 // `Fixed` for any bug fixes.
 // `Security` to invite users to upgrade in case of vulnerabilities.
 
-v0.7.0 (unreleased)
--------------------
+v0.7.0
+------
 
 Added
 ~~~~~
@@ -34,6 +34,10 @@ Added
   pressed. This can be turned off using `:set ui keyhint-blacklist *`.
 - New `hints -> auto-follow-timeout` setting to ignore keypresses after
   following a hint when filtering in number mode.
+- New `:history-clear` command to clear the entire history
+- New `hints -> find-implementation` to select which implementation (JS/Python)
+  should be used to find hints on a page. The `javascript` implementation is
+  better, but slower.
 
 Changed
 ~~~~~~~
@@ -66,6 +70,9 @@ Changed
 - Number hints are now renumbered after filtering
 - Number hints can now be filtered with multiple space-separated search terms
 - `hints -> scatter` is now ignored for number hints
+- Better history implementation which also stores titles.
+  As a consequence, URLs which redirect to another URL are now added to the
+  history too, marked with a `-r` suffix to the timestamp field.
 
 Fixed
 -----
@@ -88,6 +95,10 @@ Fixed
 - Fix for tab indicators getting lost when moving tabs
 - Fixed handling of backspace in number hinting mode
 - Fixed `FileNotFoundError` when starting in some cases on old Qt versions
+- Fixed sharing of cookies between tabs when `private-browsing` is enabled
+- Toggling values with `:set` now uses lower-case values
+- Hints now work with (non-standard) links with spaces around the URL
+- Strip off trailing spaces for history entries with no title
 
 v0.6.2
 ------
