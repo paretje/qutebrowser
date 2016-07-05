@@ -28,7 +28,7 @@ from hypothesis import strategies
 from PyQt5.QtCore import QUrl
 from PyQt5.QtWebKit import QWebHistoryInterface
 
-from qutebrowser.browser import history
+from qutebrowser.browser.webkit import history
 from qutebrowser.utils import objreg
 
 
@@ -391,3 +391,4 @@ def test_init(qapp, tmpdir, monkeypatch, fake_save_manager):
     assert hist.parent() is qapp
     assert QWebHistoryInterface.defaultInterface()._history is hist
     assert fake_save_manager.add_saveable.called
+    objreg.delete('web-history')

@@ -78,6 +78,7 @@ class Line:
 def _render_log(data, threshold=100):
     """Shorten the given log without -v and convert to a string."""
     # pylint: disable=no-member
+    data = [str(d) for d in data]
     is_exception = any('Traceback (most recent call last):' in line
                        for line in data)
     if (len(data) > threshold and
@@ -285,6 +286,7 @@ class Process(QObject):
         Also checks self._invalid so the test counts as failed if there were
         unexpected output lines earlier.
         """
+        __tracebackhide__ = True
         self.captured_log = []
         if self._invalid:
             # Wait for a bit so the full error has a chance to arrive

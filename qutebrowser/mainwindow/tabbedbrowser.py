@@ -29,7 +29,8 @@ from PyQt5.QtGui import QIcon
 from qutebrowser.config import config
 from qutebrowser.keyinput import modeman
 from qutebrowser.mainwindow import tabwidget
-from qutebrowser.browser import signalfilter, webview
+from qutebrowser.browser import signalfilter
+from qutebrowser.browser.webkit import webview
 from qutebrowser.utils import (log, usertypes, utils, qtutils, objreg,
                                urlutils, message)
 
@@ -161,27 +162,9 @@ class TabbedBrowser(tabwidget.TabWidget):
             # (e.g. last tab removed)
             log.webview.debug("Not updating window title because index is -1")
             return
-        tabtitle = self.page_title(idx)
-        widget = self.widget(idx)
-
-        fields = {}
-        if widget.load_status == webview.LoadStatus.loading:
-            fields['perc'] = '[{}%] '.format(widget.progress)
-        else:
-            fields['perc'] = ''
-        fields['perc_raw'] = widget.progress
-        fields['title'] = tabtitle
-        fields['title_sep'] = ' - ' if tabtitle else ''
+        fields = self.get_tab_fields(idx)
         fields['id'] = self._win_id
-        y = widget.scroll_pos[1]
-        if y <= 0:
-            scroll_pos = 'top'
-        elif y >= 100:
-            scroll_pos = 'bot'
-        else:
-            scroll_pos = '{:2}%'.format(y)
 
-        fields['scroll_pos'] = scroll_pos
         fmt = config.get('ui', 'window-title-format')
         self.window().setWindowTitle(fmt.format(**fields))
 
@@ -231,14 +214,8 @@ class TabbedBrowser(tabwidget.TabWidget):
         Return:
             The current URL as QUrl.
         """
-        widget = self.currentWidget()
-        if widget is None:
-            url = QUrl()
-        else:
-            url = widget.cur_url
-        # It's possible for url to be invalid, but the caller will handle that.
-        qtutils.ensure_valid(url)
-        return url
+        idx = self.currentIndex()
+        return super().tab_url(idx)
 
     def shutdown(self):
         """Try to shut down all tabs cleanly."""
@@ -293,7 +270,7 @@ class TabbedBrowser(tabwidget.TabWidget):
             entry = UndoEntry(tab.cur_url, history_data)
             self._undo_stack.append(entry)
         elif tab.cur_url.isEmpty():
-            # There are some good reasons why an URL could be empty
+            # There are some good reasons why a URL could be empty
             # (target="_blank" with a download, see [1]), so we silently ignore
             # this.
             # [1] https://github.com/The-Compiler/qutebrowser/issues/163
@@ -691,21 +668,30 @@ class TabbedBrowser(tabwidget.TabWidget):
         Args:
             key: mark identifier; capital indicates a global mark
         """
-        # consider urls that differ only in fragment to be identical
-        urlkey = self.current_url().adjusted(QUrl.RemoveFragment)
+        try:
+            # consider urls that differ only in fragment to be identical
+            urlkey = self.current_url().adjusted(QUrl.RemoveFragment)
+        except qtutils.QtValueError:
+            urlkey = None
+
         frame = self.currentWidget().page().currentFrame()
 
-        if key.isupper() and key in self._global_marks:
-            point, url = self._global_marks[key]
+        if key.isupper():
+            if key in self._global_marks:
+                point, url = self._global_marks[key]
 
-            @pyqtSlot(bool)
-            def callback(ok):
-                if ok:
-                    self.cur_load_finished.disconnect(callback)
-                    frame.setScrollPosition(point)
+                @pyqtSlot(bool)
+                def callback(ok):
+                    if ok:
+                        self.cur_load_finished.disconnect(callback)
+                        frame.setScrollPosition(point)
 
-            self.openurl(url, newtab=False)
-            self.cur_load_finished.connect(callback)
+                self.openurl(url, newtab=False)
+                self.cur_load_finished.connect(callback)
+            else:
+                message.error(self._win_id, "Mark {} is not set".format(key))
+        elif urlkey is None:
+            message.error(self._win_id, "Current URL is invalid!")
         elif urlkey in self._local_marks and key in self._local_marks[urlkey]:
             point = self._local_marks[urlkey][key]
 

@@ -46,8 +46,10 @@ import qutebrowser.resources
 from qutebrowser.completion.models import instances as completionmodels
 from qutebrowser.commands import cmdutils, runners, cmdexc
 from qutebrowser.config import style, config, websettings, configexc
-from qutebrowser.browser import urlmarks, cookies, cache, adblock, history
-from qutebrowser.browser.network import qutescheme, proxy, networkmanager
+from qutebrowser.browser import urlmarks, adblock
+from qutebrowser.browser.webkit import cookies, cache, history
+from qutebrowser.browser.webkit.network import (qutescheme, proxy,
+                                                networkmanager)
 from qutebrowser.mainwindow import mainwindow
 from qutebrowser.misc import (readline, ipc, savemanager, sessions,
                               crashsignal, domains)
@@ -362,7 +364,7 @@ def on_focus_changed(_old, new):
 
 @pyqtSlot(QUrl)
 def open_desktopservices_url(url):
-    """Handler to open an URL via QDesktopServices."""
+    """Handler to open a URL via QDesktopServices."""
     win_id = mainwindow.get_window(via_ipc=True, force_window=False)
     tabbed_browser = objreg.get('tabbed-browser', scope='window',
                                 window=win_id)
@@ -496,7 +498,7 @@ class Quitter:
         else:
             path = os.path.abspath(os.path.dirname(qutebrowser.__file__))
             if not os.path.isdir(path):
-                # Probably running from an python egg.
+                # Probably running from a python egg.
                 return
 
         for dirpath, _dirnames, filenames in os.walk(path):
@@ -529,7 +531,7 @@ class Quitter:
             cwd = os.path.join(os.path.abspath(os.path.dirname(
                                qutebrowser.__file__)), '..')
             if not os.path.isdir(cwd):
-                # Probably running from an python egg. Let's fallback to
+                # Probably running from a python egg. Let's fallback to
                 # cwd=None and see if that works out.
                 # See https://github.com/The-Compiler/qutebrowser/issues/323
                 cwd = None

@@ -37,7 +37,7 @@ from PyQt5.QtCore import pyqtSignal, QUrl
 
 from qutebrowser.misc import ipc
 from qutebrowser.utils import log, utils
-from qutebrowser.browser import webelem
+from qutebrowser.browser.webkit import webelem
 from helpers import utils as testutils
 from end2end.fixtures import testprocess
 
@@ -92,9 +92,10 @@ class LogLine(testprocess.Line):
         self.message = msg_match.group('message')
 
         self.expected = is_ignored_qt_message(self.message)
+        self.use_color = False
 
     def __str__(self):
-        return self.formatted_str(colorized=False)
+        return self.formatted_str(colorized=self.use_color)
 
     def formatted_str(self, colorized=True):
         """Return a formatted colorized line.
@@ -113,7 +114,18 @@ class LogLine(testprocess.Line):
         r.module = self.module
         r.funcName = self.function
 
-        formatter = log.ColoredFormatter(log.EXTENDED_FMT, log.DATEFMT, '{',
+        format_str = log.EXTENDED_FMT
+        # Mark expected errors with (expected) so it's less confusing for tests
+        # which expect errors but fail due to other errors.
+        if self.expected and self.loglevel > logging.INFO:
+            new_color = '{' + log.LOG_COLORS['DEBUG'] + '}'
+            format_str = format_str.replace('{log_color}', new_color)
+            format_str = re.sub(r'{levelname:(\d*)}',
+                                # Leave away the padding because (expected) is
+                                # longer anyway.
+                                r'{levelname} (expected)', format_str)
+
+        formatter = log.ColoredFormatter(format_str, log.DATEFMT, '{',
                                          use_colors=colorized)
         result = formatter.format(r)
         # Manually append the stringified traceback if one is present
@@ -134,8 +146,8 @@ class QuteProc(testprocess.Process):
         _focus_ready: Whether the main window got focused.
         _load_ready: Whether the about:blank page got loaded.
         _profile: If True, do profiling of the subprocesses.
-        _instance_id: An unique ID for this QuteProc instance
-        _run_counter: A counter to get an unique ID for each run.
+        _instance_id: A unique ID for this QuteProc instance
+        _run_counter: A counter to get a unique ID for each run.
         _config: The pytest config object
 
     Signals:
@@ -186,17 +198,15 @@ class QuteProc(testprocess.Process):
             else:
                 raise
 
-        if self._config.getoption('--color') != 'no':
-            line_to_log = log_line.formatted_str()
-        else:
-            line_to_log = log_line.formatted_str(colorized=False)
-        self._log(line_to_log)
+        log_line.use_color = self._config.getoption('--color') != 'no'
+        self._log(log_line)
 
         start_okay_message_load = (
-            "load status for <qutebrowser.browser.webview.WebView tab_id=0 "
-            "url='about:blank'>: LoadStatus.success")
+            "load status for <qutebrowser.browser.webkit.webview.WebView "
+            "tab_id=0 url='about:blank'>: LoadStatus.success")
         start_okay_message_focus = (
-            "Focus object changed: <qutebrowser.browser.webview.WebView "
+            "Focus object changed: "
+            "<qutebrowser.browser.webkit.webview.WebView "
             "tab_id=0 url='about:blank'>")
 
         if (log_line.category == 'ipc' and
@@ -432,7 +442,8 @@ class QuteProc(testprocess.Process):
         assert url
 
         pattern = re.compile(
-            r"(load status for <qutebrowser\.browser\.webview\.WebView "
+            r"(load status for "
+            r"<qutebrowser\.browser\.webkit\.webview\.WebView "
             r"tab_id=\d+ url='{url}/?'>: LoadStatus\.{load_status}|fetch: "
             r"PyQt5\.QtCore\.QUrl\('{url}'\) -> .*)".format(
                 load_status=re.escape(load_status), url=re.escape(url)))

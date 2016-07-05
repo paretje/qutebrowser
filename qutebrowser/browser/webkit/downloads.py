@@ -39,8 +39,8 @@ from qutebrowser.config import config
 from qutebrowser.commands import cmdexc, cmdutils
 from qutebrowser.utils import (message, usertypes, log, utils, urlutils,
                                objreg, standarddir, qtutils)
-from qutebrowser.browser import http
-from qutebrowser.browser.network import networkmanager
+from qutebrowser.browser.webkit import http
+from qutebrowser.browser.webkit.network import networkmanager
 
 
 ModelRole = usertypes.enum('ModelRole', ['item'], start=Qt.UserRole,
@@ -413,7 +413,10 @@ class DownloadItem(QObject):
         self.done = True
         self.data_changed.emit()
         if self.fileobj is not None:
-            self.fileobj.close()
+            try:
+                self.fileobj.close()
+            except OSError:
+                log.downloads.exception("Error while closing file object")
 
     def init_reply(self, reply):
         """Set a new reply and connect its signals.
@@ -675,7 +678,7 @@ class DownloadItem(QObject):
             self.raw_headers[bytes(key)] = bytes(value)
 
     def _handle_redirect(self):
-        """Handle a HTTP redirect.
+        """Handle an HTTP redirect.
 
         Return:
             True if the download was redirected, False otherwise.
@@ -1038,7 +1041,7 @@ class DownloadManager(QAbstractListModel):
 
     @pyqtSlot(QNetworkRequest, QNetworkReply)
     def on_redirect(self, download, request, reply):
-        """Handle a HTTP redirect of a download.
+        """Handle an HTTP redirect of a download.
 
         Args:
             download: The old DownloadItem.

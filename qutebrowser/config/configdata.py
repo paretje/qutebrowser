@@ -94,7 +94,7 @@ SECTION_DESC = {
         "Colors used in the UI.\n"
         "A value can be in one of the following format:\n\n"
         " * `#RGB`/`#RRGGBB`/`#RRRGGGBBB`/`#RRRRGGGGBBBB`\n"
-        " * A SVG color name as specified in http://www.w3.org/TR/SVG/"
+        " * An SVG color name as specified in http://www.w3.org/TR/SVG/"
         "types.html#ColorKeywords[the W3C specification].\n"
         " * transparent (no color)\n"
         " * `rgb(r, g, b)` / `rgba(r, g, b, a)` (values 0-255 or "
@@ -330,7 +330,7 @@ def data(readonly=False):
             ('window-title-format',
              SettingValue(typ.FormatString(fields=['perc', 'perc_raw', 'title',
                                                    'title_sep', 'id',
-                                                   'scroll_pos']),
+                                                   'scroll_pos', 'host']),
                           '{perc}{title}{title_sep}qutebrowser'),
              "The format to use for the window title. The following "
              "placeholders are defined:\n\n"
@@ -340,7 +340,8 @@ def data(readonly=False):
              "* `{title_sep}`: The string ` - ` if a title is set, empty "
              "otherwise.\n"
              "* `{id}`: The internal window ID of this window.\n"
-             "* `{scroll_pos}`: The page scroll position."),
+             "* `{scroll_pos}`: The page scroll position.\n"
+             "* `{host}`: The host of the current web page."),
 
             ('hide-mouse-cursor',
              SettingValue(typ.Bool(), 'false'),
@@ -627,7 +628,7 @@ def data(readonly=False):
             ('title-format',
              SettingValue(typ.FormatString(
                  fields=['perc', 'perc_raw', 'title', 'title_sep', 'index',
-                         'id', 'scroll_pos']), '{index}: {title}'),
+                         'id', 'scroll_pos', 'host']), '{index}: {title}'),
              "The format to use for the tab title. The following placeholders "
              "are defined:\n\n"
              "* `{perc}`: The percentage as a string like `[10%]`.\n"
@@ -637,7 +638,8 @@ def data(readonly=False):
              "otherwise.\n"
              "* `{index}`: The index of this tab.\n"
              "* `{id}`: The internal tab ID of this tab.\n"
-             "* `{scroll_pos}`: The page scroll position."),
+             "* `{scroll_pos}`: The page scroll position.\n"
+             "* `{host}`: The host of the current web page."),
 
             ('title-alignment',
              SettingValue(typ.TextAlignment(), 'left'),
@@ -886,7 +888,7 @@ def data(readonly=False):
             ('chars',
              SettingValue(typ.UniqueCharString(minlen=2, completions=[
                  ('asdfghjkl', "Home row"),
-                 ('dhtnaoeu', "Home row (Dvorak)"),
+                 ('aoeuidnths', "Home row (Dvorak)"),
                  ('abcdefghijklmnopqrstuvwxyz', "All letters"),
              ]), 'asdfghjkl'),
              "Chars used for hint strings."),
@@ -1470,6 +1472,7 @@ KEY_DATA = collections.OrderedDict([
         ('hint --rapid links tab-bg', [';r']),
         ('hint --rapid links window', [';R']),
         ('hint links download', [';d']),
+        ('hint inputs', [';t']),
         ('scroll left', ['h']),
         ('scroll down', ['j']),
         ('scroll up', ['k']),

@@ -39,7 +39,8 @@ import pygments.formatters
 
 from qutebrowser.commands import userscripts, cmdexc, cmdutils, runners
 from qutebrowser.config import config, configexc
-from qutebrowser.browser import webelem, inspector, urlmarks, downloads, mhtml
+from qutebrowser.browser import urlmarks
+from qutebrowser.browser.webkit import webelem, inspector, downloads, mhtml
 from qutebrowser.keyinput import modeman
 from qutebrowser.utils import (message, usertypes, log, qtutils, urlutils,
                                objreg, utils, typing)
@@ -599,7 +600,7 @@ class CommandDispatcher:
 
         if perc is None and count is None:
             perc = 100
-        elif perc is None:
+        elif count is not None:
             perc = count
 
         orientation = Qt.Horizontal if horizontal else Qt.Vertical
@@ -1246,7 +1247,7 @@ class CommandDispatcher:
                                      filename=dest)
 
     def _download_mhtml(self, dest=None):
-        """Download the current page as a MHTML file, including all assets.
+        """Download the current page as an MHTML file, including all assets.
 
         Args:
             dest: The file path to write the download to.
@@ -1929,9 +1930,7 @@ class CommandDispatcher:
         nam.clear_all_ssl_errors()
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
-    @cmdutils.argument('count', count=True)
-    def edit_url(self, url=None, bg=False, tab=False, window=False,
-                 count=None):
+    def edit_url(self, url=None, bg=False, tab=False, window=False):
         """Navigate to a url formed in an external editor.
 
         The editor which should be launched can be configured via the
@@ -1942,17 +1941,19 @@ class CommandDispatcher:
             bg: Open in a new background tab.
             tab: Open in a new tab.
             window: Open in a new window.
-            count: The tab index to open the URL in, or None.
         """
         cmdutils.check_exclusive((tab, bg, window), 'tbw')
+
+        old_url = self._current_url().toString()
 
         ed = editor.ExternalEditor(self._win_id, self._tabbed_browser)
 
         # Passthrough for openurl args (e.g. -t, -b, -w)
         ed.editing_finished.connect(functools.partial(
-            self.openurl, bg=bg, tab=tab, window=window, count=count))
+            self._open_if_changed, old_url=old_url, bg=bg, tab=tab,
+            window=window))
 
-        ed.edit(url or self._current_url().toString())
+        ed.edit(url or old_url)
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
     def set_mark(self, key):
@@ -1971,3 +1972,17 @@ class CommandDispatcher:
             key: mark identifier; capital indicates a global mark
         """
         self._tabbed_browser.jump_mark(key)
+
+    def _open_if_changed(self, url=None, old_url=None, bg=False, tab=False,
+                         window=False):
+        """Open a URL unless it's already open in the tab.
+
+        Args:
+            old_url: The original URL to compare against.
+            url: The URL to open.
+            bg: Open in a new background tab.
+            tab: Open in a new tab.
+            window: Open in a new window.
+        """
+        if bg or tab or window or url != old_url:
+            self.openurl(url=url, bg=bg, tab=tab, window=window)

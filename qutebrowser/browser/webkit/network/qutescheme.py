@@ -33,7 +33,7 @@ from PyQt5.QtNetwork import QNetworkReply
 
 import qutebrowser
 from qutebrowser.browser import pdfjs
-from qutebrowser.browser.network import schemehandler, networkreply
+from qutebrowser.browser.webkit.network import schemehandler, networkreply
 from qutebrowser.utils import (version, utils, jinja, log, message, docutils,
                                objreg)
 from qutebrowser.config import configexc, configdata
@@ -89,7 +89,7 @@ class QuteSchemeHandler(schemehandler.SchemeHandler):
         """
         path = request.url().path()
         host = request.url().host()
-        # An url like "qute:foo" is split as "scheme:path", not "scheme:host".
+        # A url like "qute:foo" is split as "scheme:path", not "scheme:host".
         log.misc.debug("url: {}, path: {}, host {}".format(
             request.url().toDisplayString(), path, host))
         try:

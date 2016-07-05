@@ -141,8 +141,8 @@ Contributors, sorted by the number of commits in descending order:
 // QUTE_AUTHORS_START
 * Florian Bruhin
 * Daniel Schadt
-* Antoni Boucher
 * Ryan Roden-Corrent
+* Antoni Boucher
 * Lamar Pavel
 * Bruno Oliveira
 * Alexander Cogneau
@@ -175,6 +175,7 @@ Contributors, sorted by the number of commits in descending order:
 * Jonas Schürmann
 * error800
 * Liam BEGUIN
+* Jan Verbeek
 * skinnay
 * Zach-Button
 * Tomasz Kramkowski
@@ -183,6 +184,7 @@ Contributors, sorted by the number of commits in descending order:
 * kanikaa1234
 * haitaka
 * Nick Ginther
+* Michał Góral
 * Michael Ilsaas
 * Martin Zimmermann
 * Fritz Reichwald
@@ -198,12 +200,13 @@ Contributors, sorted by the number of commits in descending order:
 * Larry Hynes
 * Johannes Altmanninger
 * Ismail
+* Edgar Hipp
+* Daryl Finlay
 * adam
 * Samir Benmendil
 * Regina Hug
 * Mathias Fussenegger
 * Marcelo Santos
-* Jan Verbeek
 * Fritz V155 Reichwald
 * Franz Fellner
 * zwarag
@@ -229,6 +232,7 @@ Contributors, sorted by the number of commits in descending order:
 * HalosGhost
 * Gregor Pohl
 * Eivind Uggedal
+* Dietrich Daroch
 * Daniel Lu
 * Arseniy Seroka
 * Andy Balaam
@@ -283,6 +287,7 @@ problems and helpful hints:
 
 Also, thanks to:
 
+* Everyone contributing to the link:doc/backers.asciidoc[crowdfunding].
 * Everyone who had the patience to test qutebrowser before v0.1.
 * Everyone triaging/fixing my bugs in the
 https://bugreports.qt.io/secure/Dashboard.jspa[Qt bugtracker]

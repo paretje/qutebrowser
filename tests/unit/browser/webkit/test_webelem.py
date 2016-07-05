@@ -32,7 +32,7 @@ from PyQt5.QtCore import PYQT_VERSION, QRect, QPoint
 from PyQt5.QtWebKit import QWebElement
 import pytest
 
-from qutebrowser.browser import webelem
+from qutebrowser.browser.webkit import webelem
 
 
 def get_webelem(geometry=None, frame=None, *, null=False, style=None,
@@ -129,7 +129,7 @@ class SelectionAndFilterTests:
 
     """Generator for tests for TestSelectionsAndFilters."""
 
-    # A mapping of a HTML element to a list of groups where the selectors
+    # A mapping of an HTML element to a list of groups where the selectors
     # (after filtering) should match.
     #
     # Based on this, test cases are generated to make sure it matches those
@@ -274,9 +274,10 @@ class TestWebElementWrapper:
         assert str(elem) == 'text'
 
     @pytest.mark.parametrize('is_null, expected', [
-        (False, "<qutebrowser.browser.webelem.WebElementWrapper "
+        (False, "<qutebrowser.browser.webkit.webelem.WebElementWrapper "
                 "html='<fakeelem/>'>"),
-        (True, '<qutebrowser.browser.webelem.WebElementWrapper html=None>'),
+        (True, '<qutebrowser.browser.webkit.webelem.WebElementWrapper '
+               'html=None>'),
     ])
     def test_repr(self, elem, is_null, expected):
         elem._elem.isNull.return_value = is_null
@@ -621,7 +622,8 @@ class TestRectOnView:
         This is needed for all the tests calling rect_on_view or is_visible.
         """
         config_stub.data = {'ui': {'zoom-text-only': 'true'}}
-        monkeypatch.setattr('qutebrowser.browser.webelem.config', config_stub)
+        monkeypatch.setattr('qutebrowser.browser.webkit.webelem.config',
+                            config_stub)
         return config_stub
 
     @pytest.mark.parametrize('js_rect', [
@@ -741,7 +743,7 @@ class TestJavascriptEscape:
         """Test conversion by hexlifying in javascript.
 
         Since the conversion of QStrings to Python strings is broken in some
-        older PyQt versions in some corner cases, we load a HTML file which
+        older PyQt versions in some corner cases, we load an HTML file which
         generates an MD5 of the escaped text and use that for comparisons.
         """
         escaped = webelem.javascript_escape(text)
@@ -848,7 +850,8 @@ class TestIsEditable:
     def stubbed_config(self, config_stub, monkeypatch):
         """Fixture to create a config stub with an input section."""
         config_stub.data = {'input': {}}
-        monkeypatch.setattr('qutebrowser.browser.webelem.config', config_stub)
+        monkeypatch.setattr('qutebrowser.browser.webkit.webelem.config',
+                            config_stub)
         return config_stub
 
     @pytest.mark.parametrize('tagname, attributes, editable', [

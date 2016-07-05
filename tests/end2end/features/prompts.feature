@@ -40,7 +40,7 @@ Feature: Prompts
         And I run :leave-mode
         Then the javascript message "confirm reply: false" should be logged
 
-    @pyqt531_or_newer
+    @pyqt>=5.3.1
     Scenario: Javascript prompt
         When I open data/prompt/jsprompt.html
         And I click the button
@@ -49,7 +49,7 @@ Feature: Prompts
         And I run :prompt-accept
         Then the javascript message "Prompt reply: prompt test" should be logged
 
-    @pyqt531_or_newer
+    @pyqt>=5.3.1
     Scenario: Rejected javascript prompt
         When I open data/prompt/jsprompt.html
         And I click the button
@@ -61,7 +61,7 @@ Feature: Prompts
 
     # Shift-Insert with prompt (issue 1299)
 
-    @pyqt531_or_newer
+    @pyqt>=5.3.1
     Scenario: Pasting via shift-insert in prompt mode
         When selection is supported
         And I put "insert test" into the primary selection
@@ -72,7 +72,7 @@ Feature: Prompts
         And I run :prompt-accept
         Then the javascript message "Prompt reply: insert test" should be logged
 
-    @pyqt531_or_newer
+    @pyqt>=5.3.1
     Scenario: Using content -> ignore-javascript-prompt
         When I set content -> ignore-javascript-prompt to true
         And I open data/prompt/jsprompt.html
@@ -84,7 +84,7 @@ Feature: Prompts
     Scenario: SSL error with ssl-strict = false
         When I run :debug-clear-ssl-errors
         And I set network -> ssl-strict to false
-        And I load a SSL page
+        And I load an SSL page
         And I wait until the SSL page finished loading
         Then the error "SSL error: *" should be shown
         And the page should contain the plaintext "Hello World via SSL!"
@@ -92,14 +92,14 @@ Feature: Prompts
     Scenario: SSL error with ssl-strict = true
         When I run :debug-clear-ssl-errors
         And I set network -> ssl-strict to true
-        And I load a SSL page
+        And I load an SSL page
         Then "Error while loading *: SSL handshake failed" should be logged
         And the page should contain the plaintext "Unable to load page"
 
     Scenario: SSL error with ssl-strict = ask -> yes
         When I run :debug-clear-ssl-errors
         And I set network -> ssl-strict to ask
-        And I load a SSL page
+        And I load an SSL page
         And I wait for a prompt
         And I run :prompt-yes
         And I wait until the SSL page finished loading
@@ -108,7 +108,7 @@ Feature: Prompts
     Scenario: SSL error with ssl-strict = ask -> no
         When I run :debug-clear-ssl-errors
         And I set network -> ssl-strict to ask
-        And I load a SSL page
+        And I load an SSL page
         And I wait for a prompt
         And I run :prompt-no
         Then "Error while loading *: SSL handshake failed" should be logged

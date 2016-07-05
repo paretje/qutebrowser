@@ -32,8 +32,8 @@ import vulture
 import qutebrowser.app  # pylint: disable=unused-import
 from qutebrowser.commands import cmdutils
 from qutebrowser.utils import utils
-from qutebrowser.browser import rfc6266
-from qutebrowser.browser.network import qutescheme
+from qutebrowser.browser.webkit import rfc6266
+from qutebrowser.browser.webkit.network import qutescheme
 
 
 def whitelist_generator():
@@ -46,7 +46,8 @@ def whitelist_generator():
     for name, member in inspect.getmembers(rfc6266, inspect.isclass):
         for attr in ('grammar', 'regex'):
             if hasattr(member, attr):
-                yield 'qutebrowser.browser.rfc6266.{}.{}'.format(name, attr)
+                yield 'qutebrowser.browser.webkit.rfc6266.{}.{}'.format(name,
+                                                                        attr)
 
     # PyQt properties
     for attr in ('prompt_active', 'command_active', 'insert_active',
@@ -74,15 +75,7 @@ def whitelist_generator():
 
     # qute:... handlers
     for func in qutescheme.HANDLERS.values():
-        yield 'qutebrowser.browser.network.qutescheme.' + func.__name__
-
-    # Globals
-    # https://bitbucket.org/jendrikseipp/vulture/issues/10/
-    yield 'qutebrowser.misc.utilcmds.pyeval_output'
-    yield 'utils.use_color'
-    yield 'qutebrowser.browser.mhtml.last_used_directory'
-    yield 'qutebrowser.utils.utils.fake_clipboard'
-    yield 'qutebrowser.utils.utils.log_clipboard'
+        yield 'qutebrowser.browser.webkit.network.qutescheme.' + func.__name__
 
     # Other false-positives
     yield ('qutebrowser.completion.models.sortfilter.CompletionFilterModel().'
@@ -126,9 +119,9 @@ def report(items):
     properties which get used for the items.
     """
     output = []
-    for item in sorted(items, key=lambda e: (e.file.lower(), e.lineno)):
-        relpath = os.path.relpath(item.file)
-        path = relpath if not relpath.startswith('..') else item.file
+    for item in sorted(items, key=lambda e: (e.filename.lower(), e.lineno)):
+        relpath = os.path.relpath(item.filename)
+        path = relpath if not relpath.startswith('..') else item.filename
         output.append("{}:{}: Unused {} '{}'".format(path, item.lineno,
                                                      item.typ, item))
     return output
