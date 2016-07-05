@@ -25,7 +25,7 @@ from PyQt5.QtWebKitWidgets import QWebView
 
 from qutebrowser.mainwindow.statusbar import textbase
 from qutebrowser.utils import objreg
-from qutebrowser.browser import webview
+from qutebrowser.browser.webkit import webview
 
 
 class TabSettings(textbase.TextBase):
