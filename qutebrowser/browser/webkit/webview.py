@@ -20,10 +20,8 @@
 """The main browser widgets."""
 
 import sys
-import itertools
-import functools
 
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QTimer, QUrl
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QTimer, QUrl, QPoint
 from PyQt5.QtGui import QPalette
 from PyQt5.QtWidgets import QApplication, QStyleFactory
 from PyQt5.QtWebKit import QWebSettings
@@ -36,41 +34,19 @@ from qutebrowser.browser import hints
 from qutebrowser.browser.webkit import webpage, webelem
 
 
-LoadStatus = usertypes.enum('LoadStatus', ['none', 'success', 'success_https',
-                                           'error', 'warn', 'loading'])
-
-
-tab_id_gen = itertools.count(0)
-
-
 class WebView(QWebView):
 
-    """One browser tab in TabbedBrowser.
-
-    Our own subclass of a QWebView with some added bells and whistles.
+    """Custom QWebView subclass with qutebrowser-specific features.
 
     Attributes:
+        tab: The WebKitTab object for this WebView
         hintmanager: The HintManager instance for this view.
-        progress: loading progress of this page.
         scroll_pos: The current scroll position as (x%, y%) tuple.
-        statusbar_message: The current javascript statusbar message.
-        inspector: The QWebInspector used for this webview.
-        load_status: loading status of this page (index into LoadStatus)
-        viewing_source: Whether the webview is currently displaying source
-                        code.
-        keep_icon: Whether the (e.g. cloned) icon should not be cleared on page
-                   load.
-        registry: The ObjectRegistry associated with this tab.
-        tab_id: The tab ID of the view.
         win_id: The window ID of the view.
-        search_text: The text of the last search.
-        search_flags: The search flags of the last search.
-        _has_ssl_errors: Whether SSL errors occurred during loading.
-        _zoom: A NeighborList with the zoom levels.
+        _tab_id: The tab ID of the view.
         _old_scroll_pos: The old scroll position.
         _check_insertmode: If True, in mouseReleaseEvent we should check if we
                            need to enter/leave insert mode.
-        _default_zoom_changed: Whether the zoom was changed from the default.
         _ignore_wheel_event: Ignore the next wheel event.
                              See https://github.com/The-Compiler/qutebrowser/issues/395
 
@@ -78,72 +54,44 @@ class WebView(QWebView):
         scroll_pos_changed: Scroll percentage of current tab changed.
                             arg 1: x-position in %.
                             arg 2: y-position in %.
-        linkHovered: QWebPages linkHovered signal exposed.
-        load_status_changed: The loading status changed
-        url_text_changed: Current URL string changed.
+        mouse_wheel_zoom: Emitted when the page should be zoomed because the
+                          mousewheel was used with ctrl.
+                          arg 1: The angle delta of the wheel event (QPoint)
         shutting_down: Emitted when the view is shutting down.
     """
 
     scroll_pos_changed = pyqtSignal(int, int)
-    linkHovered = pyqtSignal(str, str, str)
-    load_status_changed = pyqtSignal(str)
-    url_text_changed = pyqtSignal(str)
     shutting_down = pyqtSignal()
+    mouse_wheel_zoom = pyqtSignal(QPoint)
 
-    def __init__(self, win_id, parent=None):
+    def __init__(self, win_id, tab_id, tab, parent=None):
         super().__init__(parent)
         if sys.platform == 'darwin' and qtutils.version_check('5.4'):
             # WORKAROUND for https://bugreports.qt.io/browse/QTBUG-42948
             # See https://github.com/The-Compiler/qutebrowser/issues/462
             self.setStyle(QStyleFactory.create('Fusion'))
+        self.tab = tab
         self.win_id = win_id
-        self.load_status = LoadStatus.none
         self._check_insertmode = False
-        self.inspector = None
         self.scroll_pos = (-1, -1)
-        self.statusbar_message = ''
         self._old_scroll_pos = (-1, -1)
-        self._zoom = None
-        self._has_ssl_errors = False
         self._ignore_wheel_event = False
-        self.keep_icon = False
-        self.search_text = None
-        self.search_flags = 0
-        self.selection_enabled = False
-        self.init_neighborlist()
         self._set_bg_color()
-        cfg = objreg.get('config')
-        cfg.changed.connect(self.init_neighborlist)
-        # For some reason, this signal doesn't get disconnected automatically
-        # when the WebView is destroyed on older PyQt versions.
-        # See https://github.com/The-Compiler/qutebrowser/issues/390
-        self.destroyed.connect(functools.partial(
-            cfg.changed.disconnect, self.init_neighborlist))
-        self.cur_url = QUrl()
-        self.progress = 0
-        self.registry = objreg.ObjectRegistry()
-        self.tab_id = next(tab_id_gen)
-        tab_registry = objreg.get('tab-registry', scope='window',
-                                  window=win_id)
-        tab_registry[self.tab_id] = self
-        objreg.register('webview', self, registry=self.registry)
+        self._tab_id = tab_id
+
         page = self._init_page()
-        hintmanager = hints.HintManager(win_id, self.tab_id, self)
+        hintmanager = hints.HintManager(win_id, self._tab_id, self)
         hintmanager.mouse_event.connect(self.on_mouse_event)
         hintmanager.start_hinting.connect(page.on_start_hinting)
         hintmanager.stop_hinting.connect(page.on_stop_hinting)
-        objreg.register('hintmanager', hintmanager, registry=self.registry)
+        objreg.register('hintmanager', hintmanager, scope='tab', window=win_id,
+                        tab=tab_id)
         mode_manager = objreg.get('mode-manager', scope='window',
                                   window=win_id)
         mode_manager.entered.connect(self.on_mode_entered)
         mode_manager.left.connect(self.on_mode_left)
-        self.viewing_source = False
-        self.setZoomFactor(float(config.get('ui', 'default-zoom')) / 100)
-        self._default_zoom_changed = False
         if config.get('input', 'rocker-gestures'):
             self.setContextMenuPolicy(Qt.PreventContextMenu)
-        self.urlChanged.connect(self.on_url_changed)
-        self.loadProgress.connect(lambda p: setattr(self, 'progress', p))
         objreg.get('config').changed.connect(self.on_config_changed)
 
     @pyqtSlot()
@@ -153,30 +101,24 @@ class WebView(QWebView):
         no_formatting = QUrl.UrlFormattingOption(0)
         orig_url = self.page().mainFrame().requestedUrl()
         if (orig_url.isValid() and
-                not orig_url.matches(self.cur_url, no_formatting)):
+                not orig_url.matches(self.url(), no_formatting)):
             # If the url of the page is different than the url of the link
             # originally clicked, save them both.
             history.add_url(orig_url, self.title(), redirect=True)
-        history.add_url(self.cur_url, self.title())
+        history.add_url(self.url(), self.title())
 
     def _init_page(self):
         """Initialize the QWebPage used by this view."""
-        page = webpage.BrowserPage(self.win_id, self.tab_id, self)
+        page = webpage.BrowserPage(self.win_id, self._tab_id, self)
         self.setPage(page)
-        page.linkHovered.connect(self.linkHovered)
-        page.mainFrame().loadStarted.connect(self.on_load_started)
         page.mainFrame().loadFinished.connect(self.on_load_finished)
         page.mainFrame().initialLayoutCompleted.connect(
             self.on_initial_layout_completed)
-        page.statusBarMessage.connect(
-            lambda msg: setattr(self, 'statusbar_message', msg))
-        page.networkAccessManager().sslErrors.connect(
-            lambda *args: setattr(self, '_has_ssl_errors', True))
         return page
 
     def __repr__(self):
         url = utils.elide(self.url().toDisplayString(QUrl.EncodeUnicode), 100)
-        return utils.get_repr(self, tab_id=self.tab_id, url=url)
+        return utils.get_repr(self, tab_id=self._tab_id, url=url)
 
     def __del__(self):
         # Explicitly releasing the page here seems to prevent some segfaults
@@ -191,14 +133,6 @@ class WebView(QWebView):
             # deleted
             pass
 
-    def _set_load_status(self, val):
-        """Setter for load_status."""
-        if not isinstance(val, LoadStatus):
-            raise TypeError("Type {} is no LoadStatus member!".format(val))
-        log.webview.debug("load status for {}: {}".format(repr(self), val))
-        self.load_status = val
-        self.load_status_changed.emit(val.name)
-
     def _set_bg_color(self):
         """Set the webpage background color as configured."""
         col = config.get('colors', 'webpage.bg')
@@ -210,27 +144,14 @@ class WebView(QWebView):
 
     @pyqtSlot(str, str)
     def on_config_changed(self, section, option):
-        """Reinitialize the zoom neighborlist if related config changed."""
-        if section == 'ui' and option in ('zoom-levels', 'default-zoom'):
-            if not self._default_zoom_changed:
-                self.setZoomFactor(float(config.get('ui', 'default-zoom')) /
-                                   100)
-            self._default_zoom_changed = False
-            self.init_neighborlist()
-        elif section == 'input' and option == 'rocker-gestures':
+        """Update rocker gestures/background color."""
+        if section == 'input' and option == 'rocker-gestures':
             if config.get('input', 'rocker-gestures'):
                 self.setContextMenuPolicy(Qt.PreventContextMenu)
             else:
                 self.setContextMenuPolicy(Qt.DefaultContextMenu)
         elif section == 'colors' and option == 'webpage.bg':
             self._set_bg_color()
-
-    def init_neighborlist(self):
-        """Initialize the _zoom neighborlist."""
-        levels = config.get('ui', 'zoom-levels')
-        self._zoom = usertypes.NeighborList(
-            levels, mode=usertypes.NeighborList.Modes.edge)
-        self._zoom.fuzzyval = config.get('ui', 'default-zoom')
 
     def _mousepress_backforward(self, e):
         """Handle back/forward mouse button presses.
@@ -358,11 +279,6 @@ class WebView(QWebView):
             url: The URL to load as QUrl
         """
         qtutils.ensure_valid(url)
-        urlstr = url.toDisplayString()
-        log.webview.debug("New title: {}".format(urlstr))
-        self.titleChanged.emit(urlstr)
-        self.cur_url = url
-        self.url_text_changed.emit(url.toDisplayString())
         self.load(url)
         if url.scheme() == 'qute':
             frame = self.page().mainFrame()
@@ -380,33 +296,6 @@ class WebView(QWebView):
         if frame.url().scheme() == 'qute':
             bridge = objreg.get('js-bridge')
             frame.addToJavaScriptWindowObject('qute', bridge)
-
-    def zoom_perc(self, perc, fuzzyval=True):
-        """Zoom to a given zoom percentage.
-
-        Args:
-            perc: The zoom percentage as int.
-            fuzzyval: Whether to set the NeighborLists fuzzyval.
-        """
-        if fuzzyval:
-            self._zoom.fuzzyval = int(perc)
-        if perc < 0:
-            raise ValueError("Can't zoom {}%!".format(perc))
-        self.setZoomFactor(float(perc) / 100)
-        self._default_zoom_changed = True
-
-    def zoom(self, offset):
-        """Increase/Decrease the zoom level.
-
-        Args:
-            offset: The offset in the zoom level list.
-
-        Return:
-            The new zoom percentage.
-        """
-        level = self._zoom.getitem(offset)
-        self.zoom_perc(level, fuzzyval=False)
-        return level
 
     def apply_local_js_policy(self, url):
         # Apply per-domain javascript policy. Doing this in view rather
@@ -461,7 +350,7 @@ class WebView(QWebView):
             except ValueError:
                 log.webview.error("Invalid zoom value for {}".format(url))
                 return
-            self.zoom_perc(zoom_policy)
+            self.zoom.set_factor(float(zoom_policy)/100)
 
     @pyqtSlot('QUrl')
     def on_url_changed(self, url):
@@ -485,14 +374,6 @@ class WebView(QWebView):
         QApplication.postEvent(self, evt)
 
     @pyqtSlot()
-    def on_load_started(self):
-        """Leave insert/hint mode and set vars when a new page is loading."""
-        self.progress = 0
-        self.viewing_source = False
-        self._has_ssl_errors = False
-        self._set_load_status(LoadStatus.loading)
-
-    @pyqtSlot()
     def on_load_finished(self):
         """Handle a finished page load.
 
@@ -501,18 +382,6 @@ class WebView(QWebView):
         See https://github.com/The-Compiler/qutebrowser/issues/84
         """
         ok = not self.page().error_occurred
-        if ok and not self._has_ssl_errors:
-            if self.cur_url.scheme() == 'https':
-                self._set_load_status(LoadStatus.success_https)
-            else:
-                self._set_load_status(LoadStatus.success)
-
-        elif ok:
-            self._set_load_status(LoadStatus.warn)
-        else:
-            self._set_load_status(LoadStatus.error)
-        if not self.title():
-            self.titleChanged.emit(self.url().toDisplayString())
         self._handle_auto_insert_mode(ok)
 
     def _handle_auto_insert_mode(self, ok):
@@ -543,25 +412,6 @@ class WebView(QWebView):
             log.webview.debug("Ignoring focus because mode {} was "
                               "entered.".format(mode))
             self.setFocusPolicy(Qt.NoFocus)
-        elif mode == usertypes.KeyMode.caret:
-            settings = self.settings()
-            settings.setAttribute(QWebSettings.CaretBrowsingEnabled, True)
-            self.selection_enabled = bool(self.page().selectedText())
-
-            if self.isVisible():
-                # Sometimes the caret isn't immediately visible, but unfocusing
-                # and refocusing it fixes that.
-                self.clearFocus()
-                self.setFocus(Qt.OtherFocusReason)
-
-                # Move the caret to the first element in the viewport if there
-                # isn't any text which is already selected.
-                #
-                # Note: We can't use hasSelection() here, as that's always
-                # true in caret mode.
-                if not self.page().selectedText():
-                    self.page().currentFrame().evaluateJavaScript(
-                        utils.read_file('javascript/position_caret.js'))
 
     @pyqtSlot(usertypes.KeyMode)
     def on_mode_left(self, mode):
@@ -570,15 +420,6 @@ class WebView(QWebView):
                     usertypes.KeyMode.yesno):
             log.webview.debug("Restoring focus policy because mode {} was "
                               "left.".format(mode))
-        elif mode == usertypes.KeyMode.caret:
-            settings = self.settings()
-            if settings.testAttribute(QWebSettings.CaretBrowsingEnabled):
-                if self.selection_enabled and self.hasSelection():
-                    # Remove selection if it exists
-                    self.triggerPageAction(QWebPage.MoveToNextChar)
-                settings.setAttribute(QWebSettings.CaretBrowsingEnabled, False)
-                self.selection_enabled = False
-
         self.setFocusPolicy(Qt.WheelFocus)
 
     def search(self, text, flags):
@@ -647,7 +488,8 @@ class WebView(QWebView):
                                 "support that!")
         tabbed_browser = objreg.get('tabbed-browser', scope='window',
                                     window=self.win_id)
-        return tabbed_browser.tabopen(background=False)
+        # pylint: disable=protected-access
+        return tabbed_browser.tabopen(background=False)._widget
 
     def paintEvent(self, e):
         """Extend paintEvent to emit a signal if the scroll position changed.
@@ -729,14 +571,6 @@ class WebView(QWebView):
             return
         if e.modifiers() & Qt.ControlModifier:
             e.accept()
-            divider = config.get('input', 'mouse-zoom-divider')
-            factor = self.zoomFactor() + e.angleDelta().y() / divider
-            if factor < 0:
-                return
-            perc = int(100 * factor)
-            message.info(self.win_id, "Zoom level: {}%".format(perc))
-            self._zoom.fuzzyval = perc
-            self.setZoomFactor(factor)
-            self._default_zoom_changed = True
+            self.mouse_wheel_zoom.emit(e.angleDelta())
         else:
             super().wheelEvent(e)

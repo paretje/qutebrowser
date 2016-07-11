@@ -33,10 +33,10 @@
 |<<ui-zoom-levels,zoom-levels>>|The available zoom levels, separated by commas.
 |<<ui-default-zoom,default-zoom>>|The default zoom level.
 |<<ui-downloads-position,downloads-position>>|Where to show the downloaded files.
+|<<ui-status-position,status-position>>|The position of the status bar.
 |<<ui-message-timeout,message-timeout>>|Time (in ms) to show messages in the statusbar for.
 |<<ui-message-unfocused,message-unfocused>>|Whether to show messages in unfocused windows.
 |<<ui-confirm-quit,confirm-quit>>|Whether to confirm quitting the application.
-|<<ui-display-statusbar-messages,display-statusbar-messages>>|Whether to display javascript statusbar messages.
 |<<ui-zoom-text-only,zoom-text-only>>|Whether the zoom factor on a frame applies only to the text or to all content.
 |<<ui-frame-flattening,frame-flattening>>|Whether to  expand each subframe to its contents.
 |<<ui-user-stylesheet,user-stylesheet>>|User stylesheet to use (absolute filename, filename relative to the config directory or CSS string). Will expand environment variables.
@@ -516,6 +516,17 @@ Valid values:
 
 Default: +pass:[top]+
 
+[[ui-status-position]]
+=== status-position
+The position of the status bar.
+
+Valid values:
+
+ * +top+
+ * +bottom+
+
+Default: +pass:[bottom]+
+
 [[ui-message-timeout]]
 === message-timeout
 Time (in ms) to show messages in the statusbar for.
@@ -545,17 +556,6 @@ Valid values:
  * +never+: Never show a confirmation.
 
 Default: +pass:[never]+
-
-[[ui-display-statusbar-messages]]
-=== display-statusbar-messages
-Whether to display javascript statusbar messages.
-
-Valid values:
-
- * +true+
- * +false+
-
-Default: +pass:[false]+
 
 [[ui-zoom-text-only]]
 === zoom-text-only

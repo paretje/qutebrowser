@@ -63,6 +63,11 @@ npm_install() {
     travis_retry sudo npm install -g "$@"
 }
 
+install_node() {
+    curl -sL https://deb.nodesource.com/setup_4.x | sudo -E bash -
+    apt_install nodejs
+}
+
 check_pyqt() {
     python3 <<EOF
 import sys
@@ -85,9 +90,12 @@ elif [[ $TRAVIS_OS_NAME == osx ]]; then
     defaults write NSGlobalDomain NSAppSleepDisabled -bool YES
     curl -LO https://github.com/The-Compiler/homebrew-qt5-webkit/releases/download/v5.6.0-1/pyqt5-5.6.el_capitan.bottle.1.tar.gz
     curl -LO https://github.com/The-Compiler/homebrew-qt5-webkit/releases/download/v5.6.1_1-1/qt5-5.6.1-1.yosemite.bottle.1.tar.gz
+    brew --version
     brew_install python3 {qt5,pyqt5}-*.bottle.1.tar.gz
     pip_install pip
     pip_install tox
+    pip --version
+    tox --version
     check_pyqt
     exit 0
 fi
@@ -96,6 +104,9 @@ pyqt_pkgs="python3-pyqt5 python3-pyqt5.qtwebkit"
 
 pip_install pip
 pip_install tox
+
+pip --version
+tox --version
 
 case $TESTENV in
     py34-cov)
@@ -112,6 +123,7 @@ case $TESTENV in
         ;;
     docs)
         apt_install $pyqt_pkgs asciidoc libpython3.4-dev
+        asciidoc --version
         check_pyqt
         ;;
     misc)
@@ -120,8 +132,11 @@ case $TESTENV in
     pyroma|check-manifest)
         ;;
     eslint)
-        apt_install npm nodejs nodejs-legacy
+        install_node
+        echo "node: $(node --version)"
+        echo "npm: $(npm --version)"
         npm_install eslint
+        echo "eslint: $(eslint --version)"
         ;;
     *)
         echo "Unknown testenv $TESTENV!" >&2

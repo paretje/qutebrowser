@@ -164,6 +164,7 @@ Contributors, sorted by the number of commits in descending order:
 * Kevin Velghe
 * Austin Anderson
 * Jimmy
+* Jan Verbeek
 * Alexey "Averrin" Nabrodov
 * avk
 * ZDarian
@@ -175,7 +176,6 @@ Contributors, sorted by the number of commits in descending order:
 * Jonas Schürmann
 * error800
 * Liam BEGUIN
-* Jan Verbeek
 * skinnay
 * Zach-Button
 * Tomasz Kramkowski
@@ -196,6 +196,7 @@ Contributors, sorted by the number of commits in descending order:
 * Stefan Tatschner
 * Samuel Loury
 * Peter Michely
+* Panashe M. Fundira
 * Link
 * Larry Hynes
 * Johannes Altmanninger

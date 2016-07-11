@@ -184,7 +184,7 @@ def fix_harfbuzz(args):
 def check_pyqt_core():
     """Check if PyQt core is installed."""
     try:
-        import PyQt5.QtCore
+        import PyQt5.QtCore  # pylint: disable=unused-variable
     except ImportError as e:
         text = _missing_str('PyQt5',
                             windows="Use the installer by Riverbank computing "
@@ -264,6 +264,22 @@ def check_libraries():
             _die(text, e)
 
 
+def maybe_import_webengine():
+    """Import QtWebEngineWidgets before QApplication is created.
+
+    See https://github.com/The-Compiler/qutebrowser/pull/1629#issuecomment-231613099
+    """
+    try:
+        from PyQt5 import QtWebEngineWidgets  # pylint: disable=unused-variable
+    except ImportError as e:
+        from qutebrowser.utils import log
+        from PyQt5.QtCore import QCoreApplication
+        log.init.debug("Failed to import QtWebEngineWidgets: {}".format(e))
+        if 'QCoreApplication' in str(e):
+            log.init.debug("QApplication instance: {}".format(
+                QCoreApplication.instance()))
+
+
 def remove_inputhook():
     """Remove the PyQt input hook.
 
@@ -310,3 +326,4 @@ def earlyinit(args):
     remove_inputhook()
     check_libraries()
     init_log(args)
+    maybe_import_webengine()

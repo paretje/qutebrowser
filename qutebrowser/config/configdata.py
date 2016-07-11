@@ -272,6 +272,10 @@ def data(readonly=False):
              SettingValue(typ.VerticalPosition(), 'top'),
              "Where to show the downloaded files."),
 
+            ('status-position',
+             SettingValue(typ.VerticalPosition(), 'bottom'),
+             "The position of the status bar."),
+
             ('message-timeout',
              SettingValue(typ.Int(), '2000'),
              "Time (in ms) to show messages in the statusbar for."),
@@ -283,10 +287,6 @@ def data(readonly=False):
             ('confirm-quit',
              SettingValue(typ.ConfirmQuit(), 'never'),
              "Whether to confirm quitting the application."),
-
-            ('display-statusbar-messages',
-             SettingValue(typ.Bool(), 'false'),
-             "Whether to display javascript statusbar messages."),
 
             ('zoom-text-only',
              SettingValue(typ.Bool(), 'false'),

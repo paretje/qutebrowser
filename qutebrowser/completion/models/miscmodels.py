@@ -22,7 +22,7 @@
 from collections import defaultdict
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot
 
-from qutebrowser.browser.webkit import webview
+from qutebrowser.browser import browsertab
 from qutebrowser.config import config, configdata
 from qutebrowser.utils import objreg, log, qtutils, utils
 from qutebrowser.commands import cmdutils
@@ -183,7 +183,7 @@ class TabCompletionModel(base.BaseCompletionModel):
                                         window=win_id)
             for i in range(tabbed_browser.count()):
                 tab = tabbed_browser.widget(i)
-                tab.url_text_changed.connect(self.rebuild)
+                tab.url_changed.connect(self.rebuild)
                 tab.shutting_down.connect(self.delayed_rebuild)
             tabbed_browser.new_tab.connect(self.on_new_tab)
         objreg.get("app").new_window.connect(self.on_new_window)
@@ -193,10 +193,10 @@ class TabCompletionModel(base.BaseCompletionModel):
         """Add hooks to new windows."""
         window.tabbed_browser.new_tab.connect(self.on_new_tab)
 
-    @pyqtSlot(webview.WebView)
+    @pyqtSlot(browsertab.AbstractTab)
     def on_new_tab(self, tab):
         """Add hooks to new tabs."""
-        tab.url_text_changed.connect(self.rebuild)
+        tab.url_changed.connect(self.rebuild)
         tab.shutting_down.connect(self.delayed_rebuild)
         self.rebuild()
 

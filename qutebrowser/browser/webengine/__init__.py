@@ -1,6 +1,6 @@
-#!/bin/bash
+# vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2015 Zach-Button <zachrey.button@gmail.com>
+# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -17,16 +17,4 @@
 # You should have received a copy of the GNU General Public License
 # along with qutebrowser.  If not, see <http://www.gnu.org/licenses/>.
 
-#
-# This script fetches the unprocessed HTML source for a page and opens it in vim.
-#	:bind gf spawn --userscript qutebrowser_viewsource
-#
-# Caveat: Does not use authentication of any kind. Add it in if you want it to.
-#
-
-path=/tmp/qutebrowser_$(mktemp XXXXXXXX).html
-
-curl "$QUTE_URL" > $path
-urxvt -e vim "$path"
-
-rm "$path"
+"""Classes related to the browser widgets for QtWebEngine."""

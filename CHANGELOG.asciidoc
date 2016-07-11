@@ -22,6 +22,10 @@ Added
 
 - New `{host}` replacement for tab- and window titles which evaluates to the current host.
 - Add new default binding `;t` for `:hint input`.
+- New variables `$QUTE_CONFIG_DIR`, `$QUTE_DATA_DIR` and
+  `$QUTE_DOWNLOAD_DIR` available for userscripts.
+- New option `ui` -> `status-position` to configure the position of the
+  status bar (top/bottom).
 
 Changed
 ~~~~~~~
@@ -30,6 +34,12 @@ Changed
   `gg` can be used with a count.
 - Aliases can now use `;;` to have an alias which executed multiple commands.
 - `:edit-url` now does nothing if the URL isn't changed in the spawned editor.
+
+Removed
+-------
+
+- The ability to display status messages from webpages, as well as the related
+  `ui ->  display-statusbar-messages` setting.
 
 Fixed
 -----
