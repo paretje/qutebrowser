@@ -351,20 +351,6 @@ class WebView(QWebView):
                 return
             self.zoom.set_factor(float(zoom_policy)/100)
 
-    @pyqtSlot('QUrl')
-    def on_url_changed(self, url):
-        """Update cur_url when URL has changed.
-
-        If the URL is invalid, we just ignore it here.
-        """
-        if url.isValid():
-            self.cur_url = url
-            self.apply_local_zoom_policy(url)
-            self.apply_local_js_policy(url)
-            self.url_text_changed.emit(url.toDisplayString())
-            if not self.title():
-                self.titleChanged.emit(self.url().toDisplayString())
-
     @pyqtSlot('QMouseEvent')
     def on_mouse_event(self, evt):
         """Post a new mouse event from a hintmanager."""

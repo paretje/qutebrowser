@@ -466,6 +466,13 @@ class WebKitTab(browsertab.AbstractTab):
         self.zoom.set_default()
         self.backend = usertypes.Backend.QtWebKit
 
+    @pyqtSlot(QUrl)
+    def _on_url_changed(self, url):
+        """Update title when URL has changed and no title is available."""
+        super()._on_url_changed(url)
+        self._widget.apply_local_zoom_policy(url)
+        self._widget.apply_local_js_policy(url)
+
     def openurl(self, url):
         self._openurl_prepare(url)
         self._widget.openurl(url)
