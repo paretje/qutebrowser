@@ -64,9 +64,9 @@ class TabSettings(textbase.TextBase):
             if not tab:
                 self.setText('[]')
                 return
-        if tab.settings().testAttribute(QWebSettings.JavascriptEnabled):
+        if tab._widget.settings().testAttribute(QWebSettings.JavascriptEnabled):
             text = text + 'S'
-        if objreg.get('cookie-jar').setCookiesFromUrl(None, tab.cur_url, test=True):
+        if objreg.get('cookie-jar').setCookiesFromUrl(None, tab.url(), test=True):
             text = text + 'C'
         self.setText('['+text+']')
 
