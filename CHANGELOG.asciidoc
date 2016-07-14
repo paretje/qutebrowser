@@ -26,6 +26,11 @@ Added
   `$QUTE_DOWNLOAD_DIR` available for userscripts.
 - New option `ui` -> `status-position` to configure the position of the
   status bar (top/bottom).
+- New `--pdf <filename>` argument for `:print` which can be used to generate a
+  PDF without a dialog.
+- New `:repeat-command` command (mapped to `.`) to repeat the last command.
+  Note that two former default bundings conflict with that binding, unbinding
+  them via `:unbind .i` and `:unbind .o` is recommended.
 
 Changed
 ~~~~~~~
@@ -34,12 +39,26 @@ Changed
   `gg` can be used with a count.
 - Aliases can now use `;;` to have an alias which executed multiple commands.
 - `:edit-url` now does nothing if the URL isn't changed in the spawned editor.
+- `:bookmark-add` can now be passed a URL and title to add that as a bookmark
+  rather than the current page.
+- New `taskadd` userscript to add a taskwarrior task annotated with the
+  current URL.
+
+Fixed
+-----
+
+- Fixed some configuration values being lost when a config option gets removed
+  from qutebrowser's code.
 
 Removed
 -------
 
 - The ability to display status messages from webpages, as well as the related
   `ui ->  display-statusbar-messages` setting.
+- The `general -> wrap-search` setting as searches now always wrap.
+  According to a quick straw poll and prior crash logs, almost nobody is using
+  `wrap-search = false`, and turning off wrapping is not possible with
+  QtWebEngine.
 
 Fixed
 -----

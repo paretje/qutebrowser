@@ -134,11 +134,6 @@ def data(readonly=False):
              SettingValue(typ.IgnoreCase(), 'smart'),
              "Whether to find text on a page case-insensitively."),
 
-            ('wrap-search',
-             SettingValue(typ.Bool(), 'true'),
-             "Whether to wrap finding text to the top when arriving at the "
-             "end."),
-
             ('startpage',
              SettingValue(typ.List(), 'https://duckduckgo.com'),
              "The default page(s) to open at the start, separated by commas."),
@@ -1463,10 +1458,8 @@ KEY_DATA = collections.OrderedDict([
         ('hint all hover', [';h']),
         ('hint images', [';i']),
         ('hint images tab', [';I']),
-        ('hint images tab-bg', ['.i']),
         ('hint links fill ":open {hint-url}"', [';o']),
         ('hint links fill ":open -t {hint-url}"', [';O']),
-        ('hint links fill ":open -b {hint-url}"', ['.o']),
         ('hint links yank', [';y']),
         ('hint links yank-primary', [';Y']),
         ('hint --rapid links tab-bg', [';r']),
@@ -1551,6 +1544,7 @@ KEY_DATA = collections.OrderedDict([
         ('open qute:settings', ['Ss']),
         ('follow-selected', RETURN_KEYS),
         ('follow-selected -t', ['<Ctrl-Return>', '<Ctrl-Enter>']),
+        ('repeat-command', ['.']),
         ('domain javascript!', ['sth']),
         ('domain javascript! -p', ['stu']),
         ('domain javascript! -r', ['srh']),

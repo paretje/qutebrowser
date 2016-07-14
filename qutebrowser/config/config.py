@@ -211,7 +211,7 @@ def _init_misc():
     """Initialize misc. config-related files."""
     save_manager = objreg.get('save-manager')
     state_config = ini.ReadWriteConfigParser(standarddir.data(), 'state')
-    for sect in ('general', 'geometry'):
+    for sect in ['general', 'geometry']:
         try:
             state_config.add_section(sect)
         except configparser.DuplicateSectionError:
@@ -242,7 +242,7 @@ def _init_misc():
         path = os.devnull
     else:
         path = os.path.join(standarddir.config(), 'qsettings')
-    for fmt in (QSettings.NativeFormat, QSettings.IniFormat):
+    for fmt in [QSettings.NativeFormat, QSettings.IniFormat]:
         QSettings.setPath(fmt, QSettings.UserScope, path)
 
 
@@ -346,12 +346,15 @@ class ConfigManager(QObject):
     DELETED_OPTIONS = [
         ('colors', 'tab.separator'),
         ('colors', 'tabs.separator'),
+        ('colors', 'tab.seperator'),
+        ('colors', 'tabs.seperator'),
         ('colors', 'completion.item.bg'),
         ('tabs', 'indicator-space'),
         ('tabs', 'hide-auto'),
         ('tabs', 'auto-hide'),
         ('tabs', 'hide-always'),
         ('ui', 'display-statusbar-messages'),
+        ('general', 'wrap-search'),
     ]
     CHANGED_OPTIONS = {
         ('content', 'cookies-accept'):
@@ -517,7 +520,7 @@ class ConfigManager(QObject):
                 k = k[1:]
 
             if (sectname, k) in self.DELETED_OPTIONS:
-                return
+                continue
             if (sectname, k) in self.RENAMED_OPTIONS:
                 k = self.RENAMED_OPTIONS[sectname, k]
             if (sectname, k) in self.CHANGED_OPTIONS:
@@ -550,7 +553,7 @@ class ConfigManager(QObject):
         """Notify other objects the config has changed."""
         log.config.debug("Config option changed: {} -> {}".format(
             sectname, optname))
-        if sectname in ('colors', 'fonts'):
+        if sectname in ['colors', 'fonts']:
             self.style_changed.emit(sectname, optname)
         self.changed.emit(sectname, optname)
 

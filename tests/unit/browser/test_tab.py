@@ -23,6 +23,7 @@ from PyQt5.QtCore import PYQT_VERSION, pyqtSignal, QPoint
 
 from qutebrowser.browser import browsertab
 from qutebrowser.keyinput import modeman
+from qutebrowser.utils import objreg
 
 try:
     from PyQt5.QtWebKitWidgets import QWebView
@@ -41,10 +42,8 @@ except ImportError:
     WebEngineView = None
 
 
-@pytest.mark.skipif(PYQT_VERSION < 0x050600,
-                    reason='Causes segfaults, see #1638')
-@pytest.mark.parametrize('view', [WebView, WebEngineView])
-def test_tab(qtbot, view, config_stub, tab_registry):
+@pytest.fixture(params=[WebView, WebEngineView])
+def view(qtbot, config_stub, request):
     config_stub.data = {
         'input': {
             'forward-unbound-keys': 'auto'
@@ -55,12 +54,44 @@ def test_tab(qtbot, view, config_stub, tab_registry):
         }
     }
 
-    if view is None:
+    if request.param is None:
         pytest.skip("View not available")
 
-    w = view()
-    qtbot.add_widget(w)
+    v = request.param()
+    qtbot.add_widget(v)
+    return v
 
+
+@pytest.yield_fixture(params=['webkit', 'webengine'])
+def tab(request, default_config, qtbot, tab_registry, cookiejar_and_cache):
+    if PYQT_VERSION < 0x050600:
+        pytest.skip('Causes segfaults, see #1638')
+
+    if request.param == 'webkit':
+        webkittab = pytest.importorskip('qutebrowser.browser.webkit.webkittab')
+        tab_class = webkittab.WebKitTab
+    elif request.param == 'webengine':
+        webenginetab = pytest.importorskip(
+            'qutebrowser.browser.webengine.webenginetab')
+        tab_class = webenginetab.WebEngineTab
+    else:
+        assert False
+
+    # Can't use the mode_manager fixture as that uses config_stub, which
+    # conflicts with default_config
+    mm = modeman.ModeManager(0)
+    objreg.register('mode-manager', mm, scope='window', window=0)
+
+    t = tab_class(win_id=0, mode_manager=mm)
+    qtbot.add_widget(t)
+    yield t
+
+    objreg.delete('mode-manager', scope='window', window=0)
+
+
+@pytest.mark.skipif(PYQT_VERSION < 0x050600,
+                    reason='Causes segfaults, see #1638')
+def test_tab(qtbot, view, config_stub, tab_registry):
     tab_w = browsertab.AbstractTab(win_id=0)
     qtbot.add_widget(tab_w)
     tab_w.show()
@@ -71,18 +102,27 @@ def test_tab(qtbot, view, config_stub, tab_registry):
     mode_manager = modeman.ModeManager(0)
 
     tab_w.history = browsertab.AbstractHistory(tab_w)
-    tab_w.scroll = browsertab.AbstractScroller(parent=tab_w)
+    tab_w.scroll = browsertab.AbstractScroller(tab_w, parent=tab_w)
     tab_w.caret = browsertab.AbstractCaret(win_id=tab_w.win_id,
                                            mode_manager=mode_manager,
                                            tab=tab_w, parent=tab_w)
     tab_w.zoom = browsertab.AbstractZoom(win_id=tab_w.win_id)
     tab_w.search = browsertab.AbstractSearch(parent=tab_w)
+    tab_w.printing = browsertab.AbstractPrinting()
 
-    tab_w._set_widget(w)
-    assert tab_w._widget is w
+    tab_w._set_widget(view)
+    assert tab_w._widget is view
     assert tab_w.history._tab is tab_w
-    assert tab_w.history._history is w.history()
-    assert w.parent() is tab_w
+    assert tab_w.history._history is view.history()
+    assert view.parent() is tab_w
+
+
+class TestJs:
+
+    @pytest.mark.parametrize('inp, expected', [('1+1', 2),
+                                               ('undefined', None)])
+    def test_blocking(self, tab, inp, expected):
+        assert tab.run_js_blocking(inp) == expected
 
 
 class TestTabData:

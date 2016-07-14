@@ -23,32 +23,84 @@
 """Wrapper over a QWebEngineView."""
 
 from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QPoint
-from PyQt5.QtGui import QKeyEvent
+from PyQt5.QtGui import QKeyEvent, QIcon
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtPrintSupport import QPrinter
 # pylint: disable=no-name-in-module,import-error,useless-suppression
 from PyQt5.QtWebEngineWidgets import QWebEnginePage
 # pylint: enable=no-name-in-module,import-error,useless-suppression
 
 from qutebrowser.browser import browsertab
 from qutebrowser.browser.webengine import webview
-from qutebrowser.utils import usertypes, qtutils, log
+from qutebrowser.utils import usertypes, qtutils, log, utils
+
+
+class WebEnginePrinting(browsertab.AbstractPrinting):
+
+    """QtWebEngine implementations related to printing."""
+
+    def check_pdf_support(self):
+        if not hasattr(self._widget.page(), 'printToPdf'):
+            raise browsertab.WebTabError(
+                "Printing to PDF is unsupported with QtWebEngine on Qt > 5.7")
+
+    def check_printer_support(self):
+        raise browsertab.WebTabError(
+            "Printing is unsupported with QtWebEngine")
+
+    def to_pdf(self, filename):
+        self._widget.page().printToPdf(filename)
+
+    @pyqtSlot(QPrinter)
+    def to_printer(self, printer):
+        # Should never be called
+        assert False
 
 
 class WebEngineSearch(browsertab.AbstractSearch):
 
     """QtWebEngine implementations related to searching on the page."""
 
-    def search(self, text, *, ignore_case=False, wrap=False, reverse=False):
-        log.stub()
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._flags = QWebEnginePage.FindFlags(0)
+
+    def _find(self, text, flags, cb=None):
+        """Call findText on the widget with optional callback."""
+        if cb is None:
+            self._widget.findText(text, flags)
+        else:
+            self._widget.findText(text, flags, cb)
+
+    def search(self, text, *, ignore_case=False, reverse=False,
+               result_cb=None):
+        flags = QWebEnginePage.FindFlags(0)
+        if ignore_case == 'smart':
+            if not text.islower():
+                flags |= QWebEnginePage.FindCaseSensitively
+        elif not ignore_case:
+            flags |= QWebEnginePage.FindCaseSensitively
+        if reverse:
+            flags |= QWebEnginePage.FindBackward
+
+        self.text = text
+        self._flags = flags
+        self._find(text, flags, result_cb)
 
     def clear(self):
-        log.stub()
+        self._widget.findText('')
 
-    def prev_result(self):
-        log.stub()
+    def prev_result(self, *, result_cb=None):
+        # The int() here makes sure we get a copy of the flags.
+        flags = QWebEnginePage.FindFlags(int(self._flags))
+        if flags & QWebEnginePage.FindBackward:
+            flags &= ~QWebEnginePage.FindBackward
+        else:
+            flags |= QWebEnginePage.FindBackward
+        self._find(self.text, self._flags, result_cb)
 
-    def next_result(self):
-        log.stub()
+    def next_result(self, *, result_cb=None):
+        self._find(self.text, self._flags, result_cb)
 
 
 class WebEngineCaret(browsertab.AbstractCaret):
@@ -161,16 +213,27 @@ class WebEngineScroller(browsertab.AbstractScroller):
             return (perc_x, perc_y)
 
     def to_perc(self, x=None, y=None):
-        log.stub()
+        js_code = """
+            {scroll_js}
+            scroll_to_perc({x}, {y});
+        """.format(scroll_js=utils.read_file('javascript/scroll.js'),
+                   x='undefined' if x is None else x,
+                   y='undefined' if y is None else y)
+        self._tab.run_js_async(js_code)
 
     def to_point(self, point):
-        log.stub()
+        self._tab.run_js_async("window.scroll({x}, {y});".format(
+            x=point.x(), y=point.y()))
 
     def delta(self, x=0, y=0):
-        log.stub()
+        self._tab.run_js_async("window.scrollBy({x}, {y});".format(x=x, y=y))
 
     def delta_page(self, x=0, y=0):
-        log.stub()
+        js_code = """
+            {scroll_js}
+            scroll_delta_page({x}, {y});
+        """.format(scroll_js=utils.read_file('javascript/scroll.js'), x=x, y=y)
+        self._tab.run_js_async(js_code)
 
     def up(self, count=1):
         self._key_press(Qt.Key_Up, count)
@@ -251,11 +314,12 @@ class WebEngineTab(browsertab.AbstractTab):
         super().__init__(win_id)
         widget = webview.WebEngineView()
         self.history = WebEngineHistory(self)
-        self.scroll = WebEngineScroller()
+        self.scroll = WebEngineScroller(self, parent=self)
         self.caret = WebEngineCaret(win_id=win_id, mode_manager=mode_manager,
                                     tab=self, parent=self)
         self.zoom = WebEngineZoom(win_id=win_id, parent=self)
         self.search = WebEngineSearch(parent=self)
+        self.printing = WebEnginePrinting()
         self._set_widget(widget)
         self._connect_signals()
         self.backend = usertypes.Backend.QtWebEngine
@@ -279,6 +343,23 @@ class WebEngineTab(browsertab.AbstractTab):
         else:
             self._widget.page().runJavaScript(code, callback)
 
+    def run_js_blocking(self, code):
+        unset = object()
+        loop = qtutils.EventLoop()
+        js_ret = unset
+
+        def js_cb(val):
+            """Handle return value from JS and stop blocking."""
+            nonlocal js_ret
+            js_ret = val
+            loop.quit()
+
+        self.run_js_async(code, js_cb)
+        loop.exec_()  # blocks until loop.quit() in js_cb
+        assert js_ret is not unset
+
+        return js_ret
+
     def shutdown(self):
         log.stub()
 
@@ -296,7 +377,11 @@ class WebEngineTab(browsertab.AbstractTab):
         return self._widget.title()
 
     def icon(self):
-        return self._widget.icon()
+        try:
+            return self._widget.icon()
+        except AttributeError:
+            log.stub('on Qt < 5.7')
+            return QIcon()
 
     def set_html(self, html, base_url):
         # FIXME:qtwebengine
@@ -320,6 +405,9 @@ class WebEngineTab(browsertab.AbstractTab):
         view.urlChanged.connect(self._on_url_changed)
         page.loadFinished.connect(self._on_load_finished)
         page.certificate_error.connect(self._on_ssl_errors)
+        try:
+            view.iconChanged.connect(self.icon_changed)
+        except AttributeError:
+            log.stub('iconChanged, on Qt < 5.7')
         # FIXME:qtwebengine stub this?
-        # view.iconChanged.connect(self.icon_changed)
         # view.scroll.pos_changed.connect(self.scroll.perc_changed)

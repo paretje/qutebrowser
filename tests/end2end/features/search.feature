@@ -100,7 +100,7 @@ Feature: Searching on a page
         # Make sure there was no search in the same window before
         When I open data/search.html in a new window
         And I run :search-next
-        Then no crash should happen
+        Then the error "No search done yet." should be shown
 
     Scenario: Repeating search in a second tab (issue #940)
         When I open data/search.html in a new tab
@@ -141,47 +141,23 @@ Feature: Searching on a page
         # Make sure there was no search in the same window before
         When I open data/search.html in a new window
         And I run :search-prev
-        Then no crash should happen
+        Then the error "No search done yet." should be shown
 
     ## wrapping
 
     Scenario: Wrapping around page
-        When I set general -> wrap-search to true
-        And I run :search foo
+        When I run :search foo
         And I run :search-next
         And I run :search-next
         And I run :yank-selected
         Then the clipboard should contain "foo"
 
-    Scenario: Wrapping around page with wrap-search = false
-        When I set general -> wrap-search to false
-        And I run :search foo
-        And I run :search-next
-        And I run :search-next
-        Then the warning "Search hit BOTTOM without match for: foo" should be shown
-
     Scenario: Wrapping around page with --reverse
-        When I set general -> wrap-search to true
-        And I run :search --reverse foo
+        When I run :search --reverse foo
         And I run :search-next
         And I run :search-next
         And I run :yank-selected
         Then the clipboard should contain "Foo"
-
-    Scenario: Wrapping around page with wrap-search = false and --reverse
-        When I set general -> wrap-search to false
-        And I run :search --reverse foo
-        And I run :search-next
-        And I run :search-next
-        Then the warning "Search hit TOP without match for: foo" should be shown
-
-    Scenario: Wrapping around page
-        When I set general -> wrap-search to true
-        And I run :search foo
-        And I run :search-next
-        And I run :search-next
-        And I run :yank-selected
-        Then the clipboard should contain "foo"
 
     # TODO: wrapping message with scrolling
     # TODO: wrapping message without scrolling

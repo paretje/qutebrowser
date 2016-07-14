@@ -24,6 +24,7 @@ import itertools
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QUrl, QObject, QPoint
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QLayout
+from PyQt5.QtPrintSupport import QPrinter
 
 from qutebrowser.keyinput import modeman
 from qutebrowser.config import config
@@ -105,13 +106,34 @@ class TabData:
         self.inspector = None
 
 
+class AbstractPrinting:
+
+    """Attribute of AbstractTab for printing the page."""
+
+    def __init__(self):
+        self._widget = None
+
+    def check_pdf_support(self):
+        raise NotImplementedError
+
+    def check_printer_support(self):
+        raise NotImplementedError
+
+    def to_pdf(self, filename):
+        raise NotImplementedError
+
+    @pyqtSlot(QPrinter)
+    def to_printer(self, printer):
+        raise NotImplementedError
+
+
 class AbstractSearch(QObject):
 
     """Attribute of AbstractTab for doing searches.
 
     Attributes:
         text: The last thing this view was searched for.
-        _flags: The flags of the last search.
+        _flags: The flags of the last search (needs to be set by subclasses).
         _widget: The underlying WebView widget.
     """
 
@@ -119,16 +141,16 @@ class AbstractSearch(QObject):
         super().__init__(parent)
         self._widget = None
         self.text = None
-        self._flags = 0
 
-    def search(self, text, *, ignore_case=False, wrap=False, reverse=False):
+    def search(self, text, *, ignore_case=False, reverse=False,
+               result_cb=None):
         """Find the given text on the page.
 
         Args:
             text: The text to search for.
             ignore_case: Search case-insensitively. (True/False/'smart')
-            wrap: Wrap around to the top when arriving at the bottom.
             reverse: Reverse search direction.
+            result_cb: Called with a bool indicating whether a match was found.
         """
         raise NotImplementedError
 
@@ -136,12 +158,20 @@ class AbstractSearch(QObject):
         """Clear the current search."""
         raise NotImplementedError
 
-    def prev_result(self):
-        """Go to the previous result of the current search."""
+    def prev_result(self, *, result_cb=None):
+        """Go to the previous result of the current search.
+
+        Args:
+            result_cb: Called with a bool indicating whether a match was found.
+        """
         raise NotImplementedError
 
-    def next_result(self):
-        """Go to the next result of the current search."""
+    def next_result(self, *, result_cb=None):
+        """Go to the next result of the current search.
+
+        Args:
+            result_cb: Called with a bool indicating whether a match was found.
+        """
         raise NotImplementedError
 
 
@@ -171,7 +201,7 @@ class AbstractZoom(QObject):
 
     @pyqtSlot(str, str)
     def _on_config_changed(self, section, option):
-        if section == 'ui' and option in ('zoom-levels', 'default-zoom'):
+        if section == 'ui' and option in ['zoom-levels', 'default-zoom']:
             if not self._default_zoom_changed:
                 factor = float(config.get('ui', 'default-zoom')) / 100
                 self._set_factor_internal(factor)
@@ -319,8 +349,9 @@ class AbstractScroller(QObject):
 
     perc_changed = pyqtSignal(int, int)
 
-    def __init__(self, parent=None):
+    def __init__(self, tab, parent=None):
         super().__init__(parent)
+        self._tab = tab
         self._widget = None
 
     def pos_px(self):
@@ -463,11 +494,12 @@ class AbstractTab(QWidget):
         objreg.register('tab', self, registry=self.registry)
 
         # self.history = AbstractHistory(self)
-        # self.scroll = AbstractScroller(parent=self)
+        # self.scroll = AbstractScroller(self, parent=self)
         # self.caret = AbstractCaret(win_id=win_id, tab=self, mode_manager=...,
         #                            parent=self)
         # self.zoom = AbstractZoom(win_id=win_id)
         # self.search = AbstractSearch(parent=self)
+        # self.printing = AbstractPrinting()
         self.data = TabData()
         self._layout = None
         self._widget = None
@@ -485,6 +517,7 @@ class AbstractTab(QWidget):
         self.caret._widget = widget
         self.zoom._widget = widget
         self.search._widget = widget
+        self.printing._widget = widget
         widget.mouse_wheel_zoom.connect(self.zoom._on_mouse_wheel_zoom)
         widget.setParent(self)
         self.setFocusProxy(widget)
@@ -575,6 +608,14 @@ class AbstractTab(QWidget):
 
         The given callback will be called with the result when running JS is
         complete.
+        """
+        raise NotImplementedError
+
+    def run_js_blocking(self, code):
+        """Run javascript and block.
+
+        This returns the result to the caller. Its use should be avoided when
+        possible as it runs a local event loop for QtWebEngine.
         """
         raise NotImplementedError
 

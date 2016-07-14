@@ -29,7 +29,6 @@ import qutebrowser
 from qutebrowser.utils import docutils
 from qutebrowser.browser import pdfjs
 
-
 bdd.scenarios('misc.feature')
 
 
@@ -73,3 +72,10 @@ def check_cookie(quteproc, name, value):
     data = json.loads(content)
     print(data)
     assert data['cookies'][name] == value
+
+
+@bdd.then(bdd.parsers.parse('the PDF {filename} should exist in the tmpdir'))
+def pdf_exists(quteproc, tmpdir, filename):
+    path = tmpdir / filename
+    data = path.read_binary()
+    assert data.startswith(b'%PDF')

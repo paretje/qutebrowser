@@ -94,19 +94,19 @@ class TestConfigParser:
 
     def test_invalid_value_interpolated(self, objects):
         """Test setting an invalid interpolated value."""
-        objects.cp.read_dict({'general': {'ignore-case': 'smart',
-                                          'wrap-search': '${ignore-case}'}})
+        objects.cp.read_dict({'general': {
+            'ignore-case': 'smart', 'private-browsing': '${ignore-case}'}})
         objects.cfg._from_cp(objects.cp)
         with pytest.raises(configexc.ValidationError):
             objects.cfg._validate_all()
 
     def test_interpolation(self, objects):
         """Test setting an interpolated value."""
-        objects.cp.read_dict({'general': {'ignore-case': 'false',
-                                          'wrap-search': '${ignore-case}'}})
+        objects.cp.read_dict({'general': {
+            'ignore-case': 'false', 'private-browsing': '${ignore-case}'}})
         objects.cfg._from_cp(objects.cp)
         assert not objects.cfg.get('general', 'ignore-case')
-        assert not objects.cfg.get('general', 'wrap-search')
+        assert not objects.cfg.get('general', 'private-browsing')
 
     def test_interpolation_cross_section(self, objects):
         """Test setting an interpolated value from another section."""
@@ -197,6 +197,17 @@ class TestConfigParser:
     def test_deleted_options(self, section, option):
         """Make sure renamed options don't exist anymore."""
         assert option not in configdata.DATA[section]
+
+    def test_config_reading_with_deleted_options(self, objects):
+        """Test an invalid option with relaxed=True."""
+        objects.cp.read_dict({
+            'general': collections.OrderedDict(
+                [('wrap-search', 'true'), ('save-session', 'true')])
+        })
+        objects.cfg._from_cp(objects.cp)
+        with pytest.raises(configexc.NoOptionError):
+            objects.cfg.get('general', 'wrap-search')
+        assert objects.cfg.get('general', 'save-session')
 
 
 class TestKeyConfigParser:

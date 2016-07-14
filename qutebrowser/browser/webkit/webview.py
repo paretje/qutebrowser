@@ -159,14 +159,14 @@ class WebView(QWebView):
         Args:
             e: The QMouseEvent.
         """
-        if e.button() in (Qt.XButton1, Qt.LeftButton):
+        if e.button() in [Qt.XButton1, Qt.LeftButton]:
             # Back button on mice which have it, or rocker gesture
             if self.page().history().canGoBack():
                 self.back()
             else:
                 message.error(self.win_id, "At beginning of history.",
                               immediately=True)
-        elif e.button() in (Qt.XButton2, Qt.RightButton):
+        elif e.button() in [Qt.XButton2, Qt.RightButton]:
             # Forward button on mice which have it, or rocker gesture
             if self.page().history().canGoForward():
                 self.forward()
@@ -392,8 +392,8 @@ class WebView(QWebView):
     @pyqtSlot(usertypes.KeyMode)
     def on_mode_entered(self, mode):
         """Ignore attempts to focus the widget if in any status-input mode."""
-        if mode in (usertypes.KeyMode.command, usertypes.KeyMode.prompt,
-                    usertypes.KeyMode.yesno):
+        if mode in [usertypes.KeyMode.command, usertypes.KeyMode.prompt,
+                    usertypes.KeyMode.yesno]:
             log.webview.debug("Ignoring focus because mode {} was "
                               "entered.".format(mode))
             self.setFocusPolicy(Qt.NoFocus)
@@ -401,53 +401,11 @@ class WebView(QWebView):
     @pyqtSlot(usertypes.KeyMode)
     def on_mode_left(self, mode):
         """Restore focus policy if status-input modes were left."""
-        if mode in (usertypes.KeyMode.command, usertypes.KeyMode.prompt,
-                    usertypes.KeyMode.yesno):
+        if mode in [usertypes.KeyMode.command, usertypes.KeyMode.prompt,
+                    usertypes.KeyMode.yesno]:
             log.webview.debug("Restoring focus policy because mode {} was "
                               "left.".format(mode))
         self.setFocusPolicy(Qt.WheelFocus)
-
-    def search(self, text, flags):
-        """Search for text in the current page.
-
-        Args:
-            text: The text to search for.
-            flags: The QWebPage::FindFlags.
-        """
-        log.webview.debug("Searching with text '{}' and flags "
-                          "0x{:04x}.".format(text, int(flags)))
-        old_scroll_pos = self.scroll_pos
-        flags = QWebPage.FindFlags(flags)
-        found = self.findText(text, flags)
-        backward = flags & QWebPage.FindBackward
-
-        if not found and not flags & QWebPage.HighlightAllOccurrences and text:
-            # User disabled wrapping; but findText() just returns False. If we
-            # have a selection, we know there's a match *somewhere* on the page
-            if (not flags & QWebPage.FindWrapsAroundDocument and
-                    self.hasSelection()):
-                if not backward:
-                    message.warning(self.win_id, "Search hit BOTTOM without "
-                                    "match for: {}".format(text),
-                                    immediately=True)
-                else:
-                    message.warning(self.win_id, "Search hit TOP without "
-                                    "match for: {}".format(text),
-                                    immediately=True)
-            else:
-                message.warning(self.win_id, "Text '{}' not found on "
-                                "page!".format(text), immediately=True)
-        else:
-            def check_scroll_pos():
-                """Check if the scroll position got smaller and show info."""
-                if not backward and self.scroll_pos < old_scroll_pos:
-                    message.info(self.win_id, "Search hit BOTTOM, continuing "
-                                 "at TOP", immediately=True)
-                elif backward and self.scroll_pos > old_scroll_pos:
-                    message.info(self.win_id, "Search hit TOP, continuing at "
-                                 "BOTTOM", immediately=True)
-            # We first want QWebPage to refresh.
-            QTimer.singleShot(0, check_scroll_pos)
 
     def createWindow(self, wintype):
         """Called by Qt when a page wants to create a new window.
@@ -521,7 +479,7 @@ class WebView(QWebView):
         is_rocker_gesture = (config.get('input', 'rocker-gestures') and
                              e.buttons() == Qt.LeftButton | Qt.RightButton)
 
-        if e.button() in (Qt.XButton1, Qt.XButton2) or is_rocker_gesture:
+        if e.button() in [Qt.XButton1, Qt.XButton2] or is_rocker_gesture:
             self._mousepress_backforward(e)
             super().mousePressEvent(e)
             return

@@ -27,52 +27,95 @@ from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QUrl, QPoint, QTimer
 from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtWebKitWidgets import QWebPage
 from PyQt5.QtWebKit import QWebSettings
+from PyQt5.QtPrintSupport import QPrinter
 
 from qutebrowser.browser import browsertab
 from qutebrowser.browser.webkit import webview, tabhistory
 from qutebrowser.utils import qtutils, objreg, usertypes, utils
 
 
+class WebKitPrinting(browsertab.AbstractPrinting):
+
+    """QtWebKit implementations related to printing."""
+
+    def _do_check(self):
+        if not qtutils.check_print_compat():
+            # WORKAROUND (remove this when we bump the requirements to 5.3.0)
+            raise browsertab.WebTabError(
+                "Printing on Qt < 5.3.0 on Windows is broken, please upgrade!")
+
+    def check_pdf_support(self):
+        self._do_check()
+
+    def check_printer_support(self):
+        self._do_check()
+
+    def to_pdf(self, filename):
+        printer = QPrinter()
+        printer.setOutputFileName(filename)
+        self.to_printer(printer)
+
+    @pyqtSlot(QPrinter)
+    def to_printer(self, printer):
+        self._widget.print(printer)
+
+
 class WebKitSearch(browsertab.AbstractSearch):
 
     """QtWebKit implementations related to searching on the page."""
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._flags = QWebPage.FindFlags(0)
+
+    def _call_cb(self, callback, found):
+        """Call the given callback if it's non-None.
+
+        Delays the call via a QTimer so the website is re-rendered in between.
+
+        Args:
+            callback: What to call
+            found: If the text was found
+        """
+        if callback is not None:
+            QTimer.singleShot(0, functools.partial(callback, found))
+
     def clear(self):
         # We first clear the marked text, then the highlights
-        self._widget.search('', 0)
-        self._widget.search('', QWebPage.HighlightAllOccurrences)
+        self._widget.findText('')
+        self._widget.findText('', QWebPage.HighlightAllOccurrences)
 
-    def search(self, text, *, ignore_case=False, wrap=False, reverse=False):
-        flags = 0
+    def search(self, text, *, ignore_case=False, reverse=False,
+               result_cb=None):
+        flags = QWebPage.FindWrapsAroundDocument
         if ignore_case == 'smart':
             if not text.islower():
                 flags |= QWebPage.FindCaseSensitively
         elif not ignore_case:
             flags |= QWebPage.FindCaseSensitively
-        if wrap:
-            flags |= QWebPage.FindWrapsAroundDocument
         if reverse:
             flags |= QWebPage.FindBackward
         # We actually search *twice* - once to highlight everything, then again
         # to get a mark so we can navigate.
-        self._widget.search(text, flags)
-        self._widget.search(text, flags | QWebPage.HighlightAllOccurrences)
+        found = self._widget.findText(text, flags)
+        self._widget.findText(text, flags | QWebPage.HighlightAllOccurrences)
         self.text = text
         self._flags = flags
+        self._call_cb(result_cb, found)
 
-    def next_result(self):
-        self._widget.search(self.text, self._flags)
+    def next_result(self, *, result_cb=None):
+        found = self._widget.findText(self.text, self._flags)
+        self._call_cb(result_cb, found)
 
-    def prev_result(self):
-        # The int() here serves as a QFlags constructor to create a copy of the
-        # QFlags instance rather as a reference. I don't know why it works this
-        # way, but it does.
-        flags = int(self._flags)
+    def prev_result(self, *, result_cb=None):
+        # The int() here makes sure we get a copy of the flags.
+        flags = QWebPage.FindFlags(int(self._flags))
         if flags & QWebPage.FindBackward:
             flags &= ~QWebPage.FindBackward
         else:
             flags |= QWebPage.FindBackward
-        self._widget.search(self.text, flags)
+        found = self._widget.findText(self.text, flags)
+        self._call_cb(result_cb, found)
 
 
 class WebKitCaret(browsertab.AbstractCaret):
@@ -456,11 +499,12 @@ class WebKitTab(browsertab.AbstractTab):
         super().__init__(win_id)
         widget = webview.WebView(win_id, self.tab_id, tab=self)
         self.history = WebKitHistory(self)
-        self.scroll = WebKitScroller(parent=self)
+        self.scroll = WebKitScroller(self, parent=self)
         self.caret = WebKitCaret(win_id=win_id, mode_manager=mode_manager,
                                  tab=self, parent=self)
         self.zoom = WebKitZoom(win_id=win_id, parent=self)
         self.search = WebKitSearch(parent=self)
+        self.printing = WebKitPrinting()
         self._set_widget(widget)
         self._connect_signals()
         self.zoom.set_default()
@@ -488,9 +532,12 @@ class WebKitTab(browsertab.AbstractTab):
             callback(frame.toHtml())
 
     def run_js_async(self, code, callback=None):
-        result = self._widget.page().mainFrame().evaluateJavaScript(code)
+        result = self.run_js_blocking(code)
         if callback is not None:
             callback(result)
+
+    def run_js_blocking(self, code):
+        return self._widget.page().mainFrame().evaluateJavaScript(code)
 
     def icon(self):
         return self._widget.icon()
