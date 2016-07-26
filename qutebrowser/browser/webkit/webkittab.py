@@ -485,9 +485,9 @@ class WebKitHistory(browsertab.AbstractHistory):
             if 'zoom' in cur_data:
                 self._tab.zoom.set_factor(cur_data['zoom'])
             if ('scroll-pos' in cur_data and
-                    self._tab.scroll.pos_px() == QPoint(0, 0)):
+                    self._tab.scroller.pos_px() == QPoint(0, 0)):
                 QTimer.singleShot(0, functools.partial(
-                    self._tab.scroll.to_point, cur_data['scroll-pos']))
+                    self._tab.scroller.to_point, cur_data['scroll-pos']))
 
 
 class WebKitTab(browsertab.AbstractTab):
@@ -498,7 +498,7 @@ class WebKitTab(browsertab.AbstractTab):
         super().__init__(win_id)
         widget = webview.WebView(win_id, self.tab_id, tab=self)
         self.history = WebKitHistory(self)
-        self.scroll = WebKitScroller(self, parent=self)
+        self.scroller = WebKitScroller(self, parent=self)
         self.caret = WebKitCaret(win_id=win_id, mode_manager=mode_manager,
                                  tab=self, parent=self)
         self.zoom = WebKitZoom(win_id=win_id, parent=self)
@@ -564,6 +564,21 @@ class WebKitTab(browsertab.AbstractTab):
     def set_html(self, html, base_url):
         self._widget.setHtml(html, base_url)
 
+    @pyqtSlot()
+    def _on_frame_load_finished(self):
+        """Make sure we emit an appropriate status when loading finished.
+
+        While Qt has a bool "ok" attribute for loadFinished, it always is True
+        when using error pages... See
+        https://github.com/The-Compiler/qutebrowser/issues/84
+        """
+        self._on_load_finished(not self._widget.page().error_occurred)
+
+    @pyqtSlot()
+    def _on_webkit_icon_changed(self):
+        """Emit iconChanged with a QIcon like QWebEngineView does."""
+        self.icon_changed.emit(self._widget.icon())
+
     def _connect_signals(self):
         view = self._widget
         page = view.page()
@@ -572,20 +587,10 @@ class WebKitTab(browsertab.AbstractTab):
         page.linkHovered.connect(self.link_hovered)
         page.loadProgress.connect(self._on_load_progress)
         frame.loadStarted.connect(self._on_load_started)
-        view.scroll_pos_changed.connect(self.scroll.perc_changed)
+        view.scroll_pos_changed.connect(self.scroller.perc_changed)
         view.titleChanged.connect(self.title_changed)
         view.urlChanged.connect(self._on_url_changed)
         view.shutting_down.connect(self.shutting_down)
         page.networkAccessManager().sslErrors.connect(self._on_ssl_errors)
-
-        # Make sure we emit an appropriate status when loading finished. While
-        # Qt has a bool "ok" attribute for loadFinished, it always is True when
-        # using error pages...
-        # See https://github.com/The-Compiler/qutebrowser/issues/84
-        frame.loadFinished.connect(lambda:
-                                   self._on_load_finished(
-                                       not self._widget.page().error_occurred))
-
-        # Emit iconChanged with a QIcon like QWebEngineView does.
-        view.iconChanged.connect(lambda:
-                                 self.icon_changed.emit(self._widget.icon()))
+        frame.loadFinished.connect(self._on_frame_load_finished)
+        view.iconChanged.connect(self._on_webkit_icon_changed)
