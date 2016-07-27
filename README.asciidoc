@@ -152,19 +152,19 @@ Contributors, sorted by the number of commits in descending order:
 * Raphael Pierzina
 * Joel Torstensson
 * Jan Verbeek
-* Tarcisio Fedrizzi
 * Patric Schmitz
+* Tarcisio Fedrizzi
 * Claude
 * Corentin Julé
 * meles5
 * Philipp Hansch
 * Panagiotis Ktistakis
+* Kevin Velghe
 * Artur Shaik
 * Nathan Isom
 * Thorsten Wißmann
-* Kevin Velghe
-* Austin Anderson
 * Marshall Lochbaum
+* Austin Anderson
 * Jimmy
 * Alexey "Averrin" Nabrodov
 * avk

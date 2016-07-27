@@ -59,9 +59,13 @@ def _missing_str(name, *, windows=None, pip=None, webengine=False):
              'distributions packages, or install it via pip.'.format(name)]
     blocks.append('<br />'.join(lines))
     if webengine:
-        lines = ['Note QtWebEngine is not available for some distributions '
-                 '(like Debian/Ubuntu), so you need to start without '
-                 '--backend webengine there.']
+        lines = [
+            'Note QtWebEngine is not available for some distributions '
+                '(like Debian/Ubuntu), so you need to start without '
+                '--backend webengine there.',
+            'QtWebEngine is currently unsupported with the OS X .app, see '
+                'https://github.com/The-Compiler/qutebrowser/issues/1692',
+        ]
     else:
         lines = ['<b>If you installed a qutebrowser package for your '
                  'distribution, please report this as a bug.</b>']
@@ -166,8 +170,11 @@ def fix_harfbuzz(args):
     from qutebrowser.utils import log
     from PyQt5.QtCore import qVersion
     if 'PyQt5.QtWidgets' in sys.modules:
-        log.init.warning("Harfbuzz fix attempted but QtWidgets is already "
-                         "imported!")
+        msg = "Harfbuzz fix attempted but QtWidgets is already imported!"
+        if getattr(sys, 'frozen', False):
+            log.init.debug(msg)
+        else:
+            log.init.warning(msg)
     if sys.platform.startswith('linux') and args.harfbuzz == 'auto':
         if qVersion() == '5.3.0':
             log.init.debug("Using new harfbuzz engine (auto)")
