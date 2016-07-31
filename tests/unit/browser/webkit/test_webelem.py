@@ -109,7 +109,7 @@ def get_webelem(geometry=None, frame=None, *, null=False, style=None,
     else:
         elem.classes.return_value = []
 
-    style_dict = {'visibility': '', 'display': ''}
+    style_dict = {'visibility': '', 'display': '', 'foo': 'bar'}
     if style is not None:
         style_dict.update(style)
 
@@ -254,19 +254,41 @@ class TestWebElementWrapper:
         lambda e: operator.setitem(e, None, None),
         lambda e: operator.delitem(e, None),
         lambda e: None in e,
+        list,  # __iter__
         len,
-        lambda e: e.is_visible(None),
-        lambda e: e.rect_on_view(),
+        lambda e: e.frame(),
+        lambda e: e.geometry(),
+        lambda e: e.document_element(),
+        lambda e: e.create_inside('span'),
+        lambda e: e.find_first('span'),
+        lambda e: e.style_property('visibility', QWebElement.ComputedStyle),
+        lambda e: e.text(),
+        lambda e: e.set_text('foo'),
+        lambda e: e.set_inner_xml(''),
+        lambda e: e.remove_from_document(),
+        lambda e: e.set_style_property('visibility', 'hidden'),
         lambda e: e.is_writable(),
         lambda e: e.is_content_editable(),
         lambda e: e.is_editable(),
         lambda e: e.is_text_input(),
+        lambda e: e.remove_blank_target(),
         lambda e: e.debug_text(),
-        list,  # __iter__
-    ])
+        lambda e: e.outer_xml(),
+        lambda e: e.tag_name(),
+        lambda e: e.run_js_async(''),
+        lambda e: e.rect_on_view(),
+        lambda e: e.is_visible(None),
+    ], ids=['str', 'getitem', 'setitem', 'delitem', 'contains', 'iter', 'len',
+            'frame', 'geometry', 'document_element', 'create_inside',
+            'find_first', 'style_property', 'text', 'set_text',
+            'set_inner_xml', 'remove_from_document', 'set_style_property',
+            'is_writable', 'is_content_editable', 'is_editable',
+            'is_text_input', 'remove_blank_target', 'debug_text', 'outer_xml',
+            'tag_name', 'run_js_async', 'rect_on_view', 'is_visible'])
     def test_vanished(self, elem, code):
         """Make sure methods check if the element is vanished."""
         elem._elem.isNull.return_value = True
+        elem._elem.tagName.return_value = 'span'
         with pytest.raises(webelem.IsNullError):
             code(elem)
 
@@ -308,6 +330,19 @@ class TestWebElementWrapper:
         elem = get_webelem(attributes={'foo': 'bar'})
         assert 'foo' in elem
         assert 'bar' not in elem
+
+    def test_not_eq(self):
+        one = get_webelem()
+        two = get_webelem()
+        assert one != two
+
+    def test_eq(self):
+        one = get_webelem()
+        two = webelem.WebElementWrapper(one._elem)
+        assert one == two
+
+    def test_eq_other_type(self):
+        assert get_webelem() != object()
 
     @pytest.mark.parametrize('attributes, expected', [
         ({'one': '1', 'two': '2'}, {'one', 'two'}),
@@ -367,6 +402,94 @@ class TestWebElementWrapper:
         elem._elem.toOuterXml.return_value = xml
         assert elem.debug_text() == expected
 
+    @pytest.mark.parametrize('attribute, code', [
+        ('webFrame', lambda e: e.frame()),
+        ('geometry', lambda e: e.geometry()),
+        ('toOuterXml', lambda e: e.outer_xml()),
+        ('tagName', lambda e: e.tag_name()),
+    ])
+    def test_simple_getters(self, elem, attribute, code):
+        sentinel = object()
+        mock = getattr(elem._elem, attribute)
+        setattr(mock, 'return_value', sentinel)
+        assert code(elem) is sentinel
+
+    @pytest.mark.parametrize('code, method, args', [
+        (lambda e: e.set_inner_xml('foo'), 'setInnerXml', ['foo']),
+        (lambda e: e.set_style_property('foo', 'bar'), 'setStyleProperty',
+         ['foo', 'bar']),
+        (lambda e: e.remove_from_document(), 'removeFromDocument', []),
+    ])
+    def test_simple_setters(self, elem, code, method, args):
+        code(elem)
+        mock = getattr(elem._elem, method)
+        mock.assert_called_with(*args)
+
+    def test_style_property(self, elem):
+        assert elem.style_property('foo', QWebElement.ComputedStyle) == 'bar'
+
+    def test_document_element(self, stubs):
+        doc_elem = get_webelem()
+        frame = stubs.FakeWebFrame(document_element=doc_elem._elem)
+        elem = get_webelem(frame=frame)
+
+        doc_elem_ret = elem.document_element()
+        assert isinstance(doc_elem_ret, webelem.WebElementWrapper)
+        assert doc_elem_ret == doc_elem
+
+    def test_find_first(self, elem):
+        result = get_webelem()
+        elem._elem.findFirst.return_value = result._elem
+        find_result = elem.find_first('')
+        assert isinstance(find_result, webelem.WebElementWrapper)
+        assert find_result == result
+
+    def test_create_inside(self, elem):
+        child = get_webelem()
+        elem._elem.lastChild.return_value = child._elem
+        assert elem.create_inside('span')._elem is child._elem
+        elem._elem.appendInside.assert_called_with('<span></span>')
+
+    def test_find_first_null(self, elem):
+        nullelem = get_webelem()
+        nullelem._elem.isNull.return_value = True
+        elem._elem.findFirst.return_value = nullelem._elem
+        assert elem.find_first('foo') is None
+
+    @pytest.mark.parametrize('use_js, editable, expected', [
+        (True, 'false', 'js'),
+        (True, 'true', 'nojs'),
+        (False, 'false', 'nojs'),
+        (False, 'true', 'nojs'),
+    ])
+    def test_text(self, use_js, editable, expected):
+        elem = get_webelem(attributes={'contenteditable': editable})
+        elem._elem.toPlainText.return_value = 'nojs'
+        elem._elem.evaluateJavaScript.return_value = 'js'
+        assert elem.text(use_js=use_js) == expected
+
+    @pytest.mark.parametrize('use_js, editable, text, uses_js, arg', [
+        (True, 'false', 'foo', True, "this.value='foo'"),
+        (True, 'false', "foo'bar", True, r"this.value='foo\'bar'"),
+        (True, 'true', 'foo', False, 'foo'),
+        (False, 'false', 'foo', False, 'foo'),
+        (False, 'true', 'foo', False, 'foo'),
+    ])
+    def test_set_text(self, use_js, editable, text, uses_js, arg):
+        elem = get_webelem(attributes={'contenteditable': editable})
+        elem.set_text(text, use_js=use_js)
+        attr = 'evaluateJavaScript' if uses_js else 'setPlainText'
+        called_mock = getattr(elem._elem, attr)
+        called_mock.assert_called_with(arg)
+
+    @pytest.mark.parametrize('with_cb', [True, False])
+    def test_run_js_async(self, elem, with_cb):
+        cb = mock.Mock(spec={}) if with_cb else None
+        elem._elem.evaluateJavaScript.return_value = 42
+        elem.run_js_async('the_answer();', cb)
+        if with_cb:
+            cb.assert_called_with(42)
+
 
 class TestRemoveBlankTarget:
 
@@ -404,7 +527,7 @@ class TestRemoveBlankTarget:
         elem = [None] * depth
         elem[0] = get_webelem(tagname='div')
         for i in range(1, depth):
-            elem[i] = get_webelem(tagname='div', parent=elem[i-1])
+            elem[i] = get_webelem(tagname='div', parent=elem[i-1]._elem)
             elem[i]._elem.encloseWith(elem[i-1]._elem)
         elem[-1].remove_blank_target()
         for i in range(depth):
@@ -674,10 +797,10 @@ class TestRectOnView:
     def test_passed_geometry(self, stubs, js_rect):
         """Make sure geometry isn't called when a geometry is passed."""
         frame = stubs.FakeWebFrame(QRect(0, 0, 200, 200))
-        raw_elem = get_webelem(frame=frame, js_rect_return=js_rect)._elem
+        elem = get_webelem(frame=frame, js_rect_return=js_rect)
         rect = QRect(10, 20, 30, 40)
-        assert webelem.rect_on_view(raw_elem, elem_geometry=rect) == rect
-        assert not raw_elem.geometry.called
+        assert elem.rect_on_view(elem_geometry=rect) == rect
+        assert not elem._elem.geometry.called
 
     @pytest.mark.parametrize('js_rect', [None, {}])
     @pytest.mark.parametrize('zoom_text_only', [True, False])
@@ -774,8 +897,7 @@ class TestJavascriptEscape:
         """Test javascript escaping with a real QWebPage."""
         self._test_escape(text, qtbot, webframe)
 
-    @pytest.mark.qt_log_ignore('^OpenType support missing for script',
-                               extend=True)
+    @pytest.mark.qt_log_ignore('^OpenType support missing for script')
     @hypothesis.given(hypothesis.strategies.text())
     def test_real_escape_hypothesis(self, webframe, qtbot, text):
         """Test javascript escaping with a real QWebPage and hypothesis."""

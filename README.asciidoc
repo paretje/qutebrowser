@@ -147,8 +147,8 @@ Contributors, sorted by the number of commits in descending order:
 * Bruno Oliveira
 * Alexander Cogneau
 * Felix Van der Jeugt
-* Martin Tournoij
 * Jakub Klinkovský
+* Martin Tournoij
 * Raphael Pierzina
 * Joel Torstensson
 * Jan Verbeek
@@ -207,6 +207,7 @@ Contributors, sorted by the number of commits in descending order:
 * Ismail
 * Edgar Hipp
 * Daryl Finlay
+* Claire Cavanaugh
 * adam
 * Samir Benmendil
 * Regina Hug

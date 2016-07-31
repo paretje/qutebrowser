@@ -23,14 +23,15 @@ import sys
 import functools
 import xml.etree.ElementTree
 
-from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QUrl, QPoint, QTimer
+from PyQt5.QtCore import (pyqtSlot, Qt, QEvent, QUrl, QPoint, QTimer, QSizeF,
+                          QSize)
 from PyQt5.QtGui import QKeyEvent
-from PyQt5.QtWebKitWidgets import QWebPage
+from PyQt5.QtWebKitWidgets import QWebPage, QWebFrame
 from PyQt5.QtWebKit import QWebSettings
 from PyQt5.QtPrintSupport import QPrinter
 
 from qutebrowser.browser import browsertab
-from qutebrowser.browser.webkit import webview, tabhistory
+from qutebrowser.browser.webkit import webview, tabhistory, webelem
 from qutebrowser.utils import qtutils, objreg, usertypes, utils
 
 
@@ -564,6 +565,22 @@ class WebKitTab(browsertab.AbstractTab):
     def set_html(self, html, base_url):
         self._widget.setHtml(html, base_url)
 
+    def find_all_elements(self, selector, *, only_visible=False):
+        mainframe = self._widget.page().mainFrame()
+        if mainframe is None:
+            raise browsertab.WebTabError("No frame focused!")
+
+        elems = []
+        frames = webelem.get_child_frames(mainframe)
+        for f in frames:
+            for elem in f.findAllElements(selector):
+                elems.append(webelem.WebElementWrapper(elem))
+
+        if only_visible:
+            elems = [e for e in elems if e.is_visible(mainframe)]
+
+        return elems
+
     @pyqtSlot()
     def _on_frame_load_finished(self):
         """Make sure we emit an appropriate status when loading finished.
@@ -578,6 +595,18 @@ class WebKitTab(browsertab.AbstractTab):
     def _on_webkit_icon_changed(self):
         """Emit iconChanged with a QIcon like QWebEngineView does."""
         self.icon_changed.emit(self._widget.icon())
+
+    @pyqtSlot(QWebFrame)
+    def _on_frame_created(self, frame):
+        """Connect the contentsSizeChanged signal of each frame."""
+        # FIXME:qtwebengine those could theoretically regress:
+        # https://github.com/The-Compiler/qutebrowser/issues/152
+        # https://github.com/The-Compiler/qutebrowser/issues/263
+        frame.contentsSizeChanged.connect(self._on_contents_size_changed)
+
+    @pyqtSlot(QSize)
+    def _on_contents_size_changed(self, size):
+        self.contents_size_changed.emit(QSizeF(size))
 
     def _connect_signals(self):
         view = self._widget
@@ -594,3 +623,5 @@ class WebKitTab(browsertab.AbstractTab):
         page.networkAccessManager().sslErrors.connect(self._on_ssl_errors)
         frame.loadFinished.connect(self._on_frame_load_finished)
         view.iconChanged.connect(self._on_webkit_icon_changed)
+        page.frameCreated.connect(self._on_frame_created)
+        frame.contentsSizeChanged.connect(self._on_contents_size_changed)
