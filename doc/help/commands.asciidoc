@@ -30,7 +30,6 @@
 |<<home,home>>|Open main startpage in current tab.
 |<<inspector,inspector>>|Toggle the web inspector.
 |<<jseval,jseval>>|Evaluate a JavaScript string.
-|<<jump-mark,jump-mark>>|Jump to the mark named by `key`.
 |<<later,later>>|Execute a command after some time.
 |<<messages,messages>>|Show a log of past messages.
 |<<navigate,navigate>>|Open typical prev/next links or navigate using the URL path.
@@ -53,14 +52,13 @@
 |<<session-save,session-save>>|Save a session.
 |<<set,set>>|Set an option.
 |<<set-cmd-text,set-cmd-text>>|Preset the statusbar to some text.
-|<<set-mark,set-mark>>|Set a mark at the current scroll position in the current tab.
 |<<spawn,spawn>>|Spawn a command in a shell.
 |<<stop,stop>>|Stop loading in the current/[count]th tab.
 |<<tab-clone,tab-clone>>|Duplicate the current tab.
 |<<tab-close,tab-close>>|Close the current/[count]th tab.
 |<<tab-detach,tab-detach>>|Detach the current tab to its own window.
 |<<tab-focus,tab-focus>>|Select the tab given as argument/[count].
-|<<tab-move,tab-move>>|Move the current tab.
+|<<tab-move,tab-move>>|Move the current tab according to the argument and [count].
 |<<tab-next,tab-next>>|Switch to the next tab, or switch [count] tabs forward.
 |<<tab-only,tab-only>>|Close all tabs except for the current one.
 |<<tab-prev,tab-prev>>|Switch to the previous tab, or switch [count] tabs back.
@@ -217,10 +215,23 @@ The index of the download to delete.
 
 [[download-open]]
 === download-open
+Syntax: +:download-open ['cmdline']+
+
 Open the last/[count]th download.
+
+If no specific command is given, this will use the system's default application to open the file.
+
+==== positional arguments
+* +'cmdline'+: The command which should be used to open the file. A `{}` is expanded to the temporary file name. If no `{}` is
+ present, the filename is automatically appended to the
+ cmdline.
+
 
 ==== count
 The index of the download to open.
+
+==== note
+* This command does not split arguments after the last argument and handles quotes literally.
 
 [[download-remove]]
 === download-remove
@@ -401,15 +412,6 @@ Evaluate a JavaScript string.
 * This command does not split arguments after the last argument and handles quotes literally.
 * With this command, +;;+ is interpreted literally instead of splitting off a second command.
 
-[[jump-mark]]
-=== jump-mark
-Syntax: +:jump-mark 'key'+
-
-Jump to the mark named by `key`.
-
-==== positional arguments
-* +'key'+: mark identifier; capital indicates a global mark
-
 [[later]]
 === later
 Syntax: +:later 'ms' 'command'+
@@ -467,7 +469,7 @@ This tries to automatically click on typical _Previous Page_ or _Next Page_ link
 
 [[open]]
 === open
-Syntax: +:open [*--bg*] [*--tab*] [*--window*] ['url']+
+Syntax: +:open [*--implicit*] [*--bg*] [*--tab*] [*--window*] ['url']+
 
 Open a URL in the current/[count]th tab.
 
@@ -475,6 +477,8 @@ Open a URL in the current/[count]th tab.
 * +'url'+: The URL to open.
 
 ==== optional arguments
+* +*-i*+, +*--implicit*+: If opening a new tab, treat the tab as implicit (like clicking on a link).
+
 * +*-b*+, +*--bg*+: Open in a new background tab.
 * +*-t*+, +*--tab*+: Open in a new tab.
 * +*-w*+, +*--window*+: Open in a new window.
@@ -700,15 +704,6 @@ You can use the `{url}` and `{url:pretty}` variables here which will get replace
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
 
-[[set-mark]]
-=== set-mark
-Syntax: +:set-mark 'key'+
-
-Set a mark at the current scroll position in the current tab.
-
-==== positional arguments
-* +'key'+: mark identifier; capital indicates a global mark
-
 [[spawn]]
 === spawn
 Syntax: +:spawn [*--userscript*] [*--verbose*] [*--detach*] 'cmdline'+
@@ -775,11 +770,12 @@ Syntax: +:tab-focus ['index']+
 
 Select the tab given as argument/[count].
 
-If neither count nor index are given, it behaves like tab-next.
+If neither count nor index are given, it behaves like tab-next. If both are given, use count.
 
 ==== positional arguments
-* +'index'+: The tab index to focus, starting with 1. The special value `last` focuses the last focused tab. Negative indexes
- counts from the end, such that -1 is the last tab.
+* +'index'+: The tab index to focus, starting with 1. The special value `last` focuses the last focused tab (regardless of count).
+ Negative indices count from the end, such that -1 is the
+ last tab.
 
 
 ==== count
@@ -787,16 +783,20 @@ The tab index to focus, starting with 1.
 
 [[tab-move]]
 === tab-move
-Syntax: +:tab-move ['direction']+
+Syntax: +:tab-move ['index']+
 
-Move the current tab.
+Move the current tab according to the argument and [count].
+
+If neither is given, move it to the first position.
 
 ==== positional arguments
-* +'direction'+: `+` or `-` for relative moving, not given for absolute moving.
+* +'index'+: `+` or `-` to move relative to the current tab by count, or a default of 1 space.
+ A tab index to move to that index.
 
 
 ==== count
-If moving absolutely: New position (default: 0) If moving relatively: Offset.
+If moving relatively: Offset. If moving absolutely: New position (default: 0). This
+ overrides the index argument, if given.
 
 
 [[tab-next]]
@@ -879,7 +879,7 @@ Syntax: +:zoom ['zoom']+
 
 Set the zoom level for the current tab.
 
-The zoom can be given as argument or as [count]. If neither of both is given, the zoom is set to the default zoom.
+The zoom can be given as argument or as [count]. If neither is given, the zoom is set to the default zoom. If both are given, use [count].
 
 ==== positional arguments
 * +'zoom'+: The zoom percentage to set.
@@ -918,6 +918,7 @@ How many steps to zoom out.
 |<<enter-mode,enter-mode>>|Enter a key mode.
 |<<follow-hint,follow-hint>>|Follow a hint.
 |<<follow-selected,follow-selected>>|Follow the selected text.
+|<<jump-mark,jump-mark>>|Jump to the mark named by `key`.
 |<<leave-mode,leave-mode>>|Leave the mode we're currently in.
 |<<message-error,message-error>>|Show an error message in the statusbar.
 |<<message-info,message-info>>|Show an info message in the statusbar.
@@ -955,6 +956,7 @@ How many steps to zoom out.
 |<<rl-forward-word,rl-forward-word>>|Move forward to the end of the next word.
 |<<rl-kill-line,rl-kill-line>>|Remove chars from the cursor to the end of the line.
 |<<rl-kill-word,rl-kill-word>>|Remove chars from the cursor to the end of the current word.
+|<<rl-unix-filename-rubout,rl-unix-filename-rubout>>|Remove chars from the cursor to the previous path separator.
 |<<rl-unix-line-discard,rl-unix-line-discard>>|Remove chars backward from the cursor to the beginning of the line.
 |<<rl-unix-word-rubout,rl-unix-word-rubout>>|Remove chars from the cursor to the beginning of the word.
 |<<rl-yank,rl-yank>>|Paste the most recently deleted text.
@@ -964,6 +966,7 @@ How many steps to zoom out.
 |<<scroll-px,scroll-px>>|Scroll the current tab by 'count * dx/dy' pixels.
 |<<search-next,search-next>>|Continue the search to the ([count]th) next term.
 |<<search-prev,search-prev>>|Continue the search to the ([count]th) previous term.
+|<<set-mark,set-mark>>|Set a mark at the current scroll position in the current tab.
 |<<toggle-selection,toggle-selection>>|Toggle caret selection mode.
 |==============
 [[clear-keychain]]
@@ -1024,6 +1027,15 @@ Follow the selected text.
 
 ==== optional arguments
 * +*-t*+, +*--tab*+: Load the selected link in a new tab.
+
+[[jump-mark]]
+=== jump-mark
+Syntax: +:jump-mark 'key'+
+
+Jump to the mark named by `key`.
+
+==== positional arguments
+* +'key'+: mark identifier; capital indicates a global mark
 
 [[leave-mode]]
 === leave-mode
@@ -1169,7 +1181,20 @@ Answer no to a yes/no prompt.
 
 [[prompt-open-download]]
 === prompt-open-download
+Syntax: +:prompt-open-download ['cmdline']+
+
 Immediately open a download.
+
+If no specific command is given, this will use the system's default application to open the file.
+
+==== positional arguments
+* +'cmdline'+: The command which should be used to open the file. A `{}` is expanded to the temporary file name. If no `{}` is
+ present, the filename is automatically appended to the
+ cmdline.
+
+
+==== note
+* This command does not split arguments after the last argument and handles quotes literally.
 
 [[prompt-yes]]
 === prompt-yes
@@ -1247,6 +1272,12 @@ This acts like readline's kill-line.
 Remove chars from the cursor to the end of the current word.
 
 This acts like readline's kill-word.
+
+[[rl-unix-filename-rubout]]
+=== rl-unix-filename-rubout
+Remove chars from the cursor to the previous path separator.
+
+This acts like readline's unix-filename-rubout.
 
 [[rl-unix-line-discard]]
 === rl-unix-line-discard
@@ -1341,6 +1372,15 @@ Continue the search to the ([count]th) previous term.
 
 ==== count
 How many elements to ignore.
+
+[[set-mark]]
+=== set-mark
+Syntax: +:set-mark 'key'+
+
+Set a mark at the current scroll position in the current tab.
+
+==== positional arguments
+* +'key'+: mark identifier; capital indicates a global mark
 
 [[toggle-selection]]
 === toggle-selection

@@ -40,7 +40,7 @@ from scripts import asciidoc2html, utils
 from qutebrowser import qutebrowser
 from qutebrowser.commands import cmdutils, argparser
 from qutebrowser.config import configdata
-from qutebrowser.utils import docutils
+from qutebrowser.utils import docutils, usertypes
 
 
 class UsageFormatter(argparse.HelpFormatter):
@@ -357,7 +357,8 @@ def _generate_setting_section(f, sectname, sect):
         f.write("=== {}".format(optname) + "\n")
         f.write(sect.descriptions[optname] + "\n")
         f.write("\n")
-        valid_values = option.typ.valid_values
+
+        valid_values = option.typ.get_valid_values()
         if valid_values is not None:
             f.write("Valid values:\n")
             f.write("\n")
@@ -368,11 +369,24 @@ def _generate_setting_section(f, sectname, sect):
                 except KeyError:
                     f.write(" * +{}+".format(val) + "\n")
             f.write("\n")
+
         if option.default():
             f.write("Default: +pass:[{}]+\n".format(html.escape(
                 option.default())))
         else:
             f.write("Default: empty\n")
+
+        if option.backends is None:
+            pass
+        elif option.backends == [usertypes.Backend.QtWebKit]:
+            f.write("\nThis setting is only available with the QtWebKit "
+                    "backend.\n")
+        elif option.backends == [usertypes.Backend.QtWebEngine]:
+            f.write("\nThis setting is only available with the QtWebEngine "
+                    "backend.\n")
+        else:
+            raise ValueError("Invalid value {!r} for option.backends".format(
+                option.backends))
 
 
 def generate_settings(filename):
@@ -402,6 +416,7 @@ def _get_authors():
         'Daniel': 'Daniel Schadt',
         'Alexey Glushko': 'haitaka',
         'Corentin Jule': 'Corentin Julé',
+        'Claire C.C': 'Claire Cavanaugh',
     }
     commits = subprocess.check_output(['git', 'log', '--format=%aN'])
     authors = [corrections.get(author, author)

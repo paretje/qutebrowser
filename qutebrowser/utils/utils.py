@@ -28,6 +28,7 @@ import collections
 import functools
 import contextlib
 import itertools
+import socket
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QKeySequence, QColor, QClipboard
@@ -55,6 +56,38 @@ def elide(text, length):
         return text
     else:
         return text[:length - 1] + '\u2026'
+
+
+def elide_filename(filename, length):
+    """Elide a filename to the given length.
+
+    The difference to the elide() is that the text is removed from
+    the middle instead of from the end. This preserves file name extensions.
+    Additionally, standard ASCII dots are used ("...") instead of the unicode
+    "…" (U+2026) so it works regardless of the filesystem encoding.
+
+    This function does not handle path separators.
+
+    Args:
+        filename: The filename to elide.
+        length: The maximum length of the filename, must be at least 3.
+
+    Return:
+        The elided filename.
+    """
+    elidestr = '...'
+    if length < len(elidestr):
+        raise ValueError('length must be greater or equal to 3')
+    if len(filename) <= length:
+        return filename
+    # Account for '...'
+    length -= len(elidestr)
+    left = length // 2
+    right = length - left
+    if right == 0:
+        return filename[:left] + elidestr
+    else:
+        return filename[:left] + elidestr + filename[-right:]
 
 
 def compact_text(text, elidelength=None):
@@ -783,3 +816,12 @@ def get_clipboard(selection=False):
 def supports_selection():
     """Check if the OS supports primary selection."""
     return QApplication.clipboard().supportsSelection()
+
+
+def random_port():
+    """Get a random free port."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(('localhost', 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port

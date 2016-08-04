@@ -419,7 +419,7 @@ class ConfigManager(QObject):
         for optname, option in sect.items():
 
             lines.append('#')
-            typestr = ' ({})'.format(option.typ.__class__.__name__)
+            typestr = ' ({})'.format(option.typ.get_name())
             lines.append("# {}{}:".format(optname, typestr))
 
             try:
@@ -430,7 +430,7 @@ class ConfigManager(QObject):
                 continue
             for descline in desc.splitlines():
                 lines += wrapper.wrap(descline)
-            valid_values = option.typ.valid_values
+            valid_values = option.typ.get_valid_values()
             if valid_values is not None:
                 if valid_values.descriptions:
                     for val in valid_values:
@@ -771,11 +771,23 @@ class ConfigManager(QObject):
         except KeyError:
             raise configexc.NoSectionError(sectname)
         mapping = {key: val.value() for key, val in sect.values.items()}
+
         if validate:
             interpolated = self._interpolation.before_get(
                 self, sectname, optname, value, mapping)
+            try:
+                allowed_backends = sect.values[optname].backends
+            except KeyError:
+                # Will be handled later in .setv()
+                pass
+            else:
+                backend = usertypes.arg2backend[objreg.get('args').backend]
+                if (allowed_backends is not None and
+                        backend not in allowed_backends):
+                    raise configexc.BackendError(backend)
         else:
             interpolated = None
+
         try:
             sect.setv(layer, optname, value, interpolated)
         except KeyError:

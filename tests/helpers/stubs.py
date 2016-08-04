@@ -27,7 +27,7 @@ from unittest import mock
 from PyQt5.QtCore import pyqtSignal, QPoint, QProcess, QObject
 from PyQt5.QtNetwork import (QNetworkRequest, QAbstractNetworkCache,
                              QNetworkCacheMetaData)
-from PyQt5.QtWidgets import QCommonStyle, QLineEdit
+from PyQt5.QtWidgets import QCommonStyle, QLineEdit, QWidget
 
 from qutebrowser.browser import browsertab
 from qutebrowser.browser.webkit import history
@@ -253,6 +253,8 @@ class FakeWebTab(browsertab.AbstractTab):
         self._url = url
         self._progress = progress
         self.scroller = FakeWebTabScroller(self, scroll_pos_perc)
+        wrapped = QWidget()
+        self._layout.wrap(self, wrapped)
 
     def url(self):
         return self._url
@@ -381,6 +383,28 @@ class FakeTimer(QObject):
         return self._started
 
 
+class InstaTimer(QObject):
+
+    """Stub for a QTimer that fires instantly on start().
+
+    Useful to test a time-based event without inserting an artificial delay.
+    """
+
+    timeout = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def start(self):
+        self.timeout.emit()
+
+    def setSingleShot(self, yes):
+        pass
+
+    def setInterval(self, interval):
+        pass
+
+
 class FakeConfigType:
 
     """A stub to provide valid_values for typ attribute of a SettingValue."""
@@ -391,7 +415,7 @@ class FakeConfigType:
         self.complete = lambda: [(val, '') for val in valid_values]
 
 
-class FakeStatusbarCommand(QLineEdit):
+class StatusBarCommandStub(QLineEdit):
 
     """Stub for the statusbar command prompt."""
 

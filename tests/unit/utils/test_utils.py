@@ -27,6 +27,7 @@ import io
 import logging
 import functools
 import collections
+import socket
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QClipboard
@@ -91,6 +92,24 @@ class TestEliding:
     ])
     def test_elided(self, text, length, expected):
         assert utils.elide(text, length) == expected
+
+
+class TestElidingFilenames:
+
+    """Test elide_filename."""
+
+    def test_too_small(self):
+        """Test eliding to less than 3 characters which should fail."""
+        with pytest.raises(ValueError):
+            utils.elide_filename('foo', 1)
+
+    @pytest.mark.parametrize('filename, length, expected', [
+        ('foobar', 3, '...'),
+        ('foobar.txt', 50, 'foobar.txt'),
+        ('foobarbazqux.py', 10, 'foo...x.py'),
+    ])
+    def test_elided(self, filename, length, expected):
+        assert utils.elide_filename(filename, length) == expected
 
 
 @pytest.fixture(params=[True, False])
@@ -1000,3 +1019,10 @@ class TestGetSetClipboard:
 ])
 def test_is_special_key(keystr, expected):
     assert utils.is_special_key(keystr) == expected
+
+
+def test_random_port():
+    port = utils.random_port()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(('localhost', port))
+    sock.close()

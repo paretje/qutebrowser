@@ -26,12 +26,12 @@ from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QPoint
 from PyQt5.QtGui import QKeyEvent, QIcon
 from PyQt5.QtWidgets import QApplication
 # pylint: disable=no-name-in-module,import-error,useless-suppression
-from PyQt5.QtWebEngineWidgets import QWebEnginePage
+from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineScript
 # pylint: enable=no-name-in-module,import-error,useless-suppression
 
 from qutebrowser.browser import browsertab
 from qutebrowser.browser.webengine import webview
-from qutebrowser.utils import usertypes, qtutils, log, utils
+from qutebrowser.utils import usertypes, qtutils, log, javascript
 
 
 class WebEnginePrinting(browsertab.AbstractPrinting):
@@ -211,15 +211,16 @@ class WebEngineScroller(browsertab.AbstractScroller):
         """Update the scroll position attributes when it changed."""
         def update_scroll_pos(jsret):
             """Callback after getting scroll position via JS."""
+            if jsret is None:
+                # This can happen when the callback would get called after
+                # shutting down a tab
+                return
             assert isinstance(jsret, dict), jsret
             self._pos_perc = (jsret['perc']['x'], jsret['perc']['y'])
             self._pos_px = QPoint(jsret['px']['x'], jsret['px']['y'])
             self.perc_changed.emit(*self._pos_perc)
 
-        js_code = """
-            {scroll_js}
-            scroll_pos();
-        """.format(scroll_js=utils.read_file('javascript/scroll.js'))
+        js_code = javascript.assemble('scroll', 'scroll_pos')
         self._tab.run_js_async(js_code, update_scroll_pos)
 
     def pos_px(self):
@@ -229,12 +230,7 @@ class WebEngineScroller(browsertab.AbstractScroller):
         return self._pos_perc
 
     def to_perc(self, x=None, y=None):
-        js_code = """
-            {scroll_js}
-            scroll_to_perc({x}, {y});
-        """.format(scroll_js=utils.read_file('javascript/scroll.js'),
-                   x='undefined' if x is None else x,
-                   y='undefined' if y is None else y)
+        js_code = javascript.assemble('scroll', 'scroll_to_perc', x, y)
         self._tab.run_js_async(js_code)
 
     def to_point(self, point):
@@ -245,10 +241,7 @@ class WebEngineScroller(browsertab.AbstractScroller):
         self._tab.run_js_async("window.scrollBy({x}, {y});".format(x=x, y=y))
 
     def delta_page(self, x=0, y=0):
-        js_code = """
-            {scroll_js}
-            scroll_delta_page({x}, {y});
-        """.format(scroll_js=utils.read_file('javascript/scroll.js'), x=x, y=y)
+        js_code = javascript.assemble('scroll', 'scroll_delta_page', x, y)
         self._tab.run_js_async(js_code)
 
     def up(self, count=1):
@@ -354,10 +347,18 @@ class WebEngineTab(browsertab.AbstractTab):
             self._widget.page().toHtml(callback)
 
     def run_js_async(self, code, callback=None):
-        if callback is None:
-            self._widget.page().runJavaScript(code)
-        else:
-            self._widget.page().runJavaScript(code, callback)
+        world = QWebEngineScript.ApplicationWorld
+        try:
+            if callback is None:
+                self._widget.page().runJavaScript(code, world)
+            else:
+                self._widget.page().runJavaScript(code, world, callback)
+        except TypeError:
+            # Qt < 5.7
+            if callback is None:
+                self._widget.page().runJavaScript(code)
+            else:
+                self._widget.page().runJavaScript(code, callback)
 
     def run_js_blocking(self, code):
         unset = object()

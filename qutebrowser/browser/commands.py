@@ -40,11 +40,11 @@ import pygments.formatters
 
 from qutebrowser.commands import userscripts, cmdexc, cmdutils, runners
 from qutebrowser.config import config, configexc
-from qutebrowser.browser import urlmarks, browsertab
-from qutebrowser.browser.webkit import webelem, inspector, downloads, mhtml
+from qutebrowser.browser import urlmarks, browsertab, inspector
+from qutebrowser.browser.webkit import webelem, downloads, mhtml
 from qutebrowser.keyinput import modeman
 from qutebrowser.utils import (message, usertypes, log, qtutils, urlutils,
-                               objreg, utils, typing)
+                               objreg, utils, typing, javascript)
 from qutebrowser.utils.usertypes import KeyMode
 from qutebrowser.misc import editor, guiprocess
 from qutebrowser.completion.models import instances, sortfilter
@@ -86,7 +86,8 @@ class CommandDispatcher:
 
     def _set_current_index(self, idx):
         """Convenience method to set the current widget index."""
-        return self._tabbed_browser.setCurrentIndex(idx)
+        cmdutils.check_overflow(idx, 'int')
+        self._tabbed_browser.setCurrentIndex(idx)
 
     def _current_index(self):
         """Convenience method to get the current widget index."""
@@ -114,7 +115,8 @@ class CommandDispatcher:
             raise cmdexc.CommandError("No WebView available yet!")
         return widget
 
-    def _open(self, url, tab=False, background=False, window=False):
+    def _open(self, url, tab=False, background=False, window=False,
+              explicit=True):
         """Helper function to open a page.
 
         Args:
@@ -130,9 +132,9 @@ class CommandDispatcher:
             tabbed_browser = self._new_tabbed_browser()
             tabbed_browser.tabopen(url)
         elif tab:
-            tabbed_browser.tabopen(url, background=False, explicit=True)
+            tabbed_browser.tabopen(url, background=False, explicit=explicit)
         elif background:
-            tabbed_browser.tabopen(url, background=True, explicit=True)
+            tabbed_browser.tabopen(url, background=True, explicit=explicit)
         else:
             widget = self._current_widget()
             widget.openurl(url)
@@ -231,7 +233,8 @@ class CommandDispatcher:
                        maxsplit=0, scope='window')
     @cmdutils.argument('url', completion=usertypes.Completion.url)
     @cmdutils.argument('count', count=True)
-    def openurl(self, url=None, bg=False, tab=False, window=False, count=None):
+    def openurl(self, url=None, implicit=False,
+                bg=False, tab=False, window=False, count=None):
         """Open a URL in the current/[count]th tab.
 
         Args:
@@ -239,6 +242,8 @@ class CommandDispatcher:
             bg: Open in a new background tab.
             tab: Open in a new tab.
             window: Open in a new window.
+            implicit: If opening a new tab, treat the tab as implicit (like
+                      clicking on a link).
             count: The tab index to open the URL in, or None.
         """
         if url is None:
@@ -259,7 +264,7 @@ class CommandDispatcher:
                     message.error(self._win_id, str(e))
                     return
         if tab or bg or window:
-            self._open(url, tab, bg, window)
+            self._open(url, tab, bg, window, not implicit)
         else:
             curtab = self._cntwidget(count)
             if curtab is None:
@@ -717,18 +722,17 @@ class CommandDispatcher:
     def zoom(self, zoom: int=None, count=None):
         """Set the zoom level for the current tab.
 
-        The zoom can be given as argument or as [count]. If neither of both is
-        given, the zoom is set to the default zoom.
+        The zoom can be given as argument or as [count]. If neither is
+        given, the zoom is set to the default zoom. If both are given,
+        use [count].
 
         Args:
             zoom: The zoom percentage to set.
             count: The zoom percentage to set.
         """
-        try:
-            default = config.get('ui', 'default-zoom')
-            level = cmdutils.arg_or_count(zoom, count, default=default)
-        except ValueError as e:
-            raise cmdexc.CommandError(e)
+        level = count if count is not None else zoom
+        if level is None:
+            level = config.get('ui', 'default-zoom')
         tab = self._current_widget()
 
         try:
@@ -904,60 +908,66 @@ class CommandDispatcher:
         """Select the tab given as argument/[count].
 
         If neither count nor index are given, it behaves like tab-next.
+        If both are given, use count.
 
         Args:
             index: The tab index to focus, starting with 1. The special value
-                   `last` focuses the last focused tab. Negative indexes
-                   counts from the end, such that -1 is the last tab.
+                   `last` focuses the last focused tab (regardless of count).
+                   Negative indices count from the end, such that -1 is the
+                   last tab.
             count: The tab index to focus, starting with 1.
         """
         if index == 'last':
             self._tab_focus_last()
             return
-        if index is None and count is None:
+        index = count if count is not None else index
+        if index is None:
             self.tab_next()
             return
-        if index is not None and index < 0:
+        if index < 0:
             index = self._count() + index + 1
-        try:
-            idx = cmdutils.arg_or_count(index, count, default=1,
-                                        countzero=self._count())
-        except ValueError as e:
-            raise cmdexc.CommandError(e)
-        cmdutils.check_overflow(idx + 1, 'int')
-        if 1 <= idx <= self._count():
-            self._set_current_index(idx - 1)
+
+        if 1 <= index <= self._count():
+            self._set_current_index(index - 1)
         else:
             raise cmdexc.CommandError("There's no tab with index {}!".format(
-                idx))
+                index))
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
-    @cmdutils.argument('direction', choices=['+', '-'])
+    @cmdutils.argument('index', choices=['+', '-'])
     @cmdutils.argument('count', count=True)
-    def tab_move(self, direction: str=None, count=None):
-        """Move the current tab.
+    def tab_move(self, index: typing.Union[str, int]=None, count=None):
+        """Move the current tab according to the argument and [count].
+
+        If neither is given, move it to the first position.
 
         Args:
-            direction: `+` or `-` for relative moving, not given for absolute
-                       moving.
-            count: If moving absolutely: New position (default: 0)
-                   If moving relatively: Offset.
+            index: `+` or `-` to move relative to the current tab by
+                   count, or a default of 1 space.
+                   A tab index to move to that index.
+            count: If moving relatively: Offset.
+                   If moving absolutely: New position (default: 0). This
+                   overrides the index argument, if given.
         """
-        if direction is None:
-            # absolute moving
-            new_idx = 0 if count is None else count - 1
-        elif direction in '+-':
+        if index in ['+', '-']:
             # relative moving
+            new_idx = self._current_index()
             delta = 1 if count is None else count
-            if direction == '-':
-                new_idx = self._current_index() - delta
-            elif direction == '+':  # pragma: no branch
-                new_idx = self._current_index() + delta
+            if index == '-':
+                new_idx -= delta
+            elif index == '+':  # pragma: no branch
+                new_idx += delta
 
             if config.get('tabs', 'wrap'):
                 new_idx %= self._count()
-        else:  # pragma: no cover
-            raise ValueError("Invalid direction '{}'!".format(direction))
+        else:
+            # absolute moving
+            if count is not None:
+                new_idx = count - 1
+            elif index is not None:
+                new_idx = index - 1 if index >= 0 else index + self._count()
+            else:
+                new_idx = 0
 
         if not 0 <= new_idx < self._count():
             raise cmdexc.CommandError("Can't move tab to position {}!".format(
@@ -1209,7 +1219,7 @@ class CommandDispatcher:
             raise cmdexc.CommandError(str(e))
 
     @cmdutils.register(instance='command-dispatcher', name='inspector',
-                       scope='window', backend=usertypes.Backend.QtWebKit)
+                       scope='window')
     def toggle_inspector(self):
         """Toggle the web inspector.
 
@@ -1217,25 +1227,17 @@ class CommandDispatcher:
         headers in the network tab.
         """
         tab = self._current_widget()
-        if tab.data.inspector is None:
-            if not config.get('general', 'developer-extras'):
-                raise cmdexc.CommandError(
-                    "Please enable developer-extras before using the "
-                    "webinspector!")
-            tab.data.inspector = inspector.WebInspector()
-            # FIXME:qtwebengine have a proper API for this
-            page = tab._widget.page()  # pylint: disable=protected-access
-            tab.data.inspector.setPage(page)
-            tab.data.inspector.show()
-        elif tab.data.inspector.isVisible():
-            tab.data.inspector.hide()
-        else:
-            if not config.get('general', 'developer-extras'):
-                raise cmdexc.CommandError(
-                    "Please enable developer-extras before using the "
-                    "webinspector!")
+        # FIXME:qtwebengine have a proper API for this
+        page = tab._widget.page()  # pylint: disable=protected-access
+
+        try:
+            if tab.data.inspector is None:
+                tab.data.inspector = inspector.create()
+                tab.data.inspector.inspect(page)
             else:
-                tab.data.inspector.show()
+                tab.data.inspector.toggle(page)
+        except inspector.WebInspectorError as e:
+            raise cmdexc.CommandError(e)
 
     @cmdutils.register(instance='command-dispatcher', scope='window',
                        backend=usertypes.Backend.QtWebKit)
@@ -1483,7 +1485,7 @@ class CommandDispatcher:
             var event = document.createEvent('TextEvent');
             event.initTextEvent('textInput', true, true, null, sel);
             this.dispatchEvent(event);
-        """.format(webelem.javascript_escape(sel)))
+        """.format(javascript.string_escape(sel)))
 
     def _search_cb(self, found, *, tab, old_scroll_pos, options, text, prev):
         """Callback called from search/search_next/search_prev.
@@ -1932,7 +1934,8 @@ class CommandDispatcher:
 
         ed.edit(url or old_url)
 
-    @cmdutils.register(instance='command-dispatcher', scope='window')
+    @cmdutils.register(instance='command-dispatcher', scope='window',
+                       hide=True)
     def set_mark(self, key):
         """Set a mark at the current scroll position in the current tab.
 
@@ -1941,7 +1944,8 @@ class CommandDispatcher:
         """
         self._tabbed_browser.set_mark(key)
 
-    @cmdutils.register(instance='command-dispatcher', scope='window')
+    @cmdutils.register(instance='command-dispatcher', scope='window',
+                       hide=True)
     def jump_mark(self, key):
         """Jump to the mark named by `key`.
 

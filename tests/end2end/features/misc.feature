@@ -471,6 +471,13 @@ Feature: Various utility commands.
         And I open cookies in a new tab
         Then the cookie qute-test should be set to 42
 
+    ## https://github.com/The-Compiler/qutebrowser/issues/1742
+
+    Scenario: Private browsing is activated in QtWebKit without restart
+        When I set general -> private-browsing to true
+        And I open data/javascript/localstorage.html
+        Then the page should contain the plaintext "Local storage status: not working"
+
     Scenario: :repeat-command
         Given I open data/scroll.html
         And I run :tab-only

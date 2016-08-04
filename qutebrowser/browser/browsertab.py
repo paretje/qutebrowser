@@ -23,11 +23,12 @@ import itertools
 
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QUrl, QObject, QPoint, QSizeF
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QWidget, QLayout
+from PyQt5.QtWidgets import QWidget
 
 from qutebrowser.keyinput import modeman
 from qutebrowser.config import config
 from qutebrowser.utils import utils, objreg, usertypes, message, log, qtutils
+from qutebrowser.misc import miscwidgets
 
 
 tab_id_gen = itertools.count(0)
@@ -55,35 +56,6 @@ def create(win_id, parent=None):
 class WebTabError(Exception):
 
     """Base class for various errors."""
-
-
-class WrapperLayout(QLayout):
-
-    """A Qt layout which simply wraps a single widget.
-
-    This is used so the widget is hidden behind a AbstractTab API and can't
-    easily be accidentally accessed.
-    """
-
-    def __init__(self, widget, parent=None):
-        super().__init__(parent)
-        self._widget = widget
-
-    def addItem(self, _widget):
-        raise AssertionError("Should never be called!")
-
-    def sizeHint(self):
-        return self._widget.sizeHint()
-
-    def itemAt(self, _index):  # pragma: no cover
-        # For some reason this sometimes gets called by Qt.
-        return None
-
-    def takeAt(self, _index):
-        raise AssertionError("Should never be called!")
-
-    def setGeometry(self, rect):
-        self._widget.setGeometry(rect)
 
 
 class TabData:
@@ -503,7 +475,7 @@ class AbstractTab(QWidget):
         # self.search = AbstractSearch(parent=self)
         # self.printing = AbstractPrinting()
         self.data = TabData()
-        self._layout = None
+        self._layout = miscwidgets.WrapperLayout(self)
         self._widget = None
         self._progress = 0
         self._has_ssl_errors = False
@@ -512,8 +484,8 @@ class AbstractTab(QWidget):
 
     def _set_widget(self, widget):
         # pylint: disable=protected-access
-        self._layout = WrapperLayout(widget, self)
         self._widget = widget
+        self._layout.wrap(self, widget)
         self.history._history = widget.history()
         self.scroller._init_widget(widget)
         self.caret._widget = widget
@@ -521,8 +493,6 @@ class AbstractTab(QWidget):
         self.search._widget = widget
         self.printing._widget = widget
         widget.mouse_wheel_zoom.connect(self.zoom._on_mouse_wheel_zoom)
-        widget.setParent(self)
-        self.setFocusProxy(widget)
 
     def _set_load_status(self, val):
         """Setter for load_status."""
