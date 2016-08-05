@@ -356,6 +356,8 @@ def qt_message_handler(msg_type, context, msg):
         # When enabling debugging with QtWebEngine
         "Remote debugging server started successfully. Try pointing a "
             "Chromium-based browser to ",
+        # https://github.com/The-Compiler/qutebrowser/issues/1287
+        "QXcbClipboard: SelectionRequest too old",
     ]
     if sys.platform == 'darwin':
         suppressed_msgs += [
@@ -509,6 +511,9 @@ class RAMHandler(logging.Handler):
             if record.levelno >= minlevel:
                 lines.append(fmt(record))
         return '\n'.join(lines)
+
+    def change_log_capacity(self, capacity):
+        self._data = collections.deque(self._data, maxlen=capacity)
 
 
 class ColoredFormatter(logging.Formatter):

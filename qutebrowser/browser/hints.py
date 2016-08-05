@@ -47,9 +47,9 @@ Target = usertypes.enum('Target', ['normal', 'current', 'tab', 'tab_fg',
                                    'userscript', 'spawn'])
 
 
-class WordHintingError(Exception):
+class HintingError(Exception):
 
-    """Exception raised on errors during word hinting."""
+    """Exception raised on errors during hinting."""
 
 
 def on_mode_entered(mode, win_id):
@@ -105,6 +105,199 @@ class HintContext:
         return args
 
 
+class HintActions(QObject):
+
+    """Actions which can be done after selecting a hint.
+
+    Signals:
+        mouse_event: Mouse event to be posted in the web view.
+                     arg: A QMouseEvent
+        start_hinting: Emitted when hinting starts, before a link is clicked.
+                       arg: The ClickTarget to use.
+        stop_hinting: Emitted after a link was clicked.
+    """
+
+    mouse_event = pyqtSignal('QMouseEvent')
+    start_hinting = pyqtSignal(usertypes.ClickTarget)
+    stop_hinting = pyqtSignal()
+
+    def __init__(self, win_id, parent=None):
+        super().__init__(parent)
+        self._win_id = win_id
+
+    def click(self, elem, context):
+        """Click an element.
+
+        Args:
+            elem: The QWebElement to click.
+            context: The HintContext to use.
+        """
+        target_mapping = {
+            Target.normal: usertypes.ClickTarget.normal,
+            Target.current: usertypes.ClickTarget.normal,
+            Target.tab_fg: usertypes.ClickTarget.tab,
+            Target.tab_bg: usertypes.ClickTarget.tab_bg,
+            Target.window: usertypes.ClickTarget.window,
+            Target.hover: usertypes.ClickTarget.normal,
+        }
+        if config.get('tabs', 'background-tabs'):
+            target_mapping[Target.tab] = usertypes.ClickTarget.tab_bg
+        else:
+            target_mapping[Target.tab] = usertypes.ClickTarget.tab
+
+        # Click the center of the largest square fitting into the top/left
+        # corner of the rectangle, this will help if part of the <a> element
+        # is hidden behind other elements
+        # https://github.com/The-Compiler/qutebrowser/issues/1005
+        rect = elem.rect_on_view()
+        if rect.width() > rect.height():
+            rect.setWidth(rect.height())
+        else:
+            rect.setHeight(rect.width())
+        pos = rect.center()
+
+        action = "Hovering" if context.target == Target.hover else "Clicking"
+        log.hints.debug("{} on '{}' at position {}".format(
+            action, elem.debug_text(), pos))
+
+        self.start_hinting.emit(target_mapping[context.target])
+        if context.target in [Target.tab, Target.tab_fg, Target.tab_bg,
+                              Target.window]:
+            modifiers = Qt.ControlModifier
+        else:
+            modifiers = Qt.NoModifier
+        events = [
+            QMouseEvent(QEvent.MouseMove, pos, Qt.NoButton, Qt.NoButton,
+                        Qt.NoModifier),
+        ]
+        if context.target != Target.hover:
+            events += [
+                QMouseEvent(QEvent.MouseButtonPress, pos, Qt.LeftButton,
+                            Qt.LeftButton, modifiers),
+                QMouseEvent(QEvent.MouseButtonRelease, pos, Qt.LeftButton,
+                            Qt.NoButton, modifiers),
+            ]
+
+        if context.target in [Target.normal, Target.current]:
+            # Set the pre-jump mark ', so we can jump back here after following
+            tabbed_browser = objreg.get('tabbed-browser', scope='window',
+                                        window=self._win_id)
+            tabbed_browser.set_mark("'")
+
+        if context.target == Target.current:
+            elem.remove_blank_target()
+        for evt in events:
+            self.mouse_event.emit(evt)
+        if elem.is_text_input() and elem.is_editable():
+            QTimer.singleShot(0, functools.partial(
+                elem.frame().page().triggerAction,
+                QWebPage.MoveToEndOfDocument))
+        QTimer.singleShot(0, self.stop_hinting.emit)
+
+    def yank(self, url, context):
+        """Yank an element to the clipboard or primary selection.
+
+        Args:
+            url: The URL to open as a QUrl.
+            context: The HintContext to use.
+        """
+        sel = (context.target == Target.yank_primary and
+               utils.supports_selection())
+
+        urlstr = url.toString(QUrl.FullyEncoded | QUrl.RemovePassword)
+        utils.set_clipboard(urlstr, selection=sel)
+
+        msg = "Yanked URL to {}: {}".format(
+            "primary selection" if sel else "clipboard",
+            urlstr)
+        message.info(self._win_id, msg)
+
+    def run_cmd(self, url, context):
+        """Run the command based on a hint URL.
+
+        Args:
+            url: The URL to open as a QUrl.
+            context: The HintContext to use.
+        """
+        urlstr = url.toString(QUrl.FullyEncoded)
+        args = context.get_args(urlstr)
+        commandrunner = runners.CommandRunner(self._win_id)
+        commandrunner.run_safely(' '.join(args))
+
+    def preset_cmd_text(self, url, context):
+        """Preset a commandline text based on a hint URL.
+
+        Args:
+            url: The URL to open as a QUrl.
+            context: The HintContext to use.
+        """
+        urlstr = url.toDisplayString(QUrl.FullyEncoded)
+        args = context.get_args(urlstr)
+        text = ' '.join(args)
+        if text[0] not in modeparsers.STARTCHARS:
+            message.error(self._win_id,
+                          "Invalid command text '{}'.".format(text),
+                          immediately=True)
+        else:
+            message.set_cmd_text(self._win_id, text)
+
+    def download(self, elem, context):
+        """Download a hint URL.
+
+        Args:
+            elem: The QWebElement to download.
+            _context: The HintContext to use.
+        """
+        url = elem.resolve_url(context.baseurl)
+        if url is None:
+            raise HintingError
+        if context.rapid:
+            prompt = False
+        else:
+            prompt = None
+
+        download_manager = objreg.get('download-manager', scope='window',
+                                      window=self._win_id)
+        download_manager.get(url, page=elem.frame().page(),
+                             prompt_download_directory=prompt)
+
+    def call_userscript(self, elem, context):
+        """Call a userscript from a hint.
+
+        Args:
+            elem: The QWebElement to use in the userscript.
+            context: The HintContext to use.
+        """
+        cmd = context.args[0]
+        args = context.args[1:]
+        env = {
+            'QUTE_MODE': 'hints',
+            'QUTE_SELECTED_TEXT': str(elem),
+            'QUTE_SELECTED_HTML': elem.outer_xml(),
+        }
+        url = elem.resolve_url(context.baseurl)
+        if url is not None:
+            env['QUTE_URL'] = url.toString(QUrl.FullyEncoded)
+
+        try:
+            userscripts.run_async(context.tab, cmd, *args, win_id=self._win_id,
+                                  env=env)
+        except userscripts.UnsupportedError as e:
+            message.error(self._win_id, str(e), immediately=True)
+
+    def spawn(self, url, context):
+        """Spawn a simple command from a hint.
+
+        Args:
+            url: The URL to open as a QUrl.
+            context: The HintContext to use.
+        """
+        urlstr = url.toString(QUrl.FullyEncoded | QUrl.RemovePassword)
+        args = context.get_args(urlstr)
+        commandrunner = runners.CommandRunner(self._win_id)
+        commandrunner.run_safely('spawn ' + ' '.join(args))
+
+
 class HintManager(QObject):
 
     """Manage drawing hints over links or other elements.
@@ -119,11 +312,7 @@ class HintManager(QObject):
         _filterstr: Used to save the filter string for restoring in rapid mode.
 
     Signals:
-        mouse_event: Mouse event to be posted in the web view.
-                     arg: A QMouseEvent
-        start_hinting: Emitted when hinting starts, before a link is clicked.
-                       arg: The ClickTarget to use.
-        stop_hinting: Emitted after a link was clicked.
+        See HintActions
     """
 
     HINT_TEXTS = {
@@ -155,6 +344,12 @@ class HintManager(QObject):
         self._context = None
         self._filterstr = None
         self._word_hinter = WordHinter()
+
+        self._actions = HintActions(win_id)
+        self._actions.start_hinting.connect(self.start_hinting)
+        self._actions.stop_hinting.connect(self.stop_hinting)
+        self._actions.mouse_event.connect(self.mouse_event)
+
         mode_manager = objreg.get('mode-manager', scope='window',
                                   window=win_id)
         mode_manager.left.connect(self.on_mode_left)
@@ -203,7 +398,7 @@ class HintManager(QObject):
         if hint_mode == 'word':
             try:
                 return self._word_hinter.hint(elems)
-            except WordHintingError as e:
+            except HintingError as e:
                 message.error(self._win_id, str(e), immediately=True)
                 # falls back on letter hints
         if hint_mode == 'number':
@@ -405,241 +600,6 @@ class HintManager(QObject):
         message.error(self._win_id, "No suitable link found for this element.",
                       immediately=True)
 
-    def _click(self, elem, context):
-        """Click an element.
-
-        Args:
-            elem: The QWebElement to click.
-            context: The HintContext to use.
-        """
-        target_mapping = {
-            Target.normal: usertypes.ClickTarget.normal,
-            Target.current: usertypes.ClickTarget.normal,
-            Target.tab_fg: usertypes.ClickTarget.tab,
-            Target.tab_bg: usertypes.ClickTarget.tab_bg,
-            Target.window: usertypes.ClickTarget.window,
-            Target.hover: usertypes.ClickTarget.normal,
-        }
-        if config.get('tabs', 'background-tabs'):
-            target_mapping[Target.tab] = usertypes.ClickTarget.tab_bg
-        else:
-            target_mapping[Target.tab] = usertypes.ClickTarget.tab
-
-        # Click the center of the largest square fitting into the top/left
-        # corner of the rectangle, this will help if part of the <a> element
-        # is hidden behind other elements
-        # https://github.com/The-Compiler/qutebrowser/issues/1005
-        rect = elem.rect_on_view()
-        if rect.width() > rect.height():
-            rect.setWidth(rect.height())
-        else:
-            rect.setHeight(rect.width())
-        pos = rect.center()
-
-        action = "Hovering" if context.target == Target.hover else "Clicking"
-        log.hints.debug("{} on '{}' at position {}".format(
-            action, elem.debug_text(), pos))
-
-        self.start_hinting.emit(target_mapping[context.target])
-        if context.target in [Target.tab, Target.tab_fg, Target.tab_bg,
-                              Target.window]:
-            modifiers = Qt.ControlModifier
-        else:
-            modifiers = Qt.NoModifier
-        events = [
-            QMouseEvent(QEvent.MouseMove, pos, Qt.NoButton, Qt.NoButton,
-                        Qt.NoModifier),
-        ]
-        if context.target != Target.hover:
-            events += [
-                QMouseEvent(QEvent.MouseButtonPress, pos, Qt.LeftButton,
-                            Qt.LeftButton, modifiers),
-                QMouseEvent(QEvent.MouseButtonRelease, pos, Qt.LeftButton,
-                            Qt.NoButton, modifiers),
-            ]
-
-        if context.target in [Target.normal, Target.current]:
-            # Set the pre-jump mark ', so we can jump back here after following
-            tabbed_browser = objreg.get('tabbed-browser', scope='window',
-                                        window=self._win_id)
-            tabbed_browser.set_mark("'")
-
-        if context.target == Target.current:
-            elem.remove_blank_target()
-        for evt in events:
-            self.mouse_event.emit(evt)
-        if elem.is_text_input() and elem.is_editable():
-            QTimer.singleShot(0, functools.partial(
-                elem.frame().page().triggerAction,
-                QWebPage.MoveToEndOfDocument))
-        QTimer.singleShot(0, self.stop_hinting.emit)
-
-    def _yank(self, url, context):
-        """Yank an element to the clipboard or primary selection.
-
-        Args:
-            url: The URL to open as a QUrl.
-            context: The HintContext to use.
-        """
-        sel = (context.target == Target.yank_primary and
-               utils.supports_selection())
-
-        urlstr = url.toString(QUrl.FullyEncoded | QUrl.RemovePassword)
-        utils.set_clipboard(urlstr, selection=sel)
-
-        msg = "Yanked URL to {}: {}".format(
-            "primary selection" if sel else "clipboard",
-            urlstr)
-        message.info(self._win_id, msg)
-
-    def _run_cmd(self, url, context):
-        """Run the command based on a hint URL.
-
-        Args:
-            url: The URL to open as a QUrl.
-            context: The HintContext to use.
-        """
-        urlstr = url.toString(QUrl.FullyEncoded)
-        args = context.get_args(urlstr)
-        commandrunner = runners.CommandRunner(self._win_id)
-        commandrunner.run_safely(' '.join(args))
-
-    def _preset_cmd_text(self, url, context):
-        """Preset a commandline text based on a hint URL.
-
-        Args:
-            url: The URL to open as a QUrl.
-            context: The HintContext to use.
-        """
-        urlstr = url.toDisplayString(QUrl.FullyEncoded)
-        args = context.get_args(urlstr)
-        text = ' '.join(args)
-        if text[0] not in modeparsers.STARTCHARS:
-            message.error(self._win_id,
-                          "Invalid command text '{}'.".format(text),
-                          immediately=True)
-        else:
-            message.set_cmd_text(self._win_id, text)
-
-    def _download(self, elem, context):
-        """Download a hint URL.
-
-        Args:
-            elem: The QWebElement to download.
-            _context: The HintContext to use.
-        """
-        url = self._resolve_url(elem, context.baseurl)
-        if url is None:
-            self._show_url_error()
-            return
-        if context.rapid:
-            prompt = False
-        else:
-            prompt = None
-
-        download_manager = objreg.get('download-manager', scope='window',
-                                      window=self._win_id)
-        download_manager.get(url, page=elem.frame().page(),
-                             prompt_download_directory=prompt)
-
-    def _call_userscript(self, elem, context):
-        """Call a userscript from a hint.
-
-        Args:
-            elem: The QWebElement to use in the userscript.
-            context: The HintContext to use.
-        """
-        cmd = context.args[0]
-        args = context.args[1:]
-        env = {
-            'QUTE_MODE': 'hints',
-            'QUTE_SELECTED_TEXT': str(elem),
-            'QUTE_SELECTED_HTML': elem.outer_xml(),
-        }
-        url = self._resolve_url(elem, context.baseurl)
-        if url is not None:
-            env['QUTE_URL'] = url.toString(QUrl.FullyEncoded)
-
-        try:
-            userscripts.run_async(context.tab, cmd, *args, win_id=self._win_id,
-                                  env=env)
-        except userscripts.UnsupportedError as e:
-            message.error(self._win_id, str(e), immediately=True)
-
-    def _spawn(self, url, context):
-        """Spawn a simple command from a hint.
-
-        Args:
-            url: The URL to open as a QUrl.
-            context: The HintContext to use.
-        """
-        urlstr = url.toString(QUrl.FullyEncoded | QUrl.RemovePassword)
-        args = context.get_args(urlstr)
-        commandrunner = runners.CommandRunner(self._win_id)
-        commandrunner.run_safely('spawn ' + ' '.join(args))
-
-    def _resolve_url(self, elem, baseurl):
-        """Resolve a URL and check if we want to keep it.
-
-        Args:
-            elem: The QWebElement to get the URL of.
-            baseurl: The baseurl of the current tab.
-
-        Return:
-            A QUrl with the absolute URL, or None.
-        """
-        for attr in ['href', 'src']:
-            if attr in elem:
-                text = elem[attr].strip()
-                break
-        else:
-            return None
-
-        url = QUrl(text)
-        if not url.isValid():
-            return None
-        if url.isRelative():
-            url = baseurl.resolved(url)
-        qtutils.ensure_valid(url)
-        return url
-
-    def _find_prevnext(self, tab, prev=False):
-        """Find a prev/next element in frame."""
-        # First check for <link rel="prev(ious)|next">
-        elems = tab.find_all_elements(webelem.SELECTORS[webelem.Group.links])
-        rel_values = ('prev', 'previous') if prev else ('next')
-        for e in elems:
-            try:
-                rel_attr = e['rel']
-            except KeyError:
-                continue
-            if rel_attr in rel_values:
-                log.hints.debug("Found '{}' with rel={}".format(
-                    e.debug_text(), rel_attr))
-                return e
-        # Then check for regular links/buttons.
-        elems = tab.find_all_elements(
-            webelem.SELECTORS[webelem.Group.prevnext])
-        filterfunc = webelem.FILTERS[webelem.Group.prevnext]
-        elems = [e for e in elems if filterfunc(e)]
-
-        option = 'prev-regexes' if prev else 'next-regexes'
-        if not elems:
-            return None
-        for regex in config.get('hints', option):
-            log.hints.vdebug("== Checking regex '{}'.".format(regex.pattern))
-            for e in elems:
-                text = str(e)
-                if not text:
-                    continue
-                if regex.search(text):
-                    log.hints.debug("Regex '{}' matched on '{}'.".format(
-                        regex.pattern, text))
-                    return e
-                else:
-                    log.hints.vdebug("No match on '{}'!".format(text))
-        return None
-
     def _check_args(self, target, *args):
         """Check the arguments passed to start() and raise if they're wrong.
 
@@ -660,11 +620,18 @@ class HintManager(QObject):
                 raise cmdexc.CommandError(
                     "'args' is only allowed with target userscript/spawn.")
 
-    def _init_elements(self):
+    def _filter_matches(self, filterstr, elemstr):
+        """Return True if `filterstr` matches `elemstr`."""
+        # Empty string and None always match
+        if not filterstr:
+            return True
+        filterstr = filterstr.casefold()
+        elemstr = elemstr.casefold()
+        # Do multi-word matching
+        return all(word in elemstr for word in filterstr.split())
+
+    def _start_cb(self, elems):
         """Initialize the elements and labels based on the context set."""
-        selector = webelem.SELECTORS[self._context.group]
-        elems = self._context.tab.find_all_elements(selector,
-                                                    only_visible=True)
         filterfunc = webelem.FILTERS.get(self._context.group, lambda e: True)
         elems = [e for e in elems if filterfunc(e)]
         if not elems:
@@ -681,52 +648,13 @@ class HintManager(QObject):
         keyparser = keyparsers[usertypes.KeyMode.hint]
         keyparser.update_bindings(strings)
 
-    def _filter_matches(self, filterstr, elemstr):
-        """Return True if `filterstr` matches `elemstr`."""
-        # Empty string and None always match
-        if not filterstr:
-            return True
-        filterstr = filterstr.casefold()
-        elemstr = elemstr.casefold()
-        # Do multi-word matching
-        return all(word in elemstr for word in filterstr.split())
-
-    def follow_prevnext(self, browsertab, baseurl, prev=False, tab=False,
-                        background=False, window=False):
-        """Click a "previous"/"next" element on the page.
-
-        Args:
-            browsertab: The WebKitTab/WebEngineTab of the page.
-            baseurl: The base URL of the current tab.
-            prev: True to open a "previous" link, False to open a "next" link.
-            tab: True to open in a new tab, False for the current tab.
-            background: True to open in a background tab.
-            window: True to open in a new window, False for the current one.
-        """
-        from qutebrowser.mainwindow import mainwindow
-        elem = self._find_prevnext(browsertab, prev)
-        if elem is None:
-            raise cmdexc.CommandError("No {} links found!".format(
-                "prev" if prev else "forward"))
-        url = self._resolve_url(elem, baseurl)
-        if url is None:
-            raise cmdexc.CommandError("No {} links found!".format(
-                "prev" if prev else "forward"))
-        qtutils.ensure_valid(url)
-        if window:
-            new_window = mainwindow.MainWindow()
-            new_window.show()
-            tabbed_browser = objreg.get('tabbed-browser', scope='window',
-                                        window=new_window.win_id)
-            tabbed_browser.tabopen(url, background=False)
-        elif tab:
-            tabbed_browser = objreg.get('tabbed-browser', scope='window',
-                                        window=self._win_id)
-            tabbed_browser.tabopen(url, background=background)
-        else:
-            tab = objreg.get('tab', scope='tab', window=self._win_id,
-                             tab=self._tab_id)
-            tab.openurl(url)
+        self._context.tab.contents_size_changed.connect(
+            self.on_contents_size_changed)
+        message_bridge = objreg.get('message-bridge', scope='window',
+                                    window=self._win_id)
+        message_bridge.set_text(self._get_text())
+        modeman.enter(self._win_id, usertypes.KeyMode.hint,
+                      'HintManager.start')
 
     @cmdutils.register(instance='hintmanager', scope='tab', name='hint',
                        star_args_optional=True, maxsplit=2,
@@ -817,13 +745,9 @@ class HintManager(QObject):
         self._context.tab = tab
         self._context.args = args
         self._context.group = group
-        self._init_elements()
-        tab.contents_size_changed.connect(self.on_contents_size_changed)
-        message_bridge = objreg.get('message-bridge', scope='window',
-                                    window=self._win_id)
-        message_bridge.set_text(self._get_text())
-        modeman.enter(self._win_id, usertypes.KeyMode.hint,
-                      'HintManager.start')
+        selector = webelem.SELECTORS[self._context.group]
+        self._context.tab.find_all_elements(selector, self._start_cb,
+                                            only_visible=True)
 
     def handle_partial_key(self, keystr):
         """Handle a new partial keypress."""
@@ -951,38 +875,41 @@ class HintManager(QObject):
             self.handle_partial_key(keystr)
             self._context.to_follow = keystr
             return
+
         # Handlers which take a QWebElement
         elem_handlers = {
-            Target.normal: self._click,
-            Target.current: self._click,
-            Target.tab: self._click,
-            Target.tab_fg: self._click,
-            Target.tab_bg: self._click,
-            Target.window: self._click,
-            Target.hover: self._click,
+            Target.normal: self._actions.click,
+            Target.current: self._actions.click,
+            Target.tab: self._actions.click,
+            Target.tab_fg: self._actions.click,
+            Target.tab_bg: self._actions.click,
+            Target.window: self._actions.click,
+            Target.hover: self._actions.click,
             # _download needs a QWebElement to get the frame.
-            Target.download: self._download,
-            Target.userscript: self._call_userscript,
+            Target.download: self._actions.download,
+            Target.userscript: self._actions.call_userscript,
         }
         # Handlers which take a QUrl
         url_handlers = {
-            Target.yank: self._yank,
-            Target.yank_primary: self._yank,
-            Target.run: self._run_cmd,
-            Target.fill: self._preset_cmd_text,
-            Target.spawn: self._spawn,
+            Target.yank: self._actions.yank,
+            Target.yank_primary: self._actions.yank,
+            Target.run: self._actions.run_cmd,
+            Target.fill: self._actions.preset_cmd_text,
+            Target.spawn: self._actions.spawn,
         }
         elem = self._context.elems[keystr].elem
+
         if elem.frame() is None:
             message.error(self._win_id,
                           "This element has no webframe.",
                           immediately=True)
             return
+
         if self._context.target in elem_handlers:
             handler = functools.partial(elem_handlers[self._context.target],
                                         elem, self._context)
         elif self._context.target in url_handlers:
-            url = self._resolve_url(elem, self._context.baseurl)
+            url = elem.resolve_url(self._context.baseurl)
             if url is None:
                 self._show_url_error()
                 return
@@ -990,6 +917,7 @@ class HintManager(QObject):
                                         url, self._context)
         else:
             raise ValueError("No suitable handler found!")
+
         if not self._context.rapid:
             modeman.maybe_leave(self._win_id, usertypes.KeyMode.hint,
                                 'followed')
@@ -999,7 +927,11 @@ class HintManager(QObject):
             # Undo keystring highlighting
             for string, elem in self._context.elems.items():
                 elem.label.set_inner_xml(string)
-        handler()
+
+        try:
+            handler()
+        except HintingError:
+            self._show_url_error()
 
     @cmdutils.register(instance='hintmanager', scope='tab', hide=True,
                        modes=[usertypes.KeyMode.hint])
@@ -1082,7 +1014,7 @@ class WordHinter:
                     self.words.update(hints)
             except IOError as e:
                 error = "Word hints requires reading the file at {}: {}"
-                raise WordHintingError(error.format(dictionary, str(e)))
+                raise HintingError(error.format(dictionary, str(e)))
 
     def extract_tag_words(self, elem):
         """Extract tag words form the given element."""
@@ -1151,7 +1083,7 @@ class WordHinter:
         for elem in elems:
             hint = self.new_hint_for(elem, used_hints, words)
             if not hint:
-                raise WordHintingError("Not enough words in the dictionary.")
+                raise HintingError("Not enough words in the dictionary.")
             used_hints.add(hint)
             hints.append(hint)
         return hints
