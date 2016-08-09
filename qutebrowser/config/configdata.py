@@ -154,7 +154,7 @@ def data(readonly=False):
              "Whether to save the config automatically on quit."),
 
             ('auto-save-interval',
-             SettingValue(typ.Int(minval=0), '15000'),
+             SettingValue(typ.Int(minval=0, maxval=MAXVALS['int']), '15000'),
              "How often (in milliseconds) to auto-save config/cookies/etc."),
 
             ('editor',
@@ -488,13 +488,13 @@ def data(readonly=False):
         ('input', sect.KeyValue(
             ('timeout',
              SettingValue(typ.Int(minval=0, maxval=MAXVALS['int']), '500'),
-             "Timeout for ambiguous key bindings.\n\n"
+             "Timeout (in milliseconds) for ambiguous key bindings.\n\n"
              "If the current input forms both a complete match and a partial "
              "match, the complete match will be executed after this time."),
 
             ('partial-timeout',
              SettingValue(typ.Int(minval=0, maxval=MAXVALS['int']), '5000'),
-             "Timeout for partially typed key bindings.\n\n"
+             "Timeout (in milliseconds) for partially typed key bindings.\n\n"
              "If the current input forms only partial matches, the keystring "
              "will be cleared after this time."),
 
@@ -933,8 +933,8 @@ def data(readonly=False):
 
             ('auto-follow-timeout',
              SettingValue(typ.Int(), '0'),
-             "A timeout to inhibit normal-mode key bindings after a successful"
-             "auto-follow."),
+             "A timeout (in milliseconds) to inhibit normal-mode key bindings "
+             "after a successful auto-follow."),
 
             ('next-regexes',
              SettingValue(typ.List(typ.Regex(flags=re.IGNORECASE)),
@@ -1415,8 +1415,7 @@ KEY_SECTION_DESC = {
         "Useful hidden commands to map in this section:\n\n"
         " * `command-history-prev`: Switch to previous command in history.\n"
         " * `command-history-next`: Switch to next command in history.\n"
-        " * `completion-item-prev`: Select previous item in completion.\n"
-        " * `completion-item-next`: Select next item in completion.\n"
+        " * `completion-item-focus`: Select another item in completion.\n"
         " * `command-accept`: Execute the command currently in the "
         "commandline."),
     'prompt': (
@@ -1506,12 +1505,12 @@ KEY_DATA = collections.OrderedDict([
         ('enter-mode jump_mark', ["'"]),
         ('yank', ['yy']),
         ('yank -s', ['yY']),
-        ('yank -t', ['yt']),
-        ('yank -ts', ['yT']),
-        ('yank -d', ['yd']),
-        ('yank -ds', ['yD']),
-        ('yank -p', ['yp']),
-        ('yank -ps', ['yP']),
+        ('yank title', ['yt']),
+        ('yank title -s', ['yT']),
+        ('yank domain', ['yd']),
+        ('yank domain -s', ['yD']),
+        ('yank pretty-url', ['yp']),
+        ('yank pretty-url -s', ['yP']),
         ('paste', ['pp']),
         ('paste -s', ['pP']),
         ('paste -t', ['Pp']),
@@ -1596,8 +1595,8 @@ KEY_DATA = collections.OrderedDict([
     ('command', collections.OrderedDict([
         ('command-history-prev', ['<Ctrl-P>']),
         ('command-history-next', ['<Ctrl-N>']),
-        ('completion-item-prev', ['<Shift-Tab>', '<Up>']),
-        ('completion-item-next', ['<Tab>', '<Down>']),
+        ('completion-item-focus prev', ['<Shift-Tab>', '<Up>']),
+        ('completion-item-focus next', ['<Tab>', '<Down>']),
         ('completion-item-del', ['<Ctrl-D>']),
         ('command-accept', RETURN_KEYS),
     ])),
@@ -1645,8 +1644,8 @@ KEY_DATA = collections.OrderedDict([
         ('move-to-end-of-line', ['$']),
         ('move-to-start-of-document', ['gg']),
         ('move-to-end-of-document', ['G']),
-        ('yank-selected -p', ['Y']),
-        ('yank-selected', ['y'] + RETURN_KEYS),
+        ('yank selection -s', ['Y']),
+        ('yank selection', ['y'] + RETURN_KEYS),
         ('scroll left', ['H']),
         ('scroll down', ['J']),
         ('scroll up', ['K']),
@@ -1684,4 +1683,16 @@ CHANGED_KEY_COMMANDS = [
     (re.compile(r'^download-remove --all$'), r'download-clear'),
 
     (re.compile(r'^hint links fill "([^"]*)"$'), r'hint links fill \1'),
+
+    (re.compile(r'^yank -t(\S+)'), r'yank title -\1'),
+    (re.compile(r'^yank -t'), r'yank title'),
+    (re.compile(r'^yank -d(\S+)'), r'yank domain -\1'),
+    (re.compile(r'^yank -d'), r'yank domain'),
+    (re.compile(r'^yank -p(\S+)'), r'yank pretty-url -\1'),
+    (re.compile(r'^yank -p'), r'yank pretty-url'),
+    (re.compile(r'^yank-selected -p'), r'yank selection -s'),
+    (re.compile(r'^yank-selected'), r'yank selection'),
+
+    (re.compile(r'^completion-item-next'), r'completion-item-focus next'),
+    (re.compile(r'^completion-item-prev'), r'completion-item-focus prev'),
 ]

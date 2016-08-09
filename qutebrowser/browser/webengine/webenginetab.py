@@ -22,6 +22,8 @@
 
 """Wrapper over a QWebEngineView."""
 
+import functools
+
 from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QPoint
 from PyQt5.QtGui import QKeyEvent, QIcon
 from PyQt5.QtWidgets import QApplication
@@ -30,7 +32,7 @@ from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineScript
 # pylint: enable=no-name-in-module,import-error,useless-suppression
 
 from qutebrowser.browser import browsertab
-from qutebrowser.browser.webengine import webview
+from qutebrowser.browser.webengine import webview, webengineelem
 from qutebrowser.utils import usertypes, qtutils, log, javascript
 
 
@@ -95,7 +97,7 @@ class WebEngineSearch(browsertab.AbstractSearch):
             flags &= ~QWebEnginePage.FindBackward
         else:
             flags |= QWebEnginePage.FindBackward
-        self._find(self.text, self._flags, result_cb)
+        self._find(self.text, flags, result_cb)
 
     def next_result(self, *, result_cb=None):
         self._find(self.text, self._flags, result_cb)
@@ -411,9 +413,42 @@ class WebEngineTab(browsertab.AbstractTab):
     def clear_ssl_errors(self):
         log.stub()
 
+    def _find_all_elements_js_cb(self, callback, js_elems):
+        """Handle found elements coming from JS and call the real callback.
+
+        Args:
+            callback: The callback originally passed to find_all_elements.
+            js_elems: The elements serialized from javascript.
+        """
+        elems = []
+        for js_elem in js_elems:
+            elem = webengineelem.WebEngineElement(js_elem)
+            elems.append(elem)
+        callback(elems)
+
     def find_all_elements(self, selector, callback, *, only_visible=False):
-        log.stub()
-        callback([])
+        js_code = javascript.assemble('webelem', 'find_all_elements', selector)
+        js_cb = functools.partial(self._find_all_elements_js_cb, callback)
+        self.run_js_async(js_code, js_cb)
+
+    def _find_focus_element_js_cb(self, callback, js_elem):
+        """Handle a found focus elem coming from JS and call the real callback.
+
+        Args:
+            callback: The callback originally passed to find_focus_element.
+                      Called with a WebEngineElement or None.
+            js_elem: The element serialized from javascript.
+        """
+        log.webview.debug("Got focus element from JS: {!r}".format(js_elem))
+        if js_elem is None:
+            callback(None)
+        else:
+            callback(webengineelem.WebEngineElement(js_elem))
+
+    def find_focus_element(self, callback):
+        js_code = javascript.assemble('webelem', 'focus_element')
+        js_cb = functools.partial(self._find_focus_element_js_cb, callback)
+        self.run_js_async(js_code, js_cb)
 
     def _connect_signals(self):
         view = self._widget
