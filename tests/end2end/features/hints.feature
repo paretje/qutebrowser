@@ -134,7 +134,7 @@ Feature: Using hints
         When I open data/hints/iframe.html
         And I run :hint links normal
         And I run :follow-hint a
-        Then "acceptNavigationRequest, url http://localhost:*/data/hello.txt, type NavigationTypeLinkClicked, *" should be logged
+        Then "navigation request: url http://localhost:*/data/hello.txt, type NavigationTypeLinkClicked, *" should be logged
 
     ### FIXME currenly skipped, see https://github.com/The-Compiler/qutebrowser/issues/1525
     @xfail_norun
@@ -145,7 +145,7 @@ Feature: Using hints
         And I run :scroll bottom
         And I run :hint links normal
         And I run :follow-hint a
-        Then "acceptNavigationRequest, url http://localhost:*/data/hello2.txt, type NavigationTypeLinkClicked, *" should be logged
+        Then "navigation request: url http://localhost:*/data/hello2.txt, type NavigationTypeLinkClicked, *" should be logged
 
     Scenario: Opening a link inside a specific iframe
         When I open data/hints/iframe_target.html
@@ -257,3 +257,11 @@ Feature: Using hints
         And I run :hint --rapid
         And I run :follow-hint 00
         Then data/numbers/1.txt should be loaded
+
+    Scenario: Using a specific hints mode
+        When I open data/hints/number.html
+        And I set hints -> mode to letter
+        And I run :hint --mode number all
+        And I press the key "s"
+        And I run :follow-hint 1
+        Then data/numbers/7.txt should be loaded

@@ -31,9 +31,9 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineScript
 # pylint: enable=no-name-in-module,import-error,useless-suppression
 
-from qutebrowser.browser import browsertab
+from qutebrowser.browser import browsertab, mouse
 from qutebrowser.browser.webengine import webview, webengineelem
-from qutebrowser.utils import usertypes, qtutils, log, javascript
+from qutebrowser.utils import usertypes, qtutils, log, javascript, utils
 
 
 class WebEnginePrinting(browsertab.AbstractPrinting):
@@ -184,18 +184,17 @@ class WebEngineScroller(browsertab.AbstractScroller):
 
     def __init__(self, tab, parent=None):
         super().__init__(tab, parent)
-        self._pos_perc = (None, None)
+        self._pos_perc = (0, 0)
         self._pos_px = QPoint()
 
     def _init_widget(self, widget):
         super()._init_widget(widget)
         page = widget.page()
         try:
-            page.scrollPositionChanged.connect(
-                self._on_scroll_pos_changed)
+            page.scrollPositionChanged.connect(self._update_pos)
         except AttributeError:
             log.stub('scrollPositionChanged, on Qt < 5.7')
-        self._on_scroll_pos_changed()
+            self._pos_perc = (None, None)
 
     def _key_press(self, key, count=1):
         # FIXME:qtwebengine Abort scrolling if the minimum/maximum was reached.
@@ -209,9 +208,9 @@ class WebEngineScroller(browsertab.AbstractScroller):
             QApplication.postEvent(recipient, release_evt)
 
     @pyqtSlot()
-    def _on_scroll_pos_changed(self):
+    def _update_pos(self):
         """Update the scroll position attributes when it changed."""
-        def update_scroll_pos(jsret):
+        def update_pos_cb(jsret):
             """Callback after getting scroll position via JS."""
             if jsret is None:
                 # This can happen when the callback would get called after
@@ -222,8 +221,8 @@ class WebEngineScroller(browsertab.AbstractScroller):
             self._pos_px = QPoint(jsret['px']['x'], jsret['px']['y'])
             self.perc_changed.emit(*self._pos_perc)
 
-        js_code = javascript.assemble('scroll', 'scroll_pos')
-        self._tab.run_js_async(js_code, update_scroll_pos)
+        js_code = javascript.assemble('scroll', 'pos')
+        self._tab.run_js_async(js_code, update_pos_cb)
 
     def pos_px(self):
         return self._pos_px
@@ -232,18 +231,18 @@ class WebEngineScroller(browsertab.AbstractScroller):
         return self._pos_perc
 
     def to_perc(self, x=None, y=None):
-        js_code = javascript.assemble('scroll', 'scroll_to_perc', x, y)
+        js_code = javascript.assemble('scroll', 'to_perc', x, y)
         self._tab.run_js_async(js_code)
 
     def to_point(self, point):
-        self._tab.run_js_async("window.scroll({x}, {y});".format(
-            x=point.x(), y=point.y()))
+        js_code = javascript.assemble('window', 'scroll', point.x(), point.y())
+        self._tab.run_js_async(js_code)
 
     def delta(self, x=0, y=0):
-        self._tab.run_js_async("window.scrollBy({x}, {y});".format(x=x, y=y))
+        self._tab.run_js_async(javascript.assemble('window', 'scrollBy', x, y))
 
     def delta_page(self, x=0, y=0):
-        js_code = javascript.assemble('scroll', 'scroll_delta_page', x, y)
+        js_code = javascript.assemble('scroll', 'delta_page', x, y)
         self._tab.run_js_async(js_code)
 
     def up(self, count=1):
@@ -323,7 +322,7 @@ class WebEngineTab(browsertab.AbstractTab):
 
     def __init__(self, win_id, mode_manager, parent=None):
         super().__init__(win_id)
-        widget = webview.WebEngineView()
+        widget = webview.WebEngineView(tabdata=self.data)
         self.history = WebEngineHistory(self)
         self.scroller = WebEngineScroller(self, parent=self)
         self.caret = WebEngineCaret(win_id=win_id, mode_manager=mode_manager,
@@ -334,13 +333,50 @@ class WebEngineTab(browsertab.AbstractTab):
         self._set_widget(widget)
         self._connect_signals()
         self.backend = usertypes.Backend.QtWebEngine
+        # init js stuff
+        self._init_js()
+        self._child_event_filter = None
+
+    def _init_js(self):
+        js_code = '\n'.join([
+            '"use strict";',
+            'window._qutebrowser = {};',
+            utils.read_file('javascript/scroll.js'),
+            utils.read_file('javascript/webelem.js'),
+        ])
+        script = QWebEngineScript()
+        script.setInjectionPoint(QWebEngineScript.DocumentCreation)
+        page = self._widget.page()
+        script.setSourceCode(js_code)
+
+        try:
+            page.runJavaScript("", QWebEngineScript.ApplicationWorld)
+        except TypeError:
+            # We're unable to pass a world to runJavaScript
+            script.setWorldId(QWebEngineScript.MainWorld)
+        else:
+            script.setWorldId(QWebEngineScript.ApplicationWorld)
+
+        # FIXME:qtwebengine  what about runsOnSubFrames?
+        page.scripts().insert(script)
+
+    def _install_event_filter(self):
+        self._widget.focusProxy().installEventFilter(self._mouse_event_filter)
+        self._child_event_filter = mouse.ChildEventFilter(
+            eventfilter=self._mouse_event_filter, widget=self._widget,
+            parent=self)
+        self._widget.installEventFilter(self._child_event_filter)
 
     def openurl(self, url):
         self._openurl_prepare(url)
         self._widget.load(url)
 
-    def url(self):
-        return self._widget.url()
+    def url(self, requested=False):
+        page = self._widget.page()
+        if requested:
+            return page.requestedUrl()
+        else:
+            return page.url()
 
     def dump_async(self, callback, *, plain=False):
         if plain:
@@ -422,12 +458,12 @@ class WebEngineTab(browsertab.AbstractTab):
         """
         elems = []
         for js_elem in js_elems:
-            elem = webengineelem.WebEngineElement(js_elem)
+            elem = webengineelem.WebEngineElement(js_elem, self.run_js_async)
             elems.append(elem)
         callback(elems)
 
     def find_all_elements(self, selector, callback, *, only_visible=False):
-        js_code = javascript.assemble('webelem', 'find_all_elements', selector)
+        js_code = javascript.assemble('webelem', 'find_all', selector)
         js_cb = functools.partial(self._find_all_elements_js_cb, callback)
         self.run_js_async(js_code, js_cb)
 
@@ -443,7 +479,8 @@ class WebEngineTab(browsertab.AbstractTab):
         if js_elem is None:
             callback(None)
         else:
-            callback(webengineelem.WebEngineElement(js_elem))
+            elem = webengineelem.WebEngineElement(js_elem, self.run_js_async)
+            callback(elem)
 
     def find_focus_element(self, callback):
         js_code = javascript.assemble('webelem', 'focus_element')
@@ -457,10 +494,12 @@ class WebEngineTab(browsertab.AbstractTab):
         page.linkHovered.connect(self.link_hovered)
         page.loadProgress.connect(self._on_load_progress)
         page.loadStarted.connect(self._on_load_started)
+        page.loadStarted.connect(self._on_history_trigger)
         view.titleChanged.connect(self.title_changed)
         view.urlChanged.connect(self._on_url_changed)
         page.loadFinished.connect(self._on_load_finished)
         page.certificate_error.connect(self._on_ssl_errors)
+        page.link_clicked.connect(self._on_link_clicked)
         try:
             view.iconChanged.connect(self.icon_changed)
         except AttributeError:

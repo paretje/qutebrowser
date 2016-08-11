@@ -126,7 +126,7 @@ def tab_registry(win_registry):
 
 
 @pytest.fixture
-def fake_web_tab(stubs, tab_registry, qapp):
+def fake_web_tab(stubs, tab_registry, mode_manager, qapp):
     """Fixture providing the FakeWebTab *class*."""
     if PYQT_VERSION < 0x050600:
         pytest.skip('Causes segfaults, see #1638')
@@ -403,7 +403,7 @@ def fake_args():
 
 @pytest.yield_fixture
 def mode_manager(win_registry, config_stub, qapp):
-    config_stub.data = {'input': {'forward-unbound-keys': 'auto'}}
+    config_stub.data.update({'input': {'forward-unbound-keys': 'auto'}})
     mm = modeman.ModeManager(0)
     objreg.register('mode-manager', mm, scope='window', window=0)
     yield mm

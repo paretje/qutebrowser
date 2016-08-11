@@ -24,7 +24,7 @@
 
 from PyQt5.QtCore import QRect
 
-from qutebrowser.utils import log
+from qutebrowser.utils import log, javascript
 from qutebrowser.browser import webelem
 
 
@@ -32,9 +32,10 @@ class WebEngineElement(webelem.AbstractWebElement):
 
     """A web element for QtWebEngine, using JS under the hood."""
 
-    def __init__(self, js_dict):
+    def __init__(self, js_dict, run_js_callable):
         self._id = js_dict['id']
         self._js_dict = js_dict
+        self._run_js = run_js_callable
 
     def __eq__(self, other):
         if not isinstance(other, WebEngineElement):
@@ -91,7 +92,7 @@ class WebEngineElement(webelem.AbstractWebElement):
 
         The returned name will always be lower-case.
         """
-        return self._js_dict['tag_name']
+        return self._js_dict['tag_name'].lower()
 
     def outer_xml(self):
         """Get the full HTML representation of this element."""
@@ -117,7 +118,8 @@ class WebEngineElement(webelem.AbstractWebElement):
                     content-editable.
         """
         # FIXME:qtwebengine what to do about use_js with WebEngine?
-        log.stub()
+        js_code = javascript.assemble('webelem', 'set_text', self._id, text)
+        self._run_js(js_code)
 
     def set_inner_xml(self, xml):
         """Set the given inner XML."""

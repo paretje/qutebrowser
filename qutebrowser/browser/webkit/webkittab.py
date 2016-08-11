@@ -517,12 +517,19 @@ class WebKitTab(browsertab.AbstractTab):
         self._widget.apply_local_js_policy(url)
         super()._on_url_changed(url)
 
+    def _install_event_filter(self):
+        self._widget.installEventFilter(self._mouse_event_filter)
+
     def openurl(self, url):
         self._openurl_prepare(url)
         self._widget.openurl(url)
 
-    def url(self):
-        return self._widget.url()
+    def url(self, requested=False):
+        frame = self._widget.page().mainFrame()
+        if requested:
+            return frame.requestedUrl()
+        else:
+            return frame.url()
 
     def dump_async(self, callback, *, plain=False):
         frame = self._widget.page().mainFrame()
@@ -637,3 +644,5 @@ class WebKitTab(browsertab.AbstractTab):
         view.iconChanged.connect(self._on_webkit_icon_changed)
         page.frameCreated.connect(self._on_frame_created)
         frame.contentsSizeChanged.connect(self._on_contents_size_changed)
+        frame.initialLayoutCompleted.connect(self._on_history_trigger)
+        page.link_clicked.connect(self._on_link_clicked)

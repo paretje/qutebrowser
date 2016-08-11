@@ -227,13 +227,25 @@ def data(readonly=False):
              "How to open links in an existing instance if a new one is "
              "launched."),
 
+            ('new-instance-open-target.window',
+             SettingValue(typ.String(
+                 valid_values=typ.ValidValues(
+                     ('last-opened', "Open new tabs in the last opened "
+                                     "window."),
+                     ('last-focused', "Open new tabs in the most recently "
+                                      "focused window."),
+                     ('last-visible', "Open new tabs in the most recently "
+                                      "visible window.")
+                 )), 'last-focused'),
+             "Which window to choose when opening links as new tabs."),
+
             ('log-javascript-console',
              SettingValue(typ.String(
                  valid_values=typ.ValidValues(
                      ('none', "Don't log messages."),
                      ('debug', "Log messages with debug level."),
                      ('info', "Log messages with info level.")
-                 )), 'debug', backends=[usertypes.Backend.QtWebKit]),
+                 )), 'debug'),
              "How to log javascript console messages."),
 
             ('save-session',
@@ -345,10 +357,6 @@ def data(readonly=False):
              "* `{id}`: The internal window ID of this window.\n"
              "* `{scroll_pos}`: The page scroll position.\n"
              "* `{host}`: The host of the current web page."),
-
-            ('hide-mouse-cursor',
-             SettingValue(typ.Bool(), 'false'),
-             "Whether to hide the mouse cursor."),
 
             ('modal-js-dialog',
              SettingValue(typ.Bool(), 'false'),
@@ -956,6 +964,10 @@ def data(readonly=False):
                  )), 'python'),
              "Which implementation to use to find elements to hint."),
 
+            ('hide-unmatched-rapid-hints',
+             SettingValue(typ.Bool(), 'true'),
+             "Controls hiding unmatched hints in rapid mode."),
+
             readonly=readonly
         )),
 
@@ -1266,7 +1278,7 @@ def data(readonly=False):
              "Font used in the completion widget."),
 
             ('completion.category',
-              SettingValue(typ.Font(), 'bold ${completion}'),
+             SettingValue(typ.Font(), 'bold ${completion}'),
              "Font used in the completion categories."),
 
             ('tabbar',
@@ -1511,12 +1523,12 @@ KEY_DATA = collections.OrderedDict([
         ('yank domain -s', ['yD']),
         ('yank pretty-url', ['yp']),
         ('yank pretty-url -s', ['yP']),
-        ('paste', ['pp']),
-        ('paste -s', ['pP']),
-        ('paste -t', ['Pp']),
-        ('paste -ts', ['PP']),
-        ('paste -w', ['wp']),
-        ('paste -ws', ['wP']),
+        ('open {clipboard}', ['pp']),
+        ('open {primary}', ['pP']),
+        ('open -t {clipboard}', ['Pp']),
+        ('open -t {primary}', ['PP']),
+        ('open -w {clipboard}', ['wp']),
+        ('open -w {primary}', ['wP']),
         ('quickmark-save', ['m']),
         ('set-cmd-text -s :quickmark-load', ['b']),
         ('set-cmd-text -s :quickmark-load -t', ['B']),
@@ -1692,6 +1704,11 @@ CHANGED_KEY_COMMANDS = [
     (re.compile(r'^yank -p'), r'yank pretty-url'),
     (re.compile(r'^yank-selected -p'), r'yank selection -s'),
     (re.compile(r'^yank-selected'), r'yank selection'),
+
+    (re.compile(r'^paste$'), r'open {clipboard}'),
+    (re.compile(r'^paste -([twb])$'), r'open -\1 {clipboard}'),
+    (re.compile(r'^paste -([twb])s$'), r'open -\1 {primary}'),
+    (re.compile(r'^paste -s([twb])$'), r'open -\1 {primary}'),
 
     (re.compile(r'^completion-item-next'), r'completion-item-focus next'),
     (re.compile(r'^completion-item-prev'), r'completion-item-focus prev'),
