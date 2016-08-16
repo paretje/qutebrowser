@@ -43,7 +43,7 @@ class WebEnginePrinting(browsertab.AbstractPrinting):
     def check_pdf_support(self):
         if not hasattr(self._widget.page(), 'printToPdf'):
             raise browsertab.WebTabError(
-                "Printing to PDF is unsupported with QtWebEngine on Qt > 5.7")
+                "Printing to PDF is unsupported with QtWebEngine on Qt < 5.7")
 
     def check_printer_support(self):
         raise browsertab.WebTabError(
@@ -449,11 +449,11 @@ class WebEngineTab(browsertab.AbstractTab):
     def clear_ssl_errors(self):
         log.stub()
 
-    def _find_all_elements_js_cb(self, callback, js_elems):
+    def _js_element_cb_multiple(self, callback, js_elems):
         """Handle found elements coming from JS and call the real callback.
 
         Args:
-            callback: The callback originally passed to find_all_elements.
+            callback: The callback to call with the found elements.
             js_elems: The elements serialized from javascript.
         """
         elems = []
@@ -462,29 +462,37 @@ class WebEngineTab(browsertab.AbstractTab):
             elems.append(elem)
         callback(elems)
 
-    def find_all_elements(self, selector, callback, *, only_visible=False):
-        js_code = javascript.assemble('webelem', 'find_all', selector)
-        js_cb = functools.partial(self._find_all_elements_js_cb, callback)
-        self.run_js_async(js_code, js_cb)
-
-    def _find_focus_element_js_cb(self, callback, js_elem):
+    def _js_element_cb_single(self, callback, js_elem):
         """Handle a found focus elem coming from JS and call the real callback.
 
         Args:
-            callback: The callback originally passed to find_focus_element.
+            callback: The callback to call with the found element.
                       Called with a WebEngineElement or None.
             js_elem: The element serialized from javascript.
         """
-        log.webview.debug("Got focus element from JS: {!r}".format(js_elem))
+        log.webview.debug("Got element from JS: {!r}".format(js_elem))
         if js_elem is None:
             callback(None)
         else:
             elem = webengineelem.WebEngineElement(js_elem, self.run_js_async)
             callback(elem)
 
+    def find_all_elements(self, selector, callback, *, only_visible=False):
+        js_code = javascript.assemble('webelem', 'find_all', selector)
+        js_cb = functools.partial(self._js_element_cb_multiple, callback)
+        self.run_js_async(js_code, js_cb)
+
     def find_focus_element(self, callback):
         js_code = javascript.assemble('webelem', 'focus_element')
-        js_cb = functools.partial(self._find_focus_element_js_cb, callback)
+        js_cb = functools.partial(self._js_element_cb_single, callback)
+        self.run_js_async(js_code, js_cb)
+
+    def find_element_at_pos(self, pos, callback):
+        assert pos.x() >= 0
+        assert pos.y() >= 0
+        js_code = javascript.assemble('webelem', 'element_at_pos',
+                                      pos.x(), pos.y())
+        js_cb = functools.partial(self._js_element_cb_single, callback)
         self.run_js_async(js_code, js_cb)
 
     def _connect_signals(self):
@@ -494,7 +502,7 @@ class WebEngineTab(browsertab.AbstractTab):
         page.linkHovered.connect(self.link_hovered)
         page.loadProgress.connect(self._on_load_progress)
         page.loadStarted.connect(self._on_load_started)
-        page.loadStarted.connect(self._on_history_trigger)
+        page.loadFinished.connect(self._on_history_trigger)
         view.titleChanged.connect(self.title_changed)
         view.urlChanged.connect(self._on_url_changed)
         page.loadFinished.connect(self._on_load_finished)

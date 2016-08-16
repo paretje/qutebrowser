@@ -278,7 +278,7 @@ class TestKeyConfigParser:
             ('search ;; clear-keychain', 'clear-keychain ;; search'),
             ('search;;clear-keychain', 'clear-keychain ;; search'),
             ('search;;foo', None),
-            ('leave-mode', 'clear-keychain ;; leave-mode'),
+            ('clear-keychain ;; leave-mode', 'leave-mode'),
             ('leave-mode ;; foo', None),
 
             ('download-remove --all', 'download-clear'),
@@ -299,9 +299,13 @@ class TestKeyConfigParser:
             ('yank -p', 'yank pretty-url'),
             ('yank -ps', 'yank pretty-url -s'),
 
-            ('paste', 'open {clipboard}'),
-            ('paste -t', 'open -t {clipboard}'),
-            ('paste -ws', 'open -w {primary}'),
+            ('paste', 'open -- {clipboard}'),
+            ('paste -t', 'open -t -- {clipboard}'),
+            ('paste -ws', 'open -w -- {primary}'),
+
+            ('open {clipboard}', 'open -- {clipboard}'),
+            ('open -t {clipboard}', 'open -t -- {clipboard}'),
+            ('open -b {primary}', 'open -b -- {primary}'),
         ]
     )
     def test_migrations(self, old, new_expected):

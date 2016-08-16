@@ -21,7 +21,7 @@
 
 import sys
 
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QTimer, QUrl
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QUrl
 from PyQt5.QtGui import QPalette
 from PyQt5.QtWidgets import QStyleFactory
 from PyQt5.QtWebKit import QWebSettings
@@ -44,8 +44,6 @@ class WebView(QWebView):
         win_id: The window ID of the view.
         _tab_id: The tab ID of the view.
         _old_scroll_pos: The old scroll position.
-        _check_insertmode: If True, in mouseReleaseEvent we should check if we
-                           need to enter/leave insert mode.
 
     Signals:
         scroll_pos_changed: Scroll percentage of current tab changed.
@@ -67,7 +65,6 @@ class WebView(QWebView):
         # the QWebPage - we should get rid of it somehow (signals?)
         self.tab = tab
         self.win_id = win_id
-        self._check_insertmode = False
         self.scroll_pos = (-1, -1)
         self._old_scroll_pos = (-1, -1)
         self._set_bg_color()
@@ -78,9 +75,7 @@ class WebView(QWebView):
                                   window=win_id)
         mode_manager.entered.connect(self.on_mode_entered)
         mode_manager.left.connect(self.on_mode_left)
-        if config.get('input', 'rocker-gestures'):
-            self.setContextMenuPolicy(Qt.PreventContextMenu)
-        objreg.get('config').changed.connect(self.on_config_changed)
+        objreg.get('config').changed.connect(self._set_bg_color)
 
     def _init_page(self, tabdata):
         """Initialize the QWebPage used by this view.
@@ -110,6 +105,7 @@ class WebView(QWebView):
             # deleted
             pass
 
+    @config.change_filter('colors', 'webpage.bg')
     def _set_bg_color(self):
         """Set the webpage background color as configured."""
         col = config.get('colors', 'webpage.bg')
@@ -118,85 +114,6 @@ class WebView(QWebView):
             col = self.style().standardPalette().color(QPalette.Base)
         palette.setColor(QPalette.Base, col)
         self.setPalette(palette)
-
-    @pyqtSlot(str, str)
-    def on_config_changed(self, section, option):
-        """Update rocker gestures/background color."""
-        if section == 'input' and option == 'rocker-gestures':
-            if config.get('input', 'rocker-gestures'):
-                self.setContextMenuPolicy(Qt.PreventContextMenu)
-            else:
-                self.setContextMenuPolicy(Qt.DefaultContextMenu)
-        elif section == 'colors' and option == 'webpage.bg':
-            self._set_bg_color()
-
-    def _mousepress_insertmode(self, e):
-        """Switch to insert mode when an editable element was clicked.
-
-        Args:
-            e: The QMouseEvent.
-        """
-        pos = e.pos()
-        frame = self.page().frameAt(pos)
-        if frame is None:
-            # This happens when we click inside the webview, but not actually
-            # on the QWebPage - for example when clicking the scrollbar
-            # sometimes.
-            log.mouse.debug("Clicked at {} but frame is None!".format(pos))
-            return
-        # You'd think we have to subtract frame.geometry().topLeft() from the
-        # position, but it seems QWebFrame::hitTestContent wants a position
-        # relative to the QWebView, not to the frame. This makes no sense to
-        # me, but it works this way.
-        hitresult = frame.hitTestContent(pos)
-        if hitresult.isNull():
-            # For some reason, the whole hit result can be null sometimes (e.g.
-            # on doodle menu links). If this is the case, we schedule a check
-            # later (in mouseReleaseEvent) which uses webkitelem.focus_elem.
-            log.mouse.debug("Hitresult is null!")
-            self._check_insertmode = True
-            return
-        try:
-            elem = webkitelem.WebKitElement(hitresult.element())
-        except webkitelem.IsNullError:
-            # For some reason, the hit result element can be a null element
-            # sometimes (e.g. when clicking the timetable fields on
-            # http://www.sbb.ch/ ). If this is the case, we schedule a check
-            # later (in mouseReleaseEvent) which uses webelem.focus_elem.
-            log.mouse.debug("Hitresult element is null!")
-            self._check_insertmode = True
-            return
-        if ((hitresult.isContentEditable() and elem.is_writable()) or
-                elem.is_editable()):
-            log.mouse.debug("Clicked editable element!")
-            modeman.enter(self.win_id, usertypes.KeyMode.insert, 'click',
-                          only_if_normal=True)
-        else:
-            log.mouse.debug("Clicked non-editable element!")
-            if config.get('input', 'auto-leave-insert-mode'):
-                modeman.maybe_leave(self.win_id, usertypes.KeyMode.insert,
-                                    'click')
-
-    def mouserelease_insertmode(self):
-        """If we have an insertmode check scheduled, handle it."""
-        # FIXME:qtwebengine Use tab.find_focus_element here
-        if not self._check_insertmode:
-            return
-        self._check_insertmode = False
-        try:
-            elem = webkitelem.focus_elem(self.page().currentFrame())
-        except (webkitelem.IsNullError, RuntimeError):
-            log.mouse.debug("Element/page vanished!")
-            return
-        if elem.is_editable():
-            log.mouse.debug("Clicked editable element (delayed)!")
-            modeman.enter(self.win_id, usertypes.KeyMode.insert,
-                          'click-delayed', only_if_normal=True)
-        else:
-            log.mouse.debug("Clicked non-editable element (delayed)!")
-            if config.get('input', 'auto-leave-insert-mode'):
-                modeman.maybe_leave(self.win_id, usertypes.KeyMode.insert,
-                                    'click-delayed')
 
     def shutdown(self):
         """Shut down the webview."""
@@ -390,31 +307,6 @@ class WebView(QWebView):
             self.scroll_pos_changed.emit(*perc)
         # Let superclass handle the event
         super().paintEvent(e)
-
-    def mousePressEvent(self, e):
-        """Extend QWidget::mousePressEvent().
-
-        This does the following things:
-            - Check if a link was clicked with the middle button or Ctrl and
-              set the page's open_target attribute accordingly.
-            - Emit the editable_elem_selected signal if an editable element was
-              clicked.
-
-        Args:
-            e: The arrived event.
-
-        Return:
-            The superclass return value.
-        """
-        self._mousepress_insertmode(e)
-        super().mousePressEvent(e)
-
-    def mouseReleaseEvent(self, e):
-        """Extend mouseReleaseEvent to enter insert mode if needed."""
-        super().mouseReleaseEvent(e)
-        # We want to make sure we check the focus element after the WebView is
-        # updated completely.
-        QTimer.singleShot(0, self.mouserelease_insertmode)
 
     def contextMenuEvent(self, e):
         """Save a reference to the context menu so we can close it."""
