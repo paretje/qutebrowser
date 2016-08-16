@@ -1877,7 +1877,9 @@ class CommandDispatcher:
                         out = out[:5000] + ' [...trimmed...]'
                     message.info(self._win_id, out)
 
-        self._current_widget().run_js_async(js_code, callback=jseval_cb)
+        page = self._current_widget()._widget.page()
+        elem = webkitelem.WebKitElement(page.currentFrame().documentElement())
+        elem.run_js_async(js_code, callback=jseval_cb)
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
     def fake_key(self, keystring, global_=False):
