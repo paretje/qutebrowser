@@ -1920,8 +1920,9 @@ class CommandDispatcher:
                         out = out[:5000] + ' [...trimmed...]'
                     message.info(self._win_id, out)
 
-        page = self._current_widget()._widget.page()
-        elem = webkitelem.WebKitElement(page.currentFrame().documentElement())
+        tab = self._current_widget()
+        page = tab._widget.page()  # pylint: disable=protected-access
+        elem = webkitelem.WebKitElement(page.currentFrame().documentElement(), tab)
         elem.run_js_async(js_code, callback=jseval_cb)
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
