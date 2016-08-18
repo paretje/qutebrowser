@@ -23,21 +23,19 @@ import collections
 import functools
 import math
 import re
+import html
 from string import ascii_lowercase
 
 from PyQt5.QtCore import (pyqtSignal, pyqtSlot, QObject, QEvent, Qt, QUrl,
                           QTimer)
 from PyQt5.QtGui import QMouseEvent
-from PyQt5.QtWebKitWidgets import QWebPage
+from PyQt5.QtWidgets import QLabel
 
-from qutebrowser.config import config
+from qutebrowser.config import config, style
 from qutebrowser.keyinput import modeman, modeparsers
 from qutebrowser.browser import webelem
 from qutebrowser.commands import userscripts, cmdexc, cmdutils, runners
 from qutebrowser.utils import usertypes, log, qtutils, message, objreg, utils
-
-
-ElemTuple = collections.namedtuple('ElemTuple', ['elem', 'label'])
 
 
 Target = usertypes.enum('Target', ['normal', 'current', 'tab', 'tab_fg',
@@ -57,14 +55,91 @@ def on_mode_entered(mode, win_id):
         modeman.maybe_leave(win_id, usertypes.KeyMode.hint, 'insert mode')
 
 
+class HintLabel(QLabel):
+
+    """A label for a link.
+
+    Attributes:
+        elem: The element this label belongs to.
+        _context: The current hinting context.
+    """
+
+    STYLESHEET = """
+        QLabel {
+            background-color: {{ color['hints.bg'] }};
+            color: {{ color['hints.fg'] }};
+            font: {{ font['hints'] }};
+            border: {{ config.get('hints', 'border') }};
+            padding-left: -3px;
+            padding-right: -3px;
+        }
+    """
+
+    def __init__(self, elem, context):
+        super().__init__(parent=context.tab)
+        self._context = context
+        self.elem = elem
+
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        style.set_register_stylesheet(self)
+
+        self._context.tab.contents_size_changed.connect(self._move_to_elem)
+        self._move_to_elem()
+        self.show()
+
+    def __repr__(self):
+        try:
+            text = self.text()
+        except RuntimeError:
+            text = '<deleted>'
+        return utils.get_repr(self, elem=self.elem, text=text)
+
+    def update_text(self, matched, unmatched):
+        """Set the text for the hint.
+
+        Args:
+            matched: The part of the text which was typed.
+            unmatched: The part of the text which was not typed yet.
+        """
+        if (config.get('hints', 'uppercase') and
+                self._context.hint_mode == 'letter'):
+            matched = html.escape(matched.upper())
+            unmatched = html.escape(unmatched.upper())
+        else:
+            matched = html.escape(matched)
+            unmatched = html.escape(unmatched)
+
+        match_color = html.escape(config.get('colors', 'hints.fg.match'))
+        self.setText('<font color="{}">{}</font>{}'.format(
+            match_color, matched, unmatched))
+        self.adjustSize()
+
+    @pyqtSlot()
+    def _move_to_elem(self):
+        """Reposition the label to its element."""
+        if not self.elem.has_frame():
+            # This sometimes happens for some reason...
+            log.hints.debug("Frame for {!r} vanished!".format(self))
+            self.hide()
+            return
+        no_js = config.get('hints', 'find-implementation') != 'javascript'
+        rect = self.elem.rect_on_view(no_js=no_js)
+        self.move(rect.x(), rect.y())
+
+    def cleanup(self):
+        """Clean up this element and hide it."""
+        self.hide()
+        self.deleteLater()
+
+
 class HintContext:
 
     """Context namespace used for hinting.
 
     Attributes:
-        all_elems: A list of all (elem, label) namedtuples ever created.
-        elems: A mapping from key strings to (elem, label) namedtuples.
-               May contain less elements than `all_elems` due to filtering.
+        all_labels: A list of all HintLabel objects ever created.
+        labels: A mapping from key strings to HintLabel objects.
+                May contain less elements than `all_labels` due to filtering.
         baseurl: The URL of the current page.
         target: What to do with the opened links.
                 normal/current/tab/tab_fg/tab_bg/window: Get passed to
@@ -84,8 +159,8 @@ class HintContext:
     """
 
     def __init__(self):
-        self.all_elems = []
-        self.elems = {}
+        self.all_labels = []
+        self.labels = {}
         self.target = None
         self.baseurl = None
         self.to_follow = None
@@ -110,16 +185,10 @@ class HintActions(QObject):
     """Actions which can be done after selecting a hint.
 
     Signals:
-        mouse_event: Mouse event to be posted in the web view.
-                     arg: A QMouseEvent
-        start_hinting: Emitted when hinting starts, before a link is clicked.
-                       arg: The ClickTarget to use.
-        stop_hinting: Emitted after a link was clicked.
+        hint_events: Emitted with a ClickTarget and a list of hint event.s
     """
 
-    mouse_event = pyqtSignal('QMouseEvent')
-    start_hinting = pyqtSignal(usertypes.ClickTarget)
-    stop_hinting = pyqtSignal()
+    hint_events = pyqtSignal(usertypes.ClickTarget, list)  # QMouseEvent list
 
     def __init__(self, win_id, parent=None):
         super().__init__(parent)
@@ -160,7 +229,6 @@ class HintActions(QObject):
         log.hints.debug("{} on '{}' at position {}".format(
             action, elem.debug_text(), pos))
 
-        self.start_hinting.emit(target_mapping[context.target])
         if context.target in [Target.tab, Target.tab_fg, Target.tab_bg,
                               Target.window]:
             modifiers = Qt.ControlModifier
@@ -186,13 +254,10 @@ class HintActions(QObject):
 
         if context.target == Target.current:
             elem.remove_blank_target()
-        for evt in events:
-            self.mouse_event.emit(evt)
+
+        self.hint_events.emit(target_mapping[context.target], events)
         if elem.is_text_input() and elem.is_editable():
-            QTimer.singleShot(0, functools.partial(
-                elem.frame().page().triggerAction,
-                QWebPage.MoveToEndOfDocument))
-        QTimer.singleShot(0, self.stop_hinting.emit)
+            QTimer.singleShot(0, context.tab.caret.move_to_end_of_document)
 
     def yank(self, url, context):
         """Yank an element to the clipboard or primary selection.
@@ -235,11 +300,8 @@ class HintActions(QObject):
         args = context.get_args(urlstr)
         text = ' '.join(args)
         if text[0] not in modeparsers.STARTCHARS:
-            message.error(self._win_id,
-                          "Invalid command text '{}'.".format(text),
-                          immediately=True)
-        else:
-            message.set_cmd_text(self._win_id, text)
+            raise HintingError("Invalid command text '{}'.".format(text))
+        message.set_cmd_text(self._win_id, text)
 
     def download(self, elem, context):
         """Download a hint URL.
@@ -250,16 +312,20 @@ class HintActions(QObject):
         """
         url = elem.resolve_url(context.baseurl)
         if url is None:
-            raise HintingError
+            raise HintingError("No suitable link found for this element.")
         if context.rapid:
             prompt = False
         else:
             prompt = None
 
+        # FIXME:qtwebengine get a proper API for this
+        # pylint: disable=protected-access
+        page = elem._elem.webFrame().page()
+        # pylint: enable=protected-access
+
         download_manager = objreg.get('download-manager', scope='window',
                                       window=self._win_id)
-        download_manager.get(url, page=elem.frame().page(),
-                             prompt_download_directory=prompt)
+        download_manager.get(url, page=page, prompt_download_directory=prompt)
 
     def call_userscript(self, elem, context):
         """Call a userscript from a hint.
@@ -283,7 +349,7 @@ class HintActions(QObject):
             userscripts.run_async(context.tab, cmd, *args, win_id=self._win_id,
                                   env=env)
         except userscripts.UnsupportedError as e:
-            message.error(self._win_id, str(e), immediately=True)
+            raise HintingError(str(e))
 
     def spawn(self, url, context):
         """Spawn a simple command from a hint.
@@ -331,9 +397,7 @@ class HintManager(QObject):
         Target.spawn: "Spawn command via hint",
     }
 
-    mouse_event = pyqtSignal('QMouseEvent')
-    start_hinting = pyqtSignal(usertypes.ClickTarget)
-    stop_hinting = pyqtSignal()
+    hint_events = pyqtSignal(usertypes.ClickTarget, list)  # QMouseEvent list
 
     def __init__(self, win_id, tab_id, parent=None):
         """Constructor."""
@@ -344,9 +408,7 @@ class HintManager(QObject):
         self._word_hinter = WordHinter()
 
         self._actions = HintActions(win_id)
-        self._actions.start_hinting.connect(self.start_hinting)
-        self._actions.stop_hinting.connect(self.stop_hinting)
-        self._actions.mouse_event.connect(self.mouse_event)
+        self._actions.hint_events.connect(self.hint_events)
 
         mode_manager = objreg.get('mode-manager', scope='window',
                                   window=win_id)
@@ -362,18 +424,9 @@ class HintManager(QObject):
 
     def _cleanup(self):
         """Clean up after hinting."""
-        try:
-            self._context.tab.contents_size_changed.disconnect(
-                self.on_contents_size_changed)
-        except TypeError:
-            # For some reason, this can fail sometimes...
-            pass
+        for label in self._context.all_labels:
+            label.cleanup()
 
-        for elem in self._context.all_elems:
-            try:
-                elem.label.remove_from_document()
-            except webelem.Error:
-                pass
         text = self._get_text()
         message_bridge = objreg.get('message-bridge', scope='window',
                                     window=self._win_id)
@@ -513,92 +566,6 @@ class HintManager(QObject):
             hintstr.insert(0, chars[0])
         return ''.join(hintstr)
 
-    def _is_hidden(self, elem):
-        """Check if the element is hidden via display=none."""
-        display = elem.style_property('display', strategy='inline')
-        return display == 'none'
-
-    def _show_elem(self, elem):
-        """Show a given element."""
-        elem.set_style_property('display', 'inline !important')
-
-    def _hide_elem(self, elem):
-        """Hide a given element."""
-        elem.set_style_property('display', 'none !important')
-
-    def _set_style_properties(self, elem, label):
-        """Set the hint CSS on the element given.
-
-        Args:
-            elem: The QWebElement to set the style attributes for.
-            label: The label QWebElement.
-        """
-        attrs = [
-            ('display', 'inline !important'),
-            ('z-index', '{} !important'.format(int(2 ** 32 / 2 - 1))),
-            ('pointer-events', 'none !important'),
-            ('position', 'fixed !important'),
-            ('color', config.get('colors', 'hints.fg') + ' !important'),
-            ('background', config.get('colors', 'hints.bg') + ' !important'),
-            ('font', config.get('fonts', 'hints') + ' !important'),
-            ('border', config.get('hints', 'border') + ' !important'),
-            ('opacity', str(config.get('hints', 'opacity')) + ' !important'),
-        ]
-
-        # Make text uppercase if set in config
-        if (config.get('hints', 'uppercase') and
-                self._context.hint_mode == 'letter'):
-            attrs.append(('text-transform', 'uppercase !important'))
-        else:
-            attrs.append(('text-transform', 'none !important'))
-
-        for k, v in attrs:
-            label.set_style_property(k, v)
-        self._set_style_position(elem, label)
-
-    def _set_style_position(self, elem, label):
-        """Set the CSS position of the label element.
-
-        Args:
-            elem: The QWebElement to set the style attributes for.
-            label: The label QWebElement.
-        """
-        no_js = config.get('hints', 'find-implementation') != 'javascript'
-        rect = elem.rect_on_view(adjust_zoom=False, no_js=no_js)
-        left = rect.x()
-        top = rect.y()
-        log.hints.vdebug("Drawing label '{!r}' at {}/{} for element '{!r}' "
-                         "(no_js: {})".format(label, left, top, elem, no_js))
-        label.set_style_property('left', '{}px !important'.format(left))
-        label.set_style_property('top', '{}px !important'.format(top))
-
-    def _draw_label(self, elem, string):
-        """Draw a hint label over an element.
-
-        Args:
-            elem: The QWebElement to use.
-            string: The hint string to print.
-
-        Return:
-            The newly created label element
-        """
-        doc = elem.document_element()
-        body = doc.find_first('body')
-        if body is None:
-            parent = doc
-        else:
-            parent = body
-        label = parent.create_inside('span')
-        label['class'] = 'qutehint'
-        self._set_style_properties(elem, label)
-        label.set_text(string)
-        return label
-
-    def _show_url_error(self):
-        """Show an error because no link was found."""
-        message.error(self._win_id, "No suitable link found for this element.",
-                      immediately=True)
-
     def _check_args(self, target, *args):
         """Check the arguments passed to start() and raise if they're wrong.
 
@@ -646,18 +613,18 @@ class HintManager(QObject):
             raise cmdexc.CommandError("No elements found.")
         strings = self._hint_strings(elems)
         log.hints.debug("hints: {}".format(', '.join(strings)))
-        for e, string in zip(elems, strings):
-            label = self._draw_label(e, string)
-            elem = ElemTuple(e, label)
-            self._context.all_elems.append(elem)
-            self._context.elems[string] = elem
+
+        for elem, string in zip(elems, strings):
+            label = HintLabel(elem, self._context)
+            label.update_text('', string)
+            self._context.all_labels.append(label)
+            self._context.labels[string] = label
+
         keyparsers = objreg.get('keyparsers', scope='window',
                                 window=self._win_id)
         keyparser = keyparsers[usertypes.KeyMode.hint]
         keyparser.update_bindings(strings)
 
-        self._context.tab.contents_size_changed.connect(
-            self.on_contents_size_changed)
         message_bridge = objreg.get('message-bridge', scope='window',
                                     window=self._win_id)
         message_bridge.set_text(self._get_text())
@@ -668,8 +635,7 @@ class HintManager(QObject):
         self._handle_auto_follow()
 
     @cmdutils.register(instance='hintmanager', scope='tab', name='hint',
-                       star_args_optional=True, maxsplit=2,
-                       backend=usertypes.Backend.QtWebKit)
+                       star_args_optional=True, maxsplit=2)
     @cmdutils.argument('win_id', win_id=True)
     def start(self, rapid=False, group=webelem.Group.all, target=Target.normal,
               *args, win_id, mode=None):
@@ -733,6 +699,12 @@ class HintManager(QObject):
         tab = tabbed_browser.currentWidget()
         if tab is None:
             raise cmdexc.CommandError("No WebView available yet!")
+        if (tab.backend == usertypes.Backend.QtWebEngine and
+                target == Target.download):
+            message.error(self._win_id, "The download target is not available "
+                          "yet with QtWebEngine.", immediately=True)
+            return
+
         mode_manager = objreg.get('mode-manager', scope='window',
                                   window=self._win_id)
         if mode_manager.mode == usertypes.KeyMode.hint:
@@ -777,21 +749,12 @@ class HintManager(QObject):
 
         return self._context.hint_mode
 
-    def _get_visible_hints(self):
-        """Get elements which are currently visible."""
-        visible = {}
-        for string, elem in self._context.elems.items():
-            try:
-                if not self._is_hidden(elem.label):
-                    visible[string] = elem
-            except webelem.Error:
-                pass
-        return visible
-
     def _handle_auto_follow(self, keystr="", filterstr="", visible=None):
         """Handle the auto-follow option."""
         if visible is None:
-            visible = self._get_visible_hints()
+            visible = {string: label
+                       for string, label in self._context.labels.items()
+                       if label.isVisible()}
 
         if len(visible) != 1:
             return
@@ -825,24 +788,20 @@ class HintManager(QObject):
     def handle_partial_key(self, keystr):
         """Handle a new partial keypress."""
         log.hints.debug("Handling new keystring: '{}'".format(keystr))
-        for string, elem in self._context.elems.items():
+        for string, label in self._context.labels.items():
             try:
                 if string.startswith(keystr):
                     matched = string[:len(keystr)]
                     rest = string[len(keystr):]
-                    match_color = config.get('colors', 'hints.fg.match')
-                    elem.label.set_inner_xml(
-                        '<font color="{}">{}</font>{}'.format(
-                            match_color, matched, rest))
-                    if self._is_hidden(elem.label):
-                        # hidden element which matches again -> show it
-                        self._show_elem(elem.label)
+                    label.update_text(matched, rest)
+                    # Show label again if it was hidden before
+                    label.show()
                 else:
                     # element doesn't match anymore -> hide it, unless in rapid
                     # mode and hide-unmatched-rapid-hints is false (see #1799)
                     if (not self._context.rapid or
                             config.get('hints', 'hide-unmatched-rapid-hints')):
-                        self._hide_elem(elem.label)
+                        label.hide()
             except webelem.Error:
                 pass
         self._handle_auto_follow(keystr=keystr)
@@ -862,16 +821,15 @@ class HintManager(QObject):
             self._context.filterstr = filterstr
 
         visible = []
-        for elem in self._context.all_elems:
+        for label in self._context.all_labels:
             try:
-                if self._filter_matches(filterstr, str(elem.elem)):
-                    visible.append(elem)
-                    if self._is_hidden(elem.label):
-                        # hidden element which matches again -> show it
-                        self._show_elem(elem.label)
+                if self._filter_matches(filterstr, str(label.elem)):
+                    visible.append(label)
+                    # Show label again if it was hidden before
+                    label.show()
                 else:
                     # element doesn't match anymore -> hide it
-                    self._hide_elem(elem.label)
+                    label.hide()
             except webelem.Error:
                 pass
 
@@ -884,10 +842,10 @@ class HintManager(QObject):
         if self._context.hint_mode == 'number':
             # renumber filtered hints
             strings = self._hint_strings(visible)
-            self._context.elems = {}
-            for elem, string in zip(visible, strings):
-                elem.label.set_inner_xml(string)
-                self._context.elems[string] = elem
+            self._context.labels = {}
+            for label, string in zip(visible, strings):
+                label.update_text('', string)
+                self._context.labels[string] = label
             keyparsers = objreg.get('keyparsers', scope='window',
                                     window=self._win_id)
             keyparser = keyparsers[usertypes.KeyMode.hint]
@@ -896,9 +854,9 @@ class HintManager(QObject):
             # Note: filter_hints can be called with non-None filterstr only
             # when number mode is active
             if filterstr is not None:
-                # pass self._context.elems as the dict of visible hints
+                # pass self._context.labels as the dict of visible hints
                 self._handle_auto_follow(filterstr=filterstr,
-                                         visible=self._context.elems)
+                                         visible=self._context.labels)
 
     def _fire(self, keystr):
         """Fire a completed hint.
@@ -927,9 +885,9 @@ class HintManager(QObject):
             Target.fill: self._actions.preset_cmd_text,
             Target.spawn: self._actions.spawn,
         }
-        elem = self._context.elems[keystr].elem
+        elem = self._context.labels[keystr].elem
 
-        if elem.frame() is None:
+        if not elem.has_frame():
             message.error(self._win_id,
                           "This element has no webframe.",
                           immediately=True)
@@ -941,7 +899,9 @@ class HintManager(QObject):
         elif self._context.target in url_handlers:
             url = elem.resolve_url(self._context.baseurl)
             if url is None:
-                self._show_url_error()
+                message.error(self._win_id,
+                              "No suitable link found for this element.",
+                              immediately=True)
                 return
             handler = functools.partial(url_handlers[self._context.target],
                                         url, self._context)
@@ -955,13 +915,13 @@ class HintManager(QObject):
             # Reset filtering
             self.filter_hints(None)
             # Undo keystring highlighting
-            for string, elem in self._context.elems.items():
-                elem.label.set_inner_xml(string)
+            for string, label in self._context.labels.items():
+                label.update_text('', string)
 
         try:
             handler()
-        except HintingError:
-            self._show_url_error()
+        except HintingError as e:
+            message.error(self._win_id, str(e), immediately=True)
 
     @cmdutils.register(instance='hintmanager', scope='tab', hide=True,
                        modes=[usertypes.KeyMode.hint])
@@ -976,23 +936,9 @@ class HintManager(QObject):
                 raise cmdexc.CommandError("No hint to follow")
             else:
                 keystring = self._context.to_follow
-        elif keystring not in self._context.elems:
+        elif keystring not in self._context.labels:
             raise cmdexc.CommandError("No hint {}!".format(keystring))
         self._fire(keystring)
-
-    @pyqtSlot()
-    def on_contents_size_changed(self):
-        """Reposition hints if contents size changed."""
-        log.hints.debug("Contents size changed...!")
-        for e in self._context.all_elems:
-            try:
-                if e.elem.frame() is None:
-                    # This sometimes happens for some reason...
-                    e.label.remove_from_document()
-                    continue
-                self._set_style_position(e.elem, e.label)
-            except webelem.Error:
-                pass
 
     @pyqtSlot(usertypes.KeyMode)
     def on_mode_left(self, mode):
