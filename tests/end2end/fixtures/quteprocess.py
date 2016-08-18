@@ -526,7 +526,7 @@ class QuteProc(testprocess.Process):
         """Press the given keys using :fake-key."""
         self.send_cmd(':fake-key -g "{}"'.format(keys))
 
-    def click_element(self, text):
+    def click_element_by_text(self, text):
         """Click the element with the given text."""
         # Use Javascript and XPath to find the right element, use console.log
         # to return an error (no element found, ambiguous element)

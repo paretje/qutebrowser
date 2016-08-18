@@ -1474,7 +1474,7 @@ class CommandDispatcher:
         `general -> editor` config option.
         """
         tab = self._current_widget()
-        tab.find_focus_element(self._open_editor_cb)
+        tab.elements.find_focused(self._open_editor_cb)
 
     def on_editing_finished(self, elem, text):
         """Write the editor text into the form field and clean up tempfile.
@@ -1526,6 +1526,49 @@ class CommandDispatcher:
             event.initTextEvent('textInput', true, true, null, text);
             this.dispatchEvent(event);
         """.format(javascript.string_escape(text)))
+
+    @cmdutils.register(instance='command-dispatcher', scope='window',
+                       hide=True)
+    @cmdutils.argument('filter_', choices=['id'])
+    def click_element(self, filter_: str, value, *,
+                      target: usertypes.ClickTarget=
+                      usertypes.ClickTarget.normal):
+        """Click the element matching the given filter.
+
+        The given filter needs to result in exactly one element, otherwise, an
+        error is shown.
+
+        Args:
+            filter_: How to filter the elements.
+                     id: Get an element based on its ID.
+            value: The value to filter for.
+            target: How to open the clicked element (normal/tab/tab-bg/window).
+        """
+        tab = self._current_widget()
+
+        def single_cb(elem):
+            """Click a single element."""
+            if elem is None:
+                message.error(self._win_id, "No element found!")
+                return
+            elem.click(target)
+
+        # def multiple_cb(elems):
+        #     """Click multiple elements (with only one expected)."""
+        #     if not elems:
+        #         message.error(self._win_id, "No element found!")
+        #         return
+        #     elif len(elems) != 1:
+        #         message.error(self._win_id, "{} elements found!".format(
+        #             len(elems)))
+        #         return
+        #     elems[0].click(target)
+
+        handlers = {
+            'id': (tab.elements.find_id, single_cb),
+        }
+        handler, callback = handlers[filter_]
+        handler(value, callback)
 
     def _search_cb(self, found, *, tab, old_scroll_pos, options, text, prev):
         """Callback called from search/search_next/search_prev.

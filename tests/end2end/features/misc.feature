@@ -372,8 +372,7 @@ Feature: Various utility commands.
     @pyqt>=5.3.1
     Scenario: Focusing download widget via Tab (original issue)
         When I open data/prompt/jsprompt.html
-        And I run :hint
-        And I run :follow-hint a
+        And I run :click-element id button
         And I wait for "Entering mode KeyMode.prompt *" in the log
         And I press the key "<Tab>"
         And I press the key "<Ctrl-C>"
@@ -559,3 +558,24 @@ Feature: Various utility commands.
         And I put "{url}" into the clipboard
         And I run :message-info {clipboard}bar{url}
         Then the message "{url}barhttp://localhost:*/hello.txt" should be shown
+
+    ## :click-element
+
+    Scenario: Clicking an element with unknown ID
+        When I open data/click_element.html
+        And I run :click-element id blah
+        Then the error "No element found!" should be shown
+
+    Scenario: Clicking an element by ID
+        When I open data/click_element.html
+        And I run :click-element id qute-input
+        Then "Clicked editable element!" should be logged
+
+    Scenario: Clicking an element with tab target
+        When I open data/click_element.html
+        And I run :tab-only
+        And I run :click-element id link --target=tab
+        Then data/hello.txt should be loaded
+        And the following tabs should be open:
+            - data/click_element.html
+            - data/hello.txt (active)

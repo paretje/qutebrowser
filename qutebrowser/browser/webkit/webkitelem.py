@@ -38,7 +38,8 @@ class WebKitElement(webelem.AbstractWebElement):
 
     """A wrapper around a QWebElement."""
 
-    def __init__(self, elem):
+    def __init__(self, elem, tab):
+        super().__init__(tab)
         if isinstance(elem, self.__class__):
             raise TypeError("Trying to wrap a wrapper!")
         if elem.isNull():
@@ -144,9 +145,9 @@ class WebKitElement(webelem.AbstractWebElement):
     def parent(self):
         self._check_vanished()
         elem = self._elem.parent()
-        if elem is None:
+        if elem is None or elem.isNull():
             return None
-        return WebKitElement(elem)
+        return WebKitElement(elem, tab=self._tab)
 
     def _rect_on_view_js(self):
         """Javascript implementation for rect_on_view."""
@@ -302,5 +303,6 @@ def focus_elem(frame):
     Args:
         frame: The QWebFrame to search in.
     """
+    # FIXME:qtwebengine get rid of this
     elem = frame.findFirstElement('*:focus')
-    return WebKitElement(elem)
+    return WebKitElement(elem, tab=None)

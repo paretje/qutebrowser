@@ -99,6 +99,7 @@ class Tab(browsertab.AbstractTab):
         self.zoom = browsertab.AbstractZoom(win_id=self.win_id)
         self.search = browsertab.AbstractSearch(parent=self)
         self.printing = browsertab.AbstractPrinting()
+        self.elements = browsertab.AbstractElements(self)
 
     def _install_event_filter(self):
         pass
@@ -121,11 +122,3 @@ def test_tab(qtbot, view, config_stub, tab_registry, mode_manager):
 
     tab_w.show()
     qtbot.waitForWindowShown(tab_w)
-
-
-class TestJs:
-
-    @pytest.mark.parametrize('inp, expected', [('1+1', 2),
-                                               ('undefined', None)])
-    def test_blocking(self, tab, inp, expected):
-        assert tab.run_js_blocking(inp) == expected
