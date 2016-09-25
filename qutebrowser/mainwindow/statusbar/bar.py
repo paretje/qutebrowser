@@ -25,8 +25,7 @@ from PyQt5.QtWidgets import QWidget, QHBoxLayout, QStackedLayout, QSizePolicy
 from qutebrowser.config import config, style
 from qutebrowser.utils import usertypes, log, objreg, utils
 from qutebrowser.mainwindow.statusbar import (command, progress, keystring,
-                                              percentage, url, prompt,
-                                              tabindex, settings)
+                                              percentage, url, prompt, tabindex)
 from qutebrowser.mainwindow.statusbar import text as textwidget
 
 
@@ -179,8 +178,10 @@ class StatusBar(QWidget):
         self.url = url.UrlText()
         self._hbox.addWidget(self.url)
 
-        self.settings = settings.TabSettings()
-        self._hbox.addWidget(self.settings)
+        if objreg.get('args').backend != 'webengine':
+            from qutebrowser.mainwindow.statusbar import settings
+            self.settings = settings.TabSettings()
+            self._hbox.addWidget(self.settings)
 
         self.percentage = percentage.Percentage()
         self._hbox.addWidget(self.percentage)
