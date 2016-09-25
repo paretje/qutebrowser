@@ -112,13 +112,20 @@ def init():
     objreg.get('config').changed.connect(update_settings)
 
 
+def shutdown():
+    """Disable storage so removing tmpdir will work."""
+    QWebSettings.setIconDatabasePath('')
+    QWebSettings.setOfflineWebApplicationCachePath('')
+    QWebSettings.globalSettings().setLocalStoragePath('')
+
+
 MAPPINGS = {
     'content': {
         'allow-images':
             Attribute(QWebSettings.AutoLoadImages),
         'allow-javascript':
             Attribute(QWebSettings.JavascriptEnabled),
-        'javascript-can-open-windows':
+        'javascript-can-open-windows-automatically':
             Attribute(QWebSettings.JavascriptCanOpenWindows),
         'javascript-can-close-windows':
             Attribute(QWebSettings.JavascriptCanCloseWindows),

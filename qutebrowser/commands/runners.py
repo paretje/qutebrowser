@@ -174,15 +174,6 @@ class CommandRunner(QObject):
             count = None
         return (count, cmdstr)
 
-    def _parse_fallback(self, text, count, keep):
-        """Parse the given commandline without a valid command."""
-        if keep:
-            cmdstr, sep, argstr = text.partition(' ')
-            cmdline = [cmdstr, sep] + argstr.split()
-        else:
-            cmdline = text.split()
-        return ParseResult(cmd=None, args=None, cmdline=cmdline, count=count)
-
     def parse(self, text, *, fallback=False, keep=False):
         """Split the commandline text into command and arguments.
 
@@ -210,7 +201,9 @@ class CommandRunner(QObject):
             if not fallback:
                 raise cmdexc.NoSuchCommandError(
                     '{}: no such command'.format(cmdstr))
-            return self._parse_fallback(text, count, keep)
+            cmdline = split.split(text, keep=keep)
+            return ParseResult(cmd=None, args=None, cmdline=cmdline,
+                               count=count)
 
         args = self._split_args(cmd, argstr, keep)
         if keep and args:
@@ -320,8 +313,7 @@ class CommandRunner(QObject):
         try:
             self.run(text, count)
         except (cmdexc.CommandMetaError, cmdexc.CommandError) as e:
-            message.error(self._win_id, e, immediately=True,
-                          stack=traceback.format_exc())
+            message.error(str(e), stack=traceback.format_exc())
 
     @pyqtSlot(str, int)
     def run_safely_init(self, text, count=None):
@@ -333,4 +325,4 @@ class CommandRunner(QObject):
         try:
             self.run(text, count)
         except (cmdexc.CommandMetaError, cmdexc.CommandError) as e:
-            message.error(self._win_id, e, stack=traceback.format_exc())
+            message.error(str(e), stack=traceback.format_exc())

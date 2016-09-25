@@ -61,9 +61,9 @@ PERFECT_FILES = [
         'qutebrowser/browser/webkit/http.py'),
     ('tests/unit/browser/webkit/http/test_content_disposition.py',
         'qutebrowser/browser/webkit/rfc6266.py'),
-    ('tests/unit/browser/webkit/test_webelem.py',
+    ('tests/unit/browser/webkit/test_webkitelem.py',
         'qutebrowser/browser/webkit/webkitelem.py'),
-    ('tests/unit/browser/webkit/test_webelem.py',
+    ('tests/unit/browser/webkit/test_webkitelem.py',
         'qutebrowser/browser/webelem.py'),
     ('tests/unit/browser/webkit/network/test_schemehandler.py',
         'qutebrowser/browser/webkit/network/schemehandler.py'),
@@ -74,6 +74,8 @@ PERFECT_FILES = [
 
     ('tests/unit/browser/test_signalfilter.py',
         'qutebrowser/browser/signalfilter.py'),
+    ('tests/unit/browser/test_shared.py',
+        'qutebrowser/browser/shared.py'),
     # ('tests/unit/browser/test_tab.py',
     #     'qutebrowser/browser/tab.py'),
 
@@ -117,6 +119,8 @@ PERFECT_FILES = [
         'qutebrowser/mainwindow/statusbar/prompt.py'),
     ('tests/unit/mainwindow/statusbar/test_url.py',
         'qutebrowser/mainwindow/statusbar/url.py'),
+    ('tests/unit/mainwindow/test_messageview.py',
+        'qutebrowser/mainwindow/messageview.py'),
 
     ('tests/unit/config/test_configtypes.py',
         'qutebrowser/config/configtypes.py'),
@@ -272,14 +276,14 @@ def main_check_all():
     This makes sure the files have 100% coverage without running unrelated
     tests.
 
-    This runs py.test with the used executable, so check_coverage.py should be
+    This runs pytest with the used executable, so check_coverage.py should be
     called with something like ./.tox/py34/bin/python.
     """
     for test_file, src_file in PERFECT_FILES:
         if test_file is None:
             continue
         subprocess.check_call(
-            [sys.executable, '-m', 'py.test', '--cov', 'qutebrowser',
+            [sys.executable, '-m', 'pytest', '--cov', 'qutebrowser',
              '--cov-report', 'xml', test_file])
         with open('coverage.xml', encoding='utf-8') as f:
             messages = check(f, [(test_file, src_file)])

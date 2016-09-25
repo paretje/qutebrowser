@@ -87,6 +87,16 @@ LOG_LEVELS = {
     'CRITICAL': logging.CRITICAL,
 }
 
+LOGGER_NAMES = [
+    'statusbar', 'completion', 'init', 'url',
+    'destroy', 'modes', 'webview', 'misc',
+    'mouse', 'procs', 'hints', 'keyboard',
+    'commands', 'signals', 'downloads',
+    'js', 'qt', 'rfc6266', 'ipc', 'shlexer',
+    'save', 'message', 'config', 'sessions',
+    'webelem'
+]
+
 
 def vdebug(self, msg, *args, **kwargs):
     """Log with a VDEBUG level.
@@ -128,10 +138,13 @@ save = logging.getLogger('save')
 message = logging.getLogger('message')
 config = logging.getLogger('config')
 sessions = logging.getLogger('sessions')
+webelem = logging.getLogger('webelem')
 domains = logging.getLogger('domains')
 
 
 ram_handler = None
+console_handler = None
+console_filter = None
 
 
 def stub(suffix=''):
@@ -162,9 +175,11 @@ def init_log(args):
     console, ram = _init_handlers(numeric_level, args.color, args.force_color,
                                   args.json_logging, args.loglines)
     root = logging.getLogger()
+    global console_filter
     if console is not None:
         if args.logfilter is not None:
-            console.addFilter(LogFilter(args.logfilter.split(',')))
+            console_filter = LogFilter(args.logfilter.split(','))
+            console.addFilter(console_filter)
         root.addHandler(console)
     if ram is not None:
         root.addHandler(ram)
@@ -211,6 +226,7 @@ def _init_handlers(level, color, force_color, json_logging, ram_capacity):
         json_logging: Output log lines in JSON (this disables all colors).
     """
     global ram_handler
+    global console_handler
     console_fmt, ram_fmt, html_fmt, use_colorama = _init_formatters(
         level, color, force_color, json_logging)
 
@@ -237,6 +253,18 @@ def _init_handlers(level, color, force_color, json_logging, ram_capacity):
     return console_handler, ram_handler
 
 
+def get_console_format(level):
+    """Get the log format the console logger should use.
+
+    Args:
+        level: The numeric logging level.
+
+    Return:
+        Format of the requested level.
+    """
+    return EXTENDED_FMT if level <= logging.DEBUG else SIMPLE_FMT
+
+
 def _init_formatters(level, color, force_color, json_logging):
     """Init log formatters.
 
@@ -251,7 +279,7 @@ def _init_formatters(level, color, force_color, json_logging):
         console_formatter/ram_formatter: logging.Formatter instances.
         use_colorama: Whether to use colorama.
     """
-    console_fmt = EXTENDED_FMT if level <= logging.DEBUG else SIMPLE_FMT
+    console_fmt = get_console_format(level)
     ram_formatter = ColoredFormatter(EXTENDED_FMT, DATEFMT, '{',
                                      use_colors=False)
     html_formatter = HTMLFormatter(EXTENDED_FMT_HTML, DATEFMT,
@@ -276,6 +304,23 @@ def _init_formatters(level, color, force_color, json_logging):
     console_formatter = ColoredFormatter(console_fmt, DATEFMT, '{',
                                          use_colors=use_colors)
     return console_formatter, ram_formatter, html_formatter, use_colorama
+
+
+def change_console_formatter(level):
+    """Change console formatter based on level.
+
+    Args:
+        level: The numeric logging level
+    """
+    if not isinstance(console_handler.formatter, ColoredFormatter):
+        # JSON Formatter being used for end2end tests
+        pass
+
+    use_colors = console_handler.formatter.use_colors
+    console_fmt = get_console_format(level)
+    console_formatter = ColoredFormatter(console_fmt, DATEFMT, '{',
+                                         use_colors=use_colors)
+    console_handler.setFormatter(console_formatter)
 
 
 def qt_message_handler(msg_type, context, msg):
@@ -449,16 +494,16 @@ class LogFilter(logging.Filter):
 
     def __init__(self, names):
         super().__init__()
-        self._names = names
+        self.names = names
 
     def filter(self, record):
         """Determine if the specified record is to be logged."""
-        if self._names is None:
+        if self.names is None:
             return True
         if record.levelno > logging.DEBUG:
             # More important than DEBUG, so we won't filter at all
             return True
-        for name in self._names:
+        for name in self.names:
             if record.name == name:
                 return True
             elif not record.name.startswith(name):
@@ -526,10 +571,10 @@ class ColoredFormatter(logging.Formatter):
 
     def __init__(self, fmt, datefmt, style, *, use_colors):
         super().__init__(fmt, datefmt, style)
-        self._use_colors = use_colors
+        self.use_colors = use_colors
 
     def format(self, record):
-        if self._use_colors:
+        if self.use_colors:
             color_dict = dict(COLOR_ESCAPES)
             color_dict['reset'] = RESET_ESCAPE
             log_color = LOG_COLORS[record.levelname]
@@ -595,8 +640,8 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record):
         obj = {}
-        for field in ['created', 'levelname', 'name', 'module', 'funcName',
-                      'lineno', 'levelno']:
+        for field in ['created', 'msecs', 'levelname', 'name', 'module',
+                      'funcName', 'lineno', 'levelno']:
             obj[field] = getattr(record, field)
         obj['message'] = record.getMessage()
         if record.exc_info is not None:

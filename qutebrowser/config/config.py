@@ -385,6 +385,12 @@ class ConfigManager(QObject):
         ('completion', 'history-length'): 'cmd-history-max-items',
         ('colors', 'downloads.fg'): 'downloads.fg.start',
         ('ui', 'show-keyhints'): 'keyhint-blacklist',
+        ('content', 'javascript-can-open-windows'):
+            'javascript-can-open-windows-automatically',
+        ('colors', 'statusbar.fg.error'): 'messages.fg.error',
+        ('colors', 'statusbar.bg.error'): 'messages.bg.error',
+        ('colors', 'statusbar.fg.warning'): 'messages.fg.warning',
+        ('colors', 'statusbar.bg.warning'): 'messages.bg.warning',
     }
     DELETED_OPTIONS = [
         ('colors', 'tab.separator'),
@@ -400,6 +406,7 @@ class ConfigManager(QObject):
         ('ui', 'hide-mouse-cursor'),
         ('general', 'wrap-search'),
         ('hints', 'opacity'),
+        ('completion', 'auto-open'),
     ]
     CHANGED_OPTIONS = {
         ('content', 'cookies-accept'):
@@ -418,6 +425,8 @@ class ConfigManager(QObject):
         ('colors', 'hints.fg'): _transform_hint_color,
         ('colors', 'hints.fg.match'): _transform_hint_color,
         ('fonts', 'hints'): _transform_hint_font,
+        ('completion', 'show'):
+            _get_value_transformer({'false': 'never', 'true': 'always'}),
     }
 
     changed = pyqtSignal(str, str)
@@ -811,8 +820,7 @@ class ConfigManager(QObject):
         if print_:
             with self._handle_config_error():
                 val = self.get(section_, option, transformed=False)
-            message.info(win_id, "{} {} = {}".format(
-                section_, option, val), immediately=True)
+            message.info("{} {} = {}".format(section_, option, val))
 
     def set(self, layer, sectname, optname, value, validate=True):
         """Set an option.

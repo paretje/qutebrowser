@@ -31,11 +31,9 @@ import collections
 
 import sip
 from PyQt5.QtCore import (pyqtSlot, pyqtSignal, QObject, QTimer,
-                          Qt, QVariant, QAbstractListModel, QModelIndex, QUrl)
+                          Qt, QAbstractListModel, QModelIndex, QUrl)
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtNetwork import QNetworkRequest, QNetworkReply
-# We need this import so PyQt can use it inside pyqtSlot
-from PyQt5.QtWebKitWidgets import QWebPage  # pylint: disable=unused-import
 
 from qutebrowser.config import config
 from qutebrowser.commands import cmdexc, cmdutils
@@ -50,9 +48,10 @@ ModelRole = usertypes.enum('ModelRole', ['item'], start=Qt.UserRole,
                            is_int=True)
 
 
-RetryInfo = collections.namedtuple('RetryInfo', ['request', 'manager'])
+_RetryInfo = collections.namedtuple('_RetryInfo', ['request', 'manager'])
 
-DownloadPath = collections.namedtuple('DownloadPath', ['filename', 'question'])
+_DownloadPath = collections.namedtuple('_DownloadPath', ['filename',
+                                                         'question'])
 
 # Remember the last used directory
 last_used_directory = None
@@ -60,7 +59,7 @@ last_used_directory = None
 
 # All REFRESH_INTERVAL milliseconds, speeds will be recalculated and downloads
 # redrawn.
-REFRESH_INTERVAL = 500
+_REFRESH_INTERVAL = 500
 
 
 def download_dir():
@@ -76,7 +75,7 @@ def download_dir():
         return directory
 
 
-def path_suggestion(filename):
+def _path_suggestion(filename):
     """Get the suggested file path.
 
     Args:
@@ -145,7 +144,7 @@ def ask_for_filename(suggested_filename, win_id, *, parent=None,
                                                'prompt-download-directory')
 
     if not prompt_download_directory:
-        return DownloadPath(filename=download_dir(), question=None)
+        return _DownloadPath(filename=download_dir(), question=None)
 
     encoding = sys.getfilesystemencoding()
     suggested_filename = utils.force_encoding(suggested_filename, encoding)
@@ -154,12 +153,12 @@ def ask_for_filename(suggested_filename, win_id, *, parent=None,
     q.text = "Save file to:"
     q.mode = usertypes.PromptMode.text
     q.completed.connect(q.deleteLater)
-    q.default = path_suggestion(suggested_filename)
+    q.default = _path_suggestion(suggested_filename)
 
     message_bridge = objreg.get('message-bridge', scope='window',
                                 window=win_id)
     q.ask = lambda: message_bridge.ask(q, blocking=False)
-    return DownloadPath(filename=None, question=q)
+    return _DownloadPath(filename=None, question=q)
 
 
 class DownloadItemStats(QObject):
@@ -187,20 +186,20 @@ class DownloadItemStats(QObject):
         self.done = 0
         self.speed = 0
         self._last_done = 0
-        samples = int(self.SPEED_AVG_WINDOW * (1000 / REFRESH_INTERVAL))
+        samples = int(self.SPEED_AVG_WINDOW * (1000 / _REFRESH_INTERVAL))
         self._speed_avg = collections.deque(maxlen=samples)
 
     def update_speed(self):
         """Recalculate the current download speed.
 
-        The caller needs to guarantee this is called all REFRESH_INTERVAL ms.
+        The caller needs to guarantee this is called all _REFRESH_INTERVAL ms.
         """
         if self.done is None:
             # this can happen for very fast downloads, e.g. when actually
             # opening a file
             return
         delta = self.done - self._last_done
-        self.speed = delta * 1000 / REFRESH_INTERVAL
+        self.speed = delta * 1000 / _REFRESH_INTERVAL
         self._speed_avg.append(self.speed)
         self._last_done = self.done
 
@@ -262,7 +261,7 @@ class DownloadItem(QObject):
     readyRead will write to the real file object.
 
     Class attributes:
-        MAX_REDIRECTS: The maximum redirection count.
+        _MAX_REDIRECTS: The maximum redirection count.
 
     Attributes:
         done: Whether the download is finished.
@@ -273,8 +272,7 @@ class DownloadItem(QObject):
         autoclose: Whether to close the associated file if the download is
                    done.
         fileobj: The file object to download the file to.
-        reply: The QNetworkReply associated with this download.
-        retry_info: A RetryInfo instance.
+        retry_info: A _RetryInfo instance.
         raw_headers: The headers sent by the server.
         _filename: The filename of the download.
         _redirects: How many time we were redirected already.
@@ -284,6 +282,7 @@ class DownloadItem(QObject):
                      periodically.
         _win_id: The window ID the DownloadItem runs in.
         _dead: Whether the Download has _die()'d.
+        _reply: The QNetworkReply associated with this download.
 
     Signals:
         data_changed: The downloads metadata changed.
@@ -296,15 +295,18 @@ class DownloadItem(QObject):
             arg 1: The old QNetworkReply.
         do_retry: Emitted when a download is retried.
             arg 0: The new DownloadItem
+        remove_requested: Emitted when the removal of this download was
+                          requested.
     """
 
-    MAX_REDIRECTS = 10
+    _MAX_REDIRECTS = 10
     data_changed = pyqtSignal()
     finished = pyqtSignal()
     error = pyqtSignal(str)
     cancelled = pyqtSignal()
     redirected = pyqtSignal(QNetworkRequest, QNetworkReply)
     do_retry = pyqtSignal(object)  # DownloadItem
+    remove_requested = pyqtSignal()
 
     def __init__(self, reply, win_id, parent=None):
         """Constructor.
@@ -318,11 +320,11 @@ class DownloadItem(QObject):
         self.stats = DownloadItemStats(self)
         self.index = 0
         self.autoclose = True
-        self.reply = None
+        self._reply = None
         self._buffer = io.BytesIO()
         self._read_timer = usertypes.Timer(self, name='download-read-timer')
         self._read_timer.setInterval(500)
-        self._read_timer.timeout.connect(self.on_read_timer_timeout)
+        self._read_timer.timeout.connect(self._on_read_timer_timeout)
         self._redirects = 0
         self.error_msg = None
         self.basename = '???'
@@ -354,10 +356,7 @@ class DownloadItem(QObject):
             return ('{index}: {name} [{speed:>10}|{down}]{errmsg}'.format(
                 index=self.index, name=self.basename, speed=speed,
                 down=down, errmsg=errmsg))
-        if perc is None:
-            perc = '??'
-        else:
-            perc = round(perc)
+        perc = round(perc)
         if remaining is None:
             remaining = '?'
         else:
@@ -389,8 +388,9 @@ class DownloadItem(QObject):
         q.text = msg
         q.mode = usertypes.PromptMode.yesno
         q.answered_yes.connect(self._create_fileobj)
-        q.answered_no.connect(functools.partial(self.cancel, False))
-        q.cancelled.connect(functools.partial(self.cancel, False))
+        q.answered_no.connect(functools.partial(self.cancel,
+                                                remove_data=False))
+        q.cancelled.connect(functools.partial(self.cancel, remove_data=False))
         self.cancelled.connect(q.abort)
         self.error.connect(q.abort)
         message_bridge = objreg.get('message-bridge', scope='window',
@@ -416,10 +416,10 @@ class DownloadItem(QObject):
             return
         self._dead = True
         self._read_timer.stop()
-        self.reply.downloadProgress.disconnect()
-        self.reply.finished.disconnect()
-        self.reply.error.disconnect()
-        self.reply.readyRead.disconnect()
+        self._reply.downloadProgress.disconnect()
+        self._reply.finished.disconnect()
+        self._reply.error.disconnect()
+        self._reply.readyRead.disconnect()
         self.error_msg = msg
         self.stats.finish()
         self.error.emit(msg)
@@ -427,9 +427,9 @@ class DownloadItem(QObject):
                                  'problem, this method must only be called '
                                  'once.'):
             # See https://codereview.qt-project.org/#/c/107863/
-            self.reply.abort()
-        self.reply.deleteLater()
-        self.reply = None
+            self._reply.abort()
+        self._reply.deleteLater()
+        self._reply = None
         self.done = True
         self.data_changed.emit()
         if self.fileobj is not None:
@@ -446,15 +446,15 @@ class DownloadItem(QObject):
         """
         self.done = False
         self.successful = False
-        self.reply = reply
+        self._reply = reply
         reply.setReadBufferSize(16 * 1024 * 1024)  # 16 MB
         reply.downloadProgress.connect(self.stats.on_download_progress)
-        reply.finished.connect(self.on_reply_finished)
-        reply.error.connect(self.on_reply_error)
-        reply.readyRead.connect(self.on_ready_read)
-        reply.metaDataChanged.connect(self.on_meta_data_changed)
-        self.retry_info = RetryInfo(request=reply.request(),
-                                    manager=reply.manager())
+        reply.finished.connect(self._on_reply_finished)
+        reply.error.connect(self._on_reply_error)
+        reply.readyRead.connect(self._on_ready_read)
+        reply.metaDataChanged.connect(self._on_meta_data_changed)
+        self.retry_info = _RetryInfo(request=reply.request(),
+                                     manager=reply.manager())
         if not self.fileobj:
             self._read_timer.start()
         # We could have got signals before we connected slots to them.
@@ -486,7 +486,7 @@ class DownloadItem(QObject):
                                            self.stats.percentage(), system)
 
     @pyqtSlot()
-    def cancel(self, remove_data=True):
+    def cancel(self, *, remove_data=True):
         """Cancel the download.
 
         Args:
@@ -495,11 +495,11 @@ class DownloadItem(QObject):
         log.downloads.debug("cancelled")
         self._read_timer.stop()
         self.cancelled.emit()
-        if self.reply is not None:
-            self.reply.finished.disconnect(self.on_reply_finished)
-            self.reply.abort()
-            self.reply.deleteLater()
-            self.reply = None
+        if self._reply is not None:
+            self._reply.finished.disconnect(self._on_reply_finished)
+            self._reply.abort()
+            self._reply.deleteLater()
+            self._reply = None
         if self.fileobj is not None:
             self.fileobj.close()
         if remove_data:
@@ -508,11 +508,19 @@ class DownloadItem(QObject):
         self.finished.emit()
         self.data_changed.emit()
 
+    @pyqtSlot()
+    def remove(self):
+        """Remove the download from the model."""
+        self.remove_requested.emit()
+
     def delete(self):
         """Delete the downloaded file."""
         try:
             if self._filename is not None and os.path.exists(self._filename):
                 os.remove(self._filename)
+                log.downloads.debug("Deleted {}".format(self._filename))
+            else:
+                log.downloads.debug("Not deleting {}".format(self._filename))
         except OSError:
             log.downloads.exception("Failed to remove partial file")
 
@@ -543,7 +551,7 @@ class DownloadItem(QObject):
         filename = self._filename
         if filename is None:
             filename = getattr(self.fileobj, 'name', None)
-        if filename is None:
+        if filename is None:  # pragma: no cover
             log.downloads.error("No filename to open the download!")
             return
 
@@ -560,7 +568,7 @@ class DownloadItem(QObject):
             args.append(filename)
         log.downloads.debug("Opening {} with {}"
                             .format(filename, [cmd] + args))
-        proc = guiprocess.GUIProcess(self._win_id, what='download')
+        proc = guiprocess.GUIProcess(what='download')
         proc.start_detached(cmd, args)
 
     def set_filename(self, filename):
@@ -591,14 +599,13 @@ class DownloadItem(QObject):
         # may be set for XDG_DOWNLOAD_DIR
         if self._filename is None:
             message.error(
-                self._win_id,
                 "XDG_DOWNLOAD_DIR points to a relative path - please check"
                 " your ~/.config/user-dirs.dirs. The download is saved in"
                 " your home directory.",
             )
             # fall back to $HOME as download_dir
-            self._filename = create_full_filename(
-                self.basename, os.path.expanduser(os.path.join('~', filename)))
+            self._filename = create_full_filename(self.basename,
+                                                  os.path.expanduser('~'))
 
         self.basename = os.path.basename(self._filename)
         last_used_directory = os.path.dirname(self._filename)
@@ -634,43 +641,43 @@ class DownloadItem(QObject):
             self._buffer.seek(0)
             shutil.copyfileobj(self._buffer, fileobj)
             self._buffer.close()
-            if self.reply.isFinished():
+            if self._reply.isFinished():
                 # Downloading to the buffer in RAM has already finished so we
                 # write out the data and clean up now.
-                self.on_reply_finished()
+                self._on_reply_finished()
             else:
                 # Since the buffer already might be full, on_ready_read might
                 # not be called at all anymore, so we force it here to flush
                 # the buffer and continue receiving new data.
-                self.on_ready_read()
+                self._on_ready_read()
         except OSError as e:
             self._die(e.strerror)
 
-    def finish_download(self):
+    def _finish_download(self):
         """Write buffered data to disk and finish the QNetworkReply."""
         log.downloads.debug("Finishing download...")
-        if self.reply.isOpen():
-            self.fileobj.write(self.reply.readAll())
+        if self._reply.isOpen():
+            self.fileobj.write(self._reply.readAll())
         if self.autoclose:
             self.fileobj.close()
-        self.successful = self.reply.error() == QNetworkReply.NoError
-        self.reply.close()
-        self.reply.deleteLater()
-        self.reply = None
+        self.successful = self._reply.error() == QNetworkReply.NoError
+        self._reply.close()
+        self._reply.deleteLater()
+        self._reply = None
         self.finished.emit()
         self.done = True
-        log.downloads.debug("Download finished")
+        log.downloads.debug("Download {} finished".format(self.basename))
         self.data_changed.emit()
 
     @pyqtSlot()
-    def on_reply_finished(self):
+    def _on_reply_finished(self):
         """Clean up when the download was finished.
 
         Note when this gets called, only the QNetworkReply has finished. This
         doesn't mean the download (i.e. writing data to the disk) is finished
         as well. Therefore, we can't close() the QNetworkReply in here yet.
         """
-        if self.reply is None:
+        if self._reply is None:
             return
         self._read_timer.stop()
         self.stats.finish()
@@ -681,47 +688,47 @@ class DownloadItem(QObject):
         if self.fileobj is not None:
             # We can do a "delayed" write immediately to empty the buffer and
             # clean up.
-            self.finish_download()
+            self._finish_download()
 
     @pyqtSlot()
-    def on_ready_read(self):
+    def _on_ready_read(self):
         """Read available data and save file when ready to read."""
-        if self.fileobj is None or self.reply is None:
+        if self.fileobj is None or self._reply is None:
             # No filename has been set yet (so we don't empty the buffer) or we
             # got a readyRead after the reply was finished (which happens on
             # qute:log for example).
             return
-        if not self.reply.isOpen():
+        if not self._reply.isOpen():
             raise OSError("Reply is closed!")
         try:
-            self.fileobj.write(self.reply.readAll())
+            self.fileobj.write(self._reply.readAll())
         except OSError as e:
             self._die(e.strerror)
 
     @pyqtSlot('QNetworkReply::NetworkError')
-    def on_reply_error(self, code):
+    def _on_reply_error(self, code):
         """Handle QNetworkReply errors."""
         if code == QNetworkReply.OperationCanceledError:
             return
         else:
-            self._die(self.reply.errorString())
+            self._die(self._reply.errorString())
 
     @pyqtSlot()
-    def on_read_timer_timeout(self):
+    def _on_read_timer_timeout(self):
         """Read some bytes from the QNetworkReply periodically."""
-        if not self.reply.isOpen():
+        if not self._reply.isOpen():
             raise OSError("Reply is closed!")
-        data = self.reply.read(1024)
+        data = self._reply.read(1024)
         if data is not None:
             self._buffer.write(data)
 
     @pyqtSlot()
-    def on_meta_data_changed(self):
+    def _on_meta_data_changed(self):
         """Update the download's metadata."""
-        if self.reply is None:
+        if self._reply is None:
             return
         self.raw_headers = {}
-        for key, value in self.reply.rawHeaderPairs():
+        for key, value in self._reply.rawHeaderPairs():
             self.raw_headers[bytes(key)] = bytes(value)
 
     def _handle_redirect(self):
@@ -730,43 +737,68 @@ class DownloadItem(QObject):
         Return:
             True if the download was redirected, False otherwise.
         """
-        redirect = self.reply.attribute(
+        redirect = self._reply.attribute(
             QNetworkRequest.RedirectionTargetAttribute)
         if redirect is None or redirect.isEmpty():
             return False
-        new_url = self.reply.url().resolved(redirect)
-        request = self.reply.request()
+        new_url = self._reply.url().resolved(redirect)
+        request = self._reply.request()
         if new_url == request.url():
             return False
 
-        if self._redirects > self.MAX_REDIRECTS:
+        if self._redirects > self._MAX_REDIRECTS:
             self._die("Maximum redirection count reached!")
+            self.delete()
             return True  # so on_reply_finished aborts
 
         log.downloads.debug("{}: Handling redirect".format(self))
         self._redirects += 1
         request.setUrl(new_url)
-        reply = self.reply
-        reply.finished.disconnect(self.on_reply_finished)
+        reply = self._reply
+        reply.finished.disconnect(self._on_reply_finished)
         self._read_timer.stop()
-        self.reply = None
+        self._reply = None
         if self.fileobj is not None:
             self.fileobj.seek(0)
-        self.redirected.emit(request, reply)  # this will change self.reply!
+        self.redirected.emit(request, reply)  # this will change self._reply!
         reply.deleteLater()  # the old one
         return True
 
+    def uses_nam(self, nam):
+        """Check if this download uses the given QNetworkAccessManager."""
+        running_nam = self._reply is not None and self._reply.manager() is nam
+        # user could request retry after tab is closed.
+        retry_nam = (self.done and (not self.successful) and
+                     self.retry_info.manager is nam)
+        return running_nam or retry_nam
 
-class DownloadManager(QAbstractListModel):
 
-    """Manager and model for currently running downloads.
+class DownloadManager(QObject):
+
+    """Manager for currently running downloads.
 
     Attributes:
         downloads: A list of active DownloadItems.
         questions: A list of Question objects to not GC them.
         _networkmanager: A NetworkManager for generic downloads.
         _win_id: The window ID the DownloadManager runs in.
+
+    Signals:
+        begin_remove_rows: Emitted before downloads are removed.
+        end_remove_rows: Emitted after downloads are removed.
+        begin_insert_rows: Emitted before downloads are inserted.
+        end_insert_rows: Emitted after downloads are inserted.
+        data_changed: Emitted when the data of the model changed.
+                      The arguments are int indices to the downloads.
     """
+
+    # parent, first, last
+    begin_remove_rows = pyqtSignal(QModelIndex, int, int)
+    end_remove_rows = pyqtSignal()
+    # parent, first, last
+    begin_insert_rows = pyqtSignal(QModelIndex, int, int)
+    end_insert_rows = pyqtSignal()
+    data_changed = pyqtSignal(int, int)  # begin, end
 
     def __init__(self, win_id, parent=None):
         super().__init__(parent)
@@ -776,8 +808,8 @@ class DownloadManager(QAbstractListModel):
         self._networkmanager = networkmanager.NetworkManager(
             win_id, None, self)
         self._update_timer = usertypes.Timer(self, 'download-update')
-        self._update_timer.timeout.connect(self.update_gui)
-        self._update_timer.setInterval(REFRESH_INTERVAL)
+        self._update_timer.timeout.connect(self._update_gui)
+        self._update_timer.setInterval(_REFRESH_INTERVAL)
 
     def __repr__(self):
         return utils.get_repr(self, downloads=len(self.downloads))
@@ -791,14 +823,14 @@ class DownloadManager(QAbstractListModel):
         self.questions.append(q)
 
     @pyqtSlot()
-    def update_gui(self):
+    def _update_gui(self):
         """Periodical GUI update of all items."""
         assert self.downloads
         for dl in self.downloads:
             dl.stats.update_speed()
-        self.dataChanged.emit(self.index(0), self.last_index())
+        self.data_changed.emit(0, -1)
 
-    @pyqtSlot('QUrl', 'QWebPage')
+    @pyqtSlot('QUrl')
     def get(self, url, **kwargs):
         """Start a download with a link URL.
 
@@ -810,7 +842,7 @@ class DownloadManager(QAbstractListModel):
             The created DownloadItem.
         """
         if not url.isValid():
-            urlutils.invalid_url_error(self._win_id, url, "start download")
+            urlutils.invalid_url_error(url, "start download")
             return
         req = QNetworkRequest(url)
         return self.get_request(req, **kwargs)
@@ -821,7 +853,7 @@ class DownloadManager(QAbstractListModel):
         Args:
             request: The QNetworkRequest to download.
             target: Where to save the download as usertypes.DownloadTarget.
-            **kwargs: Passed to fetch_request.
+            **kwargs: Passed to _fetch_request.
 
         Return:
             The created DownloadItem.
@@ -853,27 +885,25 @@ class DownloadManager(QAbstractListModel):
         if suggested_fn is None:
             suggested_fn = 'qutebrowser-download'
 
-        return self.fetch_request(request,
-                                  target=target,
-                                  suggested_filename=suggested_fn,
-                                  **kwargs)
+        return self._fetch_request(request,
+                                   target=target,
+                                   suggested_filename=suggested_fn,
+                                   **kwargs)
 
-    def fetch_request(self, request, *, page=None, **kwargs):
+    def _fetch_request(self, request, *, qnam=None, **kwargs):
         """Download a QNetworkRequest to disk.
 
         Args:
             request: The QNetworkRequest to download.
-            page: The QWebPage to use.
+            qnam: The QNetworkAccessManager to use.
             **kwargs: passed to fetch().
 
         Return:
             The created DownloadItem.
         """
-        if page is None:
-            nam = self._networkmanager
-        else:
-            nam = page.networkAccessManager()
-        reply = nam.get(request)
+        if qnam is None:
+            qnam = self._networkmanager
+        reply = qnam.get(request)
         return self.fetch(reply, **kwargs)
 
     @pyqtSlot('QNetworkReply')
@@ -901,28 +931,28 @@ class DownloadManager(QAbstractListModel):
         log.downloads.debug("fetch: {} -> {}".format(reply.url(),
                                                      suggested_filename))
         download = DownloadItem(reply, self._win_id, self)
-        download.cancelled.connect(
-            functools.partial(self.remove_item, download))
+        download.cancelled.connect(download.remove)
+        download.remove_requested.connect(functools.partial(
+            self._remove_item, download))
 
         delay = config.get('ui', 'remove-finished-downloads')
         if delay > -1:
             download.finished.connect(
-                functools.partial(self.remove_item_delayed, download, delay))
+                lambda: QTimer.singleShot(delay, download.remove))
         elif auto_remove:
-            download.finished.connect(
-                functools.partial(self.remove_item, download))
+            download.finished.connect(download.remove)
 
         download.data_changed.connect(
-            functools.partial(self.on_data_changed, download))
-        download.error.connect(self.on_error)
+            functools.partial(self._on_data_changed, download))
+        download.error.connect(self._on_error)
         download.redirected.connect(
-            functools.partial(self.on_redirect, download))
+            functools.partial(self._on_redirect, download))
         download.basename = suggested_filename
         idx = len(self.downloads)
         download.index = idx + 1  # "Human readable" index
-        self.beginInsertRows(QModelIndex(), idx, idx)
+        self.begin_insert_rows.emit(QModelIndex(), idx, idx)
         self.downloads.append(download)
-        self.endInsertRows()
+        self.end_insert_rows.emit()
 
         if not self._update_timer.isActive():
             self._update_timer.start()
@@ -974,7 +1004,7 @@ class DownloadManager(QAbstractListModel):
                 fobj = tmp_manager.get_tmpfile(suggested_filename)
             except OSError as exc:
                 msg = "Download error: {}".format(exc)
-                message.error(self._win_id, msg)
+                message.error(msg)
                 download.cancel()
                 return
             download.finished.connect(
@@ -982,8 +1012,8 @@ class DownloadManager(QAbstractListModel):
                                   target.cmdline))
             download.autoclose = True
             download.set_fileobj(fobj)
-        else:
-            log.downloads.error("Unknown download target: {}".format(target))
+        else:  # pragma: no cover
+            raise ValueError("Unknown download target: {}".format(target))
 
     def _open_download(self, download, cmdline):
         """Open the given download but only if it was successful.
@@ -998,7 +1028,127 @@ class DownloadManager(QAbstractListModel):
             return
         download.open_file(cmdline)
 
-    def raise_no_download(self, count):
+    @pyqtSlot(QNetworkRequest, QNetworkReply)
+    def _on_redirect(self, download, request, reply):
+        """Handle an HTTP redirect of a download.
+
+        Args:
+            download: The old DownloadItem.
+            request: The new QNetworkRequest.
+            reply: The old QNetworkReply.
+        """
+        log.downloads.debug("redirected: {} -> {}".format(
+            reply.url(), request.url()))
+        new_reply = reply.manager().get(request)
+        download.init_reply(new_reply)
+
+    @pyqtSlot(DownloadItem)
+    def _on_data_changed(self, download):
+        """Emit data_changed signal when download data changed."""
+        try:
+            idx = self.downloads.index(download)
+        except ValueError:
+            # download has been deleted in the meantime
+            return
+        self.data_changed.emit(idx, idx)
+
+    @pyqtSlot(str)
+    def _on_error(self, msg):
+        """Display error message on download errors."""
+        message.error("Download error: {}".format(msg))
+
+    def has_downloads_with_nam(self, nam):
+        """Check if the DownloadManager has any downloads with the given QNAM.
+
+        Args:
+            nam: The QNetworkAccessManager to check.
+
+        Return:
+            A boolean.
+        """
+        assert nam.adopted_downloads == 0
+        for download in self.downloads:
+            if download.uses_nam(nam):
+                nam.adopt_download(download)
+        return nam.adopted_downloads
+
+    @pyqtSlot(DownloadItem)
+    def _remove_item(self, download):
+        """Remove a given download."""
+        if sip.isdeleted(self):
+            # https://github.com/The-Compiler/qutebrowser/issues/1242
+            return
+        try:
+            idx = self.downloads.index(download)
+        except ValueError:
+            # already removed
+            return
+        self.begin_remove_rows.emit(QModelIndex(), idx, idx)
+        del self.downloads[idx]
+        self.end_remove_rows.emit()
+        download.deleteLater()
+        self._update_indexes()
+        if not self.downloads:
+            self._update_timer.stop()
+        log.downloads.debug("Removed download {}".format(download))
+
+    def _update_indexes(self):
+        """Update indexes of all DownloadItems."""
+        first_idx = None
+        for i, d in enumerate(self.downloads, 1):
+            if first_idx is None and d.index != i:
+                first_idx = i - 1
+            d.index = i
+        if first_idx is not None:
+            self.data_changed.emit(first_idx, -1)
+
+
+class DownloadModel(QAbstractListModel):
+
+    """A list model showing downloads."""
+
+    def __init__(self, downloader, parent=None):
+        super().__init__(parent)
+        self._downloader = downloader
+        # FIXME we'll need to translate indices here...
+        downloader.data_changed.connect(self._on_data_changed)
+        downloader.begin_insert_rows.connect(self.beginInsertRows)
+        downloader.end_insert_rows.connect(self.endInsertRows)
+        downloader.begin_remove_rows.connect(self.beginRemoveRows)
+        downloader.end_remove_rows.connect(self.endRemoveRows)
+
+    def _all_downloads(self):
+        """Combine downloads from both downloaders."""
+        return self._downloader.downloads[:]
+
+    def __len__(self):
+        return len(self._all_downloads())
+
+    def __iter__(self):
+        return iter(self._all_downloads())
+
+    def __getitem__(self, idx):
+        return self._all_downloads()[idx]
+
+    @pyqtSlot(int, int)
+    def _on_data_changed(self, start, end):
+        """Called when a downloader's data changed.
+
+        Args:
+            start: The first changed index as int.
+            end: The last changed index as int, or -1 for all indices.
+        """
+        # FIXME we'll need to translate indices here...
+        start_index = self.index(start, 0)
+        qtutils.ensure_valid(start_index)
+        if end == -1:
+            end_index = self.last_index()
+        else:
+            end_index = self.index(end, 0)
+            qtutils.ensure_valid(end_index)
+        self.dataChanged.emit(start_index, end_index)
+
+    def _raise_no_download(self, count):
         """Raise an exception that the download doesn't exist.
 
         Args:
@@ -1008,7 +1158,7 @@ class DownloadManager(QAbstractListModel):
             raise cmdexc.CommandError("There's no download!")
         raise cmdexc.CommandError("There's no download {}!".format(count))
 
-    @cmdutils.register(instance='download-manager', scope='window')
+    @cmdutils.register(instance='download-model', scope='window')
     @cmdutils.argument('count', count=True)
     def download_cancel(self, all_=False, count=0):
         """Cancel the last/[count]th download.
@@ -1017,25 +1167,24 @@ class DownloadManager(QAbstractListModel):
             all_: Cancel all running downloads
             count: The index of the download to cancel.
         """
+        downloads = self._all_downloads()
         if all_:
-            # We need to make a copy as we're indirectly mutating
-            # self.downloads here
-            for download in self.downloads[:]:
+            for download in downloads:
                 if not download.done:
                     download.cancel()
         else:
             try:
-                download = self.downloads[count - 1]
+                download = downloads[count - 1]
             except IndexError:
-                self.raise_no_download(count)
+                self._raise_no_download(count)
             if download.done:
                 if not count:
-                    count = len(self.downloads)
+                    count = len(self)
                 raise cmdexc.CommandError("Download {} is already done!"
                                         .format(count))
             download.cancel()
 
-    @cmdutils.register(instance='download-manager', scope='window')
+    @cmdutils.register(instance='download-model', scope='window')
     @cmdutils.argument('count', count=True)
     def download_delete(self, count=0):
         """Delete the last/[count]th download from disk.
@@ -1044,18 +1193,18 @@ class DownloadManager(QAbstractListModel):
             count: The index of the download to delete.
         """
         try:
-            download = self.downloads[count - 1]
+            download = self[count - 1]
         except IndexError:
-            self.raise_no_download(count)
+            self._raise_no_download(count)
         if not download.successful:
             if not count:
-                count = len(self.downloads)
+                count = len(self)
             raise cmdexc.CommandError("Download {} is not done!".format(count))
         download.delete()
-        self.remove_item(download)
+        download.remove()
         log.downloads.debug("deleted download {}".format(download))
 
-    @cmdutils.register(instance='download-manager', scope='window', maxsplit=0)
+    @cmdutils.register(instance='download-model', scope='window', maxsplit=0)
     @cmdutils.argument('count', count=True)
     def download_open(self, cmdline: str=None, count=0):
         """Open the last/[count]th download.
@@ -1071,16 +1220,16 @@ class DownloadManager(QAbstractListModel):
             count: The index of the download to open.
         """
         try:
-            download = self.downloads[count - 1]
+            download = self[count - 1]
         except IndexError:
-            self.raise_no_download(count)
+            self._raise_no_download(count)
         if not download.successful:
             if not count:
-                count = len(self.downloads)
+                count = len(self)
             raise cmdexc.CommandError("Download {} is not done!".format(count))
         download.open_file(cmdline)
 
-    @cmdutils.register(instance='download-manager', scope='window')
+    @cmdutils.register(instance='download-model', scope='window')
     @cmdutils.argument('count', count=True)
     def download_retry(self, count=0):
         """Retry the first failed/[count]th download.
@@ -1090,83 +1239,32 @@ class DownloadManager(QAbstractListModel):
         """
         if count:
             try:
-                download = self.downloads[count - 1]
+                download = self[count - 1]
             except IndexError:
-                self.raise_no_download(count)
+                self._raise_no_download(count)
             if download.successful or not download.done:
                 raise cmdexc.CommandError("Download {} did not fail!".format(
                     count))
         else:
-            to_retry = [d for d in self.downloads
-                        if d.done and not d.successful]
+            to_retry = [d for d in self if d.done and not d.successful]
             if not to_retry:
                 raise cmdexc.CommandError("No failed downloads!")
             else:
                 download = to_retry[0]
         download.retry()
 
-    @pyqtSlot(QNetworkRequest, QNetworkReply)
-    def on_redirect(self, download, request, reply):
-        """Handle an HTTP redirect of a download.
-
-        Args:
-            download: The old DownloadItem.
-            request: The new QNetworkRequest.
-            reply: The old QNetworkReply.
-        """
-        log.downloads.debug("redirected: {} -> {}".format(
-            reply.url(), request.url()))
-        new_reply = reply.manager().get(request)
-        download.init_reply(new_reply)
-
-    @pyqtSlot(DownloadItem)
-    def on_data_changed(self, download):
-        """Emit data_changed signal when download data changed."""
-        try:
-            idx = self.downloads.index(download)
-        except ValueError:
-            # download has been deleted in the meantime
-            return
-        model_idx = self.index(idx, 0)
-        qtutils.ensure_valid(model_idx)
-        self.dataChanged.emit(model_idx, model_idx)
-
-    @pyqtSlot(str)
-    def on_error(self, msg):
-        """Display error message on download errors."""
-        message.error(self._win_id, "Download error: {}".format(msg))
-
-    def has_downloads_with_nam(self, nam):
-        """Check if the DownloadManager has any downloads with the given QNAM.
-
-        Args:
-            nam: The QNetworkAccessManager to check.
-
-        Return:
-            A boolean.
-        """
-        assert nam.adopted_downloads == 0
-        for download in self.downloads:
-            running_download = (download.reply is not None and
-                                download.reply.manager() is nam)
-            # user could request retry after tab is closed.
-            failed_download = (download.done and (not download.successful) and
-                               download.retry_info.manager is nam)
-            if running_download or failed_download:
-                nam.adopt_download(download)
-        return nam.adopted_downloads
-
     def can_clear(self):
         """Check if there are finished downloads to clear."""
-        return any(download.done for download in self.downloads)
+        return any(download.done for download in self)
 
-    @cmdutils.register(instance='download-manager', scope='window')
+    @cmdutils.register(instance='download-model', scope='window')
     def download_clear(self):
         """Remove all finished downloads from the list."""
-        finished_items = [d for d in self.downloads if d.done]
-        self.remove_items(finished_items)
+        for download in self:
+            if download.done:
+                download.remove()
 
-    @cmdutils.register(instance='download-manager', scope='window')
+    @cmdutils.register(instance='download-model', scope='window')
     @cmdutils.argument('count', count=True)
     def download_remove(self, all_=False, count=0):
         """Remove the last/[count]th download from the list.
@@ -1179,15 +1277,23 @@ class DownloadManager(QAbstractListModel):
             self.download_clear()
         else:
             try:
-                download = self.downloads[count - 1]
+                download = self[count - 1]
             except IndexError:
-                self.raise_no_download(count)
+                self._raise_no_download(count)
             if not download.done:
                 if not count:
-                    count = len(self.downloads)
+                    count = len(self)
                 raise cmdexc.CommandError("Download {} is not done!"
                                           .format(count))
-            self.remove_item(download)
+            download.remove()
+
+    def running_downloads(self):
+        """Return the amount of still running downloads.
+
+        Return:
+            The number of unfinished downloads.
+        """
+        return sum(1 for download in self if not download.done)
 
     def last_index(self):
         """Get the last index in the model.
@@ -1198,71 +1304,7 @@ class DownloadManager(QAbstractListModel):
         idx = self.index(self.rowCount() - 1)
         return idx
 
-    def remove_item(self, download):
-        """Remove a given download."""
-        if sip.isdeleted(self):
-            # https://github.com/The-Compiler/qutebrowser/issues/1242
-            return
-        try:
-            idx = self.downloads.index(download)
-        except ValueError:
-            # already removed
-            return
-        self.beginRemoveRows(QModelIndex(), idx, idx)
-        del self.downloads[idx]
-        self.endRemoveRows()
-        download.deleteLater()
-        self.update_indexes()
-        if not self.downloads:
-            self._update_timer.stop()
-
-    def remove_item_delayed(self, download, delay):
-        """Remove a given download after a short delay."""
-        QTimer.singleShot(delay, functools.partial(self.remove_item, download))
-
-    def remove_items(self, downloads):
-        """Remove an iterable of downloads."""
-        # On the first pass, we only generate the indices so we get the
-        # first/last one for beginRemoveRows.
-        indices = []
-        # We need to iterate over downloads twice, which won't work if it's a
-        # generator.
-        downloads = list(downloads)
-        for download in downloads:
-            try:
-                indices.append(self.downloads.index(download))
-            except ValueError:
-                # already removed
-                pass
-        if not indices:
-            return
-        indices.sort()
-        self.beginRemoveRows(QModelIndex(), indices[0], indices[-1])
-        for download in downloads:
-            try:
-                self.downloads.remove(download)
-            except ValueError:
-                # already removed
-                pass
-            else:
-                download.deleteLater()
-        self.endRemoveRows()
-        if not self.downloads:
-            self._update_timer.stop()
-
-    def update_indexes(self):
-        """Update indexes of all DownloadItems."""
-        first_idx = None
-        for i, d in enumerate(self.downloads, 1):
-            if first_idx is None and d.index != i:
-                first_idx = i - 1
-            d.index = i
-        if first_idx is not None:
-            model_idx = self.index(first_idx, 0)
-            qtutils.ensure_valid(model_idx)
-            self.dataChanged.emit(model_idx, self.last_index())
-
-    def headerData(self, section, orientation, role):
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
         """Simple constant header."""
         if (section == 0 and orientation == Qt.Horizontal and
                 role == Qt.DisplayRole):
@@ -1272,11 +1314,13 @@ class DownloadManager(QAbstractListModel):
 
     def data(self, index, role):
         """Download data from DownloadManager."""
-        qtutils.ensure_valid(index)
-        if index.parent().isValid() or index.column() != 0:
-            return QVariant()
+        if not index.isValid():
+            return None
 
-        item = self.downloads[index.row()]
+        if index.parent().isValid() or index.column() != 0:
+            return None
+
+        item = self[index.row()]
         if role == Qt.DisplayRole:
             data = str(item)
         elif role == Qt.ForegroundRole:
@@ -1287,18 +1331,20 @@ class DownloadManager(QAbstractListModel):
             data = item
         elif role == Qt.ToolTipRole:
             if item.error_msg is None:
-                data = QVariant()
+                data = None
             else:
                 return item.error_msg
         else:
-            data = QVariant()
+            data = None
         return data
 
-    def flags(self, _index):
+    def flags(self, index):
         """Override flags so items aren't selectable.
 
         The default would be Qt.ItemIsEnabled | Qt.ItemIsSelectable.
         """
+        if not index.isValid():
+            return Qt.ItemFlags()
         return Qt.ItemIsEnabled | Qt.ItemNeverHasChildren
 
     def rowCount(self, parent=QModelIndex()):
@@ -1306,15 +1352,7 @@ class DownloadManager(QAbstractListModel):
         if parent.isValid():
             # We don't have children
             return 0
-        return len(self.downloads)
-
-    def running_downloads(self):
-        """Return the amount of still running downloads.
-
-        Return:
-            The number of unfinished downloads.
-        """
-        return sum(1 for download in self.downloads if not download.done)
+        return len(self)
 
 
 class TempDownloadManager(QObject):
@@ -1337,7 +1375,11 @@ class TempDownloadManager(QObject):
     def cleanup(self):
         """Clean up any temporary files."""
         if self._tmpdir is not None:
-            self._tmpdir.cleanup()
+            try:
+                self._tmpdir.cleanup()
+            except OSError:
+                log.misc.exception("Failed to clean up temporary download "
+                                   "directory")
             self._tmpdir = None
 
     def _get_tmpdir(self):

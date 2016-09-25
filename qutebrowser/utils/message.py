@@ -22,19 +22,11 @@
 
 """Message singleton so we don't have to define unneeded signals."""
 
-import datetime
-import collections
 import traceback
 
 from PyQt5.QtCore import pyqtSignal, QObject
-from PyQt5.QtWidgets import QApplication
 
 from qutebrowser.utils import usertypes, log, objreg, utils
-
-
-_QUEUED = []
-QueuedMsg = collections.namedtuple(
-    'QueuedMsg', ['time', 'win_id', 'method_name', 'text', 'args', 'kwargs'])
 
 
 def _log_stack(typ, stack):
@@ -54,90 +46,11 @@ def _log_stack(typ, stack):
     log.message.debug("Stack for {} message:\n{}".format(typ, stack_text))
 
 
-def _wrapper(win_id, method_name, text, *args, **kwargs):
-    """A wrapper which executes the action if possible, and queues it if not.
-
-    It tries to get the message bridge for the given window, and if it's
-    unavailable, it queues it.
-
-    Args:
-        win_id: The window ID to execute the action in,.
-        method_name: The name of the MessageBridge method to call.
-        text: The text do display.
-        *args/**kwargs: Arguments to pass to the method.
-    """
-    kwargs['log_stack'] = False
-    msg = QueuedMsg(time=datetime.datetime.now(), win_id=win_id,
-                    method_name=method_name, text=text, args=args,
-                    kwargs=kwargs)
-    try:
-        bridge = _get_bridge(win_id)
-    except objreg.RegistryUnavailableError:
-        if win_id == 'current':
-            log.message.debug("Queueing {} for current window".format(
-                method_name))
-            _QUEUED.append(msg)
-        else:
-            raise
-    else:
-        from qutebrowser.config import config
-        win = QApplication.instance().activeWindow()
-        window_focused = (win is not None and
-                          win in objreg.window_registry.values() and
-                          win.win_id == win_id)
-        if (config.get('ui', 'message-unfocused') or
-                method_name not in ['error', 'warning', 'info'] or
-                window_focused):
-            getattr(bridge, method_name)(text, *args, **kwargs)
-        else:
-            log.message.debug("Queueing {} for window {}".format(
-                method_name, win_id))
-            _QUEUED.append(msg)
-
-
-def _get_bridge(win_id):
-    """Get the correct MessageBridge instance for a window."""
-    try:
-        int(win_id)
-    except ValueError:
-        if win_id == 'current':
-            pass
-        else:
-            raise ValueError("Invalid window id {} - needs to be 'current' or "
-                             "a valid integer!".format(win_id))
-    return objreg.get('message-bridge', scope='window', window=win_id)
-
-
-def on_focus_changed():
-    """Show queued messages when a new window has been focused.
-
-    Gets called when a new window has been focused.
-    """
-    while _QUEUED:
-        msg = _QUEUED.pop()
-        delta = datetime.datetime.now() - msg.time
-        log.message.debug("Handling queued {} for window {}, delta {}".format(
-            msg.method_name, msg.win_id, delta))
-        try:
-            bridge = _get_bridge(msg.win_id)
-        except objreg.RegistryUnavailableError:
-            # Non-mainwindow window focused.
-            _QUEUED.append(msg)
-            return
-        if delta.total_seconds() < 1:
-            text = msg.text
-        else:
-            text = '[{} ago] {}'.format(utils.format_timedelta(delta),
-                                        msg.text)
-        getattr(bridge, msg.method_name)(text, *msg.args, **msg.kwargs)
-
-
-def error(win_id, message, immediately=False, *, stack=None):
+def error(message, *, stack=None):
     """Convenience function to display an error message in the statusbar.
 
     Args:
-        win_id: The ID of the window which is calling this function.
-        others: See MessageBridge.error.
+        message: The message to show
         stack: The stack trace to show.
     """
     if stack is None:
@@ -146,33 +59,21 @@ def error(win_id, message, immediately=False, *, stack=None):
     else:
         typ = 'error (from exception)'
     _log_stack(typ, stack)
-    _wrapper(win_id, 'error', message, immediately)
+    log.message.error(message)
+    global_bridge.show_message.emit(usertypes.MessageLevel.error, message)
 
 
-def warning(win_id, message, immediately=False):
-    """Convenience function to display a warning message in the statusbar.
-
-    Args:
-        win_id: The ID of the window which is calling this function.
-        others: See MessageBridge.warning.
-    """
+def warning(message):
+    """Convenience function to display a warning message in the statusbar."""
     _log_stack('warning', traceback.format_stack())
-    _wrapper(win_id, 'warning', message, immediately)
+    log.message.warning(message)
+    global_bridge.show_message.emit(usertypes.MessageLevel.warning, message)
 
 
-def info(win_id, message, immediately=True):
-    """Convenience function to display an info message in the statusbar.
-
-    Args:
-        win_id: The ID of the window which is calling this function.
-        others: See MessageBridge.info.
-    """
-    _wrapper(win_id, 'info', message, immediately)
-
-
-def set_cmd_text(win_id, txt):
-    """Convenience function to Set the statusbar command line to a text."""
-    _wrapper(win_id, 'set_cmd_text', txt)
+def info(message):
+    """Convenience function to display an info message in the statusbar."""
+    log.message.info(message)
+    global_bridge.show_message.emit(usertypes.MessageLevel.info, message)
 
 
 def ask(win_id, message, mode, default=None):
@@ -191,23 +92,10 @@ def ask(win_id, message, mode, default=None):
     q.text = message
     q.mode = mode
     q.default = default
-    _get_bridge(win_id).ask(q, blocking=True)
+    bridge = objreg.get('message-bridge', scope='window', window=win_id)
+    bridge.ask(q, blocking=True)
     q.deleteLater()
     return q.answer
-
-
-def alert(win_id, message):
-    """Display an alert which needs to be confirmed.
-
-    Args:
-        win_id: The ID of the window which is calling this function.
-        message: The message to show.
-    """
-    q = usertypes.Question()
-    q.text = message
-    q.mode = usertypes.PromptMode.alert
-    _wrapper(win_id, 'ask', q, blocking=True)
-    q.deleteLater()
 
 
 def ask_async(win_id, message, mode, handler, default=None):
@@ -228,7 +116,8 @@ def ask_async(win_id, message, mode, handler, default=None):
     q.default = default
     q.answered.connect(handler)
     q.completed.connect(q.deleteLater)
-    _wrapper(win_id, 'ask', q, blocking=False)
+    bridge = objreg.get('message-bridge', scope='window', window=win_id)
+    bridge.ask(q, blocking=False)
 
 
 def confirm_async(win_id, message, yes_action, no_action=None, default=None):
@@ -249,7 +138,21 @@ def confirm_async(win_id, message, yes_action, no_action=None, default=None):
     if no_action is not None:
         q.answered_no.connect(no_action)
     q.completed.connect(q.deleteLater)
-    _wrapper(win_id, 'ask', q, blocking=False)
+    bridge = objreg.get('message-bridge', scope='window', window=win_id)
+    bridge.ask(q, blocking=False)
+
+
+class GlobalMessageBridge(QObject):
+
+    """Global (not per-window) message bridge for errors/infos/warnings.
+
+    Signals:
+        show_message: Show a message
+                      arg 0: A MessageLevel member
+                      arg 1: The text to show
+    """
+
+    show_message = pyqtSignal(usertypes.MessageLevel, str)
 
 
 class MessageBridge(QObject):
@@ -257,14 +160,6 @@ class MessageBridge(QObject):
     """Bridge for messages to be shown in the statusbar.
 
     Signals:
-        s_error: Display an error message.
-                 arg 0: The error message to show.
-                 arg 1: Whether to show it immediately (True) or queue it
-                        (False).
-        s_info: Display an info message.
-                args: See s_error.
-        s_warning: Display a warning message.
-                args: See s_error.
         s_set_text: Set a persistent text in the statusbar.
                     arg: The text to set.
         s_maybe_reset_text: Reset the text if it hasn't been changed yet.
@@ -280,9 +175,6 @@ class MessageBridge(QObject):
                                Qt.DirectConnection!
     """
 
-    s_error = pyqtSignal(str, bool)
-    s_warning = pyqtSignal(str, bool)
-    s_info = pyqtSignal(str, bool)
     s_set_text = pyqtSignal(str)
     s_maybe_reset_text = pyqtSignal(str)
     s_set_cmd_text = pyqtSignal(str)
@@ -290,55 +182,6 @@ class MessageBridge(QObject):
 
     def __repr__(self):
         return utils.get_repr(self)
-
-    def error(self, msg, immediately=False, *, log_stack=True):
-        """Display an error in the statusbar.
-
-        Args:
-            msg: The message to show.
-            immediately: Whether to display the message immediately (True) or
-                         queue it for displaying when all other messages are
-                         displayed (False). Messages resulting from direct user
-                         input should be displayed immediately, all other
-                         messages should be queued.
-            log_stack: Log the stacktrace of the error.
-        """
-        msg = str(msg)
-        log.message.error(msg)
-        if log_stack:
-            _log_stack('error (delayed)', traceback.format_stack())
-        self.s_error.emit(msg, immediately)
-
-    def warning(self, msg, immediately=False, *, log_stack=True):
-        """Display a warning in the statusbar.
-
-        Args:
-            msg: The message to show.
-            immediately: Whether to display the message immediately (True) or
-                         queue it for displaying when all other messages are
-                         displayed (False). Messages resulting from direct user
-                         input should be displayed immediately, all other
-                         messages should be queued.
-            log_stack: Log the stacktrace of the warning.
-        """
-        msg = str(msg)
-        log.message.warning(msg)
-        if log_stack:
-            _log_stack('warning (delayed)', traceback.format_stack())
-        self.s_warning.emit(msg, immediately)
-
-    def info(self, msg, immediately=True, *, log_stack=False):
-        """Display an info text in the statusbar.
-
-        Args:
-            See error(). Note immediately is True by default, because messages
-            do rarely happen without user interaction.
-
-            log_stack is ignored.
-        """
-        msg = str(msg)
-        log.message.info(msg)
-        self.s_info.emit(msg, immediately)
 
     def set_cmd_text(self, text, *, log_stack=False):
         """Set the command text of the statusbar.
@@ -384,3 +227,6 @@ class MessageBridge(QObject):
             log_stack: ignored
         """
         self.s_question.emit(question, blocking)
+
+
+global_bridge = GlobalMessageBridge()

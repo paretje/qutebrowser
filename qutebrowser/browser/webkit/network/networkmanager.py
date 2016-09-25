@@ -31,7 +31,8 @@ from PyQt5.QtNetwork import (QNetworkAccessManager, QNetworkReply, QSslError,
 from qutebrowser.config import config
 from qutebrowser.utils import (message, log, usertypes, utils, objreg, qtutils,
                                urlutils, debug)
-from qutebrowser.browser.webkit.network import qutescheme, networkreply
+from qutebrowser.browser import shared
+from qutebrowser.browser.webkit.network import webkitqutescheme, networkreply
 from qutebrowser.browser.webkit.network import filescheme
 
 
@@ -163,7 +164,7 @@ class NetworkManager(QNetworkAccessManager):
         self._tab_id = tab_id
         self._requests = []
         self._scheme_handlers = {
-            'qute': qutescheme.QuteSchemeHandler(win_id),
+            'qute': webkitqutescheme.QuteSchemeHandler(win_id),
             'file': filescheme.FileSchemeHandler(win_id),
         }
         self._set_cookiejar(private=config.get('general', 'private-browsing'))
@@ -298,8 +299,7 @@ class NetworkManager(QNetworkAccessManager):
             for err in errors:
                 # FIXME we might want to use warn here (non-fatal error)
                 # https://github.com/The-Compiler/qutebrowser/issues/114
-                message.error(self._win_id, 'SSL error: {}'.format(
-                    err.errorString()))
+                message.error('SSL error: {}'.format(err.errorString()))
             reply.ignoreSslErrors()
             self._accepted_ssl_errors[host_tpl] += errors
 
@@ -472,6 +472,9 @@ class NetworkManager(QNetworkAccessManager):
             if result is not None:
                 return result
 
+        for header, value in shared.custom_headers():
+            req.setRawHeader(header, value)
+
         host_blocker = objreg.get('host-blocker')
         if (op == QNetworkAccessManager.GetOperation and
                 host_blocker.is_blocked(req.url())):
@@ -480,20 +483,6 @@ class NetworkManager(QNetworkAccessManager):
             return networkreply.ErrorNetworkReply(
                 req, HOSTBLOCK_ERROR_STRING, QNetworkReply.ContentAccessDenied,
                 self)
-
-        if config.get('network', 'do-not-track'):
-            dnt = '1'.encode('ascii')
-        else:
-            dnt = '0'.encode('ascii')
-        req.setRawHeader('DNT'.encode('ascii'), dnt)
-        req.setRawHeader('X-Do-Not-Track'.encode('ascii'), dnt)
-
-        # Load custom headers
-        custom_headers = config.get('network', 'custom-headers')
-
-        if custom_headers is not None:
-            for header, value in custom_headers.items():
-                req.setRawHeader(header.encode('ascii'), value.encode('ascii'))
 
         # There are some scenarios where we can't figure out current_url:
         # - There's a generic NetworkManager, e.g. for downloads
@@ -513,10 +502,6 @@ class NetworkManager(QNetworkAccessManager):
 
         self.set_referer(req, current_url)
 
-        accept_language = config.get('network', 'accept-language')
-        if accept_language is not None:
-            req.setRawHeader('Accept-Language'.encode('ascii'),
-                             accept_language.encode('ascii'))
         if PYQT_VERSION < 0x050301:
             # WORKAROUND (remove this when we bump the requirements to 5.3.1)
             #

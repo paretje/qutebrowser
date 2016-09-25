@@ -34,11 +34,12 @@ def completionview(qtbot, status_command_stub, config_stub, win_registry,
     """Create the CompletionView used for testing."""
     config_stub.data = {
         'completion': {
-            'show': True,
-            'auto-open': True,
+            'show': 'always',
             'scrollbar-width': 12,
             'scrollbar-padding': 2,
             'shrink': False,
+            'quick-complete': False,
+            'height': '50%',
         },
         'colors': {
             'completion.fg': QColor(),
@@ -83,77 +84,69 @@ def test_set_model(completionview):
 def test_set_pattern(completionview):
     model = sortfilter.CompletionFilterModel(base.BaseCompletionModel())
     model.set_pattern = unittest.mock.Mock()
-    completionview.set_model(model)
-    completionview.set_pattern('foo')
+    completionview.set_model(model, 'foo')
     model.set_pattern.assert_called_with('foo')
 
 
-def test_maybe_resize_completion(completionview, config_stub, qtbot):
+def test_maybe_update_geometry(completionview, config_stub, qtbot):
     """Ensure completion is resized only if shrink is True."""
-    with qtbot.assertNotEmitted(completionview.resize_completion):
-        completionview.maybe_resize_completion()
-    config_stub.data = {'completion': {'shrink': True}}
-    with qtbot.waitSignal(completionview.resize_completion):
-        completionview.maybe_resize_completion()
+    with qtbot.assertNotEmitted(completionview.update_geometry):
+        completionview._maybe_update_geometry()
+    config_stub.data['completion']['shrink'] = True
+    with qtbot.waitSignal(completionview.update_geometry):
+        completionview._maybe_update_geometry()
 
 
-@pytest.mark.parametrize('which, tree, count, expected', [
-    ('next', [['Aa']], 1, 'Aa'),
-    ('prev', [['Aa']], 1, 'Aa'),
-    ('next', [['Aa'], ['Ba']], 1, 'Aa'),
-    ('prev', [['Aa'], ['Ba']], 1, 'Ba'),
-    ('next', [['Aa'], ['Ba']], 2, 'Ba'),
-    ('prev', [['Aa'], ['Ba']], 2, 'Aa'),
-    ('next', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 3, 'Ac'),
-    ('next', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 4, 'Ba'),
-    ('next', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 6, 'Ca'),
-    ('next', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 7, 'Aa'),
-    ('prev', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 1, 'Ca'),
-    ('prev', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 2, 'Bb'),
-    ('prev', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 4, 'Ac'),
-    ('next', [[], ['Ba', 'Bb']], 1, 'Ba'),
-    ('prev', [[], ['Ba', 'Bb']], 1, 'Bb'),
-    ('next', [[], [], ['Ca', 'Cb']], 1, 'Ca'),
-    ('prev', [[], [], ['Ca', 'Cb']], 1, 'Cb'),
-    ('next', [['Aa'], []], 1, 'Aa'),
-    ('prev', [['Aa'], []], 1, 'Aa'),
-    ('next', [['Aa'], [], []], 1, 'Aa'),
-    ('prev', [['Aa'], [], []], 1, 'Aa'),
-    ('next', [['Aa'], [], ['Ca', 'Cb']], 2, 'Ca'),
-    ('prev', [['Aa'], [], ['Ca', 'Cb']], 1, 'Cb'),
-    ('next', [[]], 1, None),
-    ('prev', [[]], 1, None),
-    ('next-category', [['Aa']], 1, 'Aa'),
-    ('prev-category', [['Aa']], 1, 'Aa'),
-    ('next-category', [['Aa'], ['Ba']], 1, 'Aa'),
-    ('prev-category', [['Aa'], ['Ba']], 1, 'Ba'),
-    ('next-category', [['Aa'], ['Ba']], 2, 'Ba'),
-    ('prev-category', [['Aa'], ['Ba']], 2, 'Aa'),
-    ('next-category', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 2, 'Ba'),
-    ('prev-category', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 2, 'Ba'),
-    ('next-category', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 3, 'Ca'),
-    ('prev-category', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']], 3, 'Aa'),
-    ('next-category', [[], ['Ba', 'Bb']], 1, 'Ba'),
-    ('prev-category', [[], ['Ba', 'Bb']], 1, 'Ba'),
-    ('next-category', [[], [], ['Ca', 'Cb']], 1, 'Ca'),
-    ('prev-category', [[], [], ['Ca', 'Cb']], 1, 'Ca'),
-    ('next-category', [[], [], ['Ca', 'Cb']], 2, 'Ca'),
-    ('prev-category', [[], [], ['Ca', 'Cb']], 2, 'Ca'),
-    ('next-category', [['Aa'], [], []], 1, 'Aa'),
-    ('prev-category', [['Aa'], [], []], 1, 'Aa'),
-    ('next-category', [['Aa'], [], ['Ca', 'Cb']], 2, 'Ca'),
-    ('prev-category', [['Aa'], [], ['Ca', 'Cb']], 1, 'Ca'),
-    ('next-category', [[]], 1, None),
-    ('prev-category', [[]], 1, None),
+@pytest.mark.parametrize('which, tree, expected', [
+    ('next', [['Aa']], ['Aa', None, None]),
+    ('prev', [['Aa']], ['Aa', None, None]),
+    ('next', [['Aa'], ['Ba']], ['Aa', 'Ba', 'Aa']),
+    ('prev', [['Aa'], ['Ba']], ['Ba', 'Aa', 'Ba']),
+    ('next', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']],
+        ['Aa', 'Ab', 'Ac', 'Ba', 'Bb', 'Ca', 'Aa']),
+    ('prev', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']],
+        ['Ca', 'Bb', 'Ba', 'Ac', 'Ab', 'Aa', 'Ca']),
+    ('next', [[], ['Ba', 'Bb']], ['Ba', 'Bb', 'Ba']),
+    ('prev', [[], ['Ba', 'Bb']], ['Bb', 'Ba', 'Bb']),
+    ('next', [[], [], ['Ca', 'Cb']], ['Ca', 'Cb', 'Ca']),
+    ('prev', [[], [], ['Ca', 'Cb']], ['Cb', 'Ca', 'Cb']),
+    ('next', [['Aa'], []], ['Aa', None]),
+    ('prev', [['Aa'], []], ['Aa', None]),
+    ('next', [['Aa'], [], []], ['Aa', None]),
+    ('prev', [['Aa'], [], []], ['Aa', None]),
+    ('next', [['Aa'], [], ['Ca', 'Cb']], ['Aa', 'Ca', 'Cb', 'Aa']),
+    ('prev', [['Aa'], [], ['Ca', 'Cb']], ['Cb', 'Ca', 'Aa', 'Cb']),
+    ('next', [[]], [None, None]),
+    ('prev', [[]], [None, None]),
+    ('next-category', [['Aa']], ['Aa', None, None]),
+    ('prev-category', [['Aa']], ['Aa', None, None]),
+    ('next-category', [['Aa'], ['Ba']], ['Aa', 'Ba', 'Aa']),
+    ('prev-category', [['Aa'], ['Ba']], ['Ba', 'Aa', 'Ba']),
+    ('next-category', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']],
+        ['Aa', 'Ba', 'Ca', 'Aa']),
+    ('prev-category', [['Aa', 'Ab', 'Ac'], ['Ba', 'Bb'], ['Ca']],
+        ['Ca', 'Ba', 'Aa', 'Ca']),
+    ('next-category', [[], ['Ba', 'Bb']], ['Ba', None, None]),
+    ('prev-category', [[], ['Ba', 'Bb']], ['Ba', None, None]),
+    ('next-category', [[], [], ['Ca', 'Cb']], ['Ca', None, None]),
+    ('prev-category', [[], [], ['Ca', 'Cb']], ['Ca', None, None]),
+    ('next-category', [['Aa'], [], []], ['Aa', None, None]),
+    ('prev-category', [['Aa'], [], []], ['Aa', None, None]),
+    ('next-category', [['Aa'], [], ['Ca', 'Cb']], ['Aa', 'Ca', 'Aa']),
+    ('prev-category', [['Aa'], [], ['Ca', 'Cb']], ['Ca', 'Aa', 'Ca']),
+    ('next-category', [[]], [None, None]),
+    ('prev-category', [[]], [None, None]),
 ])
-def test_completion_item_focus(which, tree, count, expected, completionview):
+def test_completion_item_focus(which, tree, expected, completionview, qtbot):
     """Test that on_next_prev_item moves the selection properly.
 
     Args:
+        which: the direction in which to move the selection.
         tree: Each list represents a completion category, with each string
               being an item under that category.
-        count: Number of times to go forward (or back if negative).
-        expected: item data that should be selected after going back/forward.
+        expected: expected argument from on_selection_changed for each
+                  successive movement. None implies no signal should be
+                  emitted.
     """
     model = base.BaseCompletionModel()
     for catdata in tree:
@@ -164,17 +157,64 @@ def test_completion_item_focus(which, tree, count, expected, completionview):
     filtermodel = sortfilter.CompletionFilterModel(model,
                                                    parent=completionview)
     completionview.set_model(filtermodel)
-    for _ in range(count):
-        completionview.completion_item_focus(which)
-    idx = completionview.selectionModel().currentIndex()
-    assert filtermodel.data(idx) == expected
+    for entry in expected:
+        if entry is None:
+            with qtbot.assertNotEmitted(completionview.selection_changed):
+                completionview.completion_item_focus(which)
+        else:
+            with qtbot.waitSignal(completionview.selection_changed) as sig:
+                completionview.completion_item_focus(which)
+                assert sig.args == [entry]
 
 
-def test_completion_item_focus_no_model(completionview):
-    """Test that next/prev won't crash with no model set.
+@pytest.mark.parametrize('which', ['next', 'prev', 'next-category',
+                                   'prev-category'])
+def test_completion_item_focus_no_model(which, completionview, qtbot):
+    """Test that selectionChanged is not fired when the model is None.
 
-    This can happen if completion.show and completion.auto-open are False.
-    Regression test for issue #1722.
+    Validates #1812: help completion repeatedly completes
     """
-    completionview.completion_item_focus('prev')
+    with qtbot.assertNotEmitted(completionview.selection_changed):
+        completionview.completion_item_focus(which)
+    model = base.BaseCompletionModel()
+    filtermodel = sortfilter.CompletionFilterModel(model,
+                                                   parent=completionview)
+    completionview.set_model(filtermodel)
+    completionview.set_model(None)
+    with qtbot.assertNotEmitted(completionview.selection_changed):
+        completionview.completion_item_focus(which)
+
+
+@pytest.mark.parametrize('show', ['always', 'auto', 'never'])
+@pytest.mark.parametrize('rows', [[], ['Aa'], ['Aa', 'Bb']])
+@pytest.mark.parametrize('quick_complete', [True, False])
+def test_completion_show(show, rows, quick_complete, completionview,
+                         config_stub):
+    """Test that the completion widget is shown at appropriate times.
+
+    Args:
+        show: The completion show config setting.
+        rows: Each entry represents a completion category with only one item.
+        quick_complete: The completion quick-complete config setting.
+    """
+    config_stub.data['completion']['show'] = show
+    config_stub.data['completion']['quick-complete'] = quick_complete
+
+    model = base.BaseCompletionModel()
+    for name in rows:
+        cat = QStandardItem()
+        model.appendRow(cat)
+        cat.appendRow(QStandardItem(name))
+    filtermodel = sortfilter.CompletionFilterModel(model,
+                                                   parent=completionview)
+
+    assert not completionview.isVisible()
+    completionview.set_model(filtermodel)
+    assert completionview.isVisible() == (show == 'always' and len(rows) > 0)
     completionview.completion_item_focus('next')
+    expected = (show != 'never' and len(rows) > 0 and
+                not (quick_complete and len(rows) == 1))
+    assert completionview.isVisible() == expected
+    completionview.set_model(None)
+    completionview.completion_item_focus('next')
+    assert not completionview.isVisible()

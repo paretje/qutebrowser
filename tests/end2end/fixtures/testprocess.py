@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with qutebrowser.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Base class for a subprocess run for tests.."""
+"""Base class for a subprocess run for tests."""
 
 import re
 import os
@@ -77,13 +77,11 @@ class Line:
 
 def _render_log(data, threshold=100):
     """Shorten the given log without -v and convert to a string."""
-    # pylint: disable=no-member
     data = [str(d) for d in data]
     is_exception = any('Traceback (most recent call last):' in line
                        for line in data)
-    if (len(data) > threshold and
-            not pytest.config.getoption('--verbose') and
-            not is_exception):
+    verbose = pytest.config.getoption('--verbose')
+    if len(data) > threshold and not verbose and not is_exception:
         msg = '[{} lines suppressed, use -v to show]'.format(
             len(data) - threshold)
         data = [msg] + data[-threshold:]
@@ -109,7 +107,6 @@ def pytest_runtest_makereport(item, call):
         # actually a tuple. This is handled similarily in pytest-qt too.
         return
 
-    # pylint: disable=no-member
     if pytest.config.getoption('--capture') == 'no':
         # Already printed live
         return
@@ -149,11 +146,10 @@ class Process(QObject):
         self._data = []
         self.proc = QProcess()
         self.proc.setReadChannel(QProcess.StandardError)
-        self.exit_expected = False
+        self.exit_expected = True  # Not started at all yet
 
     def _log(self, line):
         """Add the given line to the captured log output."""
-        # pylint: disable=no-member
         if pytest.config.getoption('--capture') == 'no':
             print(line)
         self.captured_log.append(line)
@@ -227,6 +223,7 @@ class Process(QObject):
 
     def start(self, args=None, *, env=None):
         """Start the process and wait until it started."""
+        self.exit_expected = False
         self._start(args, env=env)
         timeout = 60 if 'CI' in os.environ else 20
         for _ in range(timeout):
@@ -237,7 +234,7 @@ class Process(QObject):
             if not self.is_running():
                 # _start ensures it actually started, but it might quit shortly
                 # afterwards
-                raise ProcessExited()
+                raise ProcessExited('\n' + _render_log(self.captured_log))
 
             if blocker.signal_triggered:
                 self._after_start()
@@ -279,7 +276,7 @@ class Process(QObject):
         Also checks self._invalid so the test counts as failed if there were
         unexpected output lines earlier.
         """
-        __tracebackhide__ = True
+        __tracebackhide__ = lambda e: e.errisinstance(ProcessExited)
         self.captured_log = []
         if self._invalid:
             # Wait for a bit so the full error has a chance to arrive
@@ -287,7 +284,7 @@ class Process(QObject):
             # Exit the process to make sure we're in a defined state again
             self.terminate()
             self.clear_data()
-            raise InvalidLine
+            raise InvalidLine('\n' + '\n'.join(self._invalid))
 
         self.clear_data()
         if not self.is_running() and not self.exit_expected:
@@ -338,7 +335,6 @@ class Process(QObject):
 
         Return: either the found line or None.
         """
-        __tracebackhide__ = True
         for line in self._data:
             matches = []
 
@@ -351,9 +347,8 @@ class Process(QObject):
                 # same thing the next time we use wait_for and it matches
                 # this line again.
                 line.waited_for = True
-                if 'message' in kwargs:
-                    self._log("\n----> Already found {!r} in the log".format(
-                        kwargs['message']))
+                self._log("\n----> Already found {!r} in the log: {}".format(
+                    kwargs.get('message', 'line'), line))
                 return line
         return None
 
@@ -362,7 +357,7 @@ class Process(QObject):
 
         Called via wait_for.
         """
-        __tracebackhide__ = True
+        __tracebackhide__ = lambda e: e.errisinstance(WaitForTimeout)
         message = kwargs.get('message', None)
         if message is not None:
             elided = quteutils.elide(repr(message), 50)
@@ -424,7 +419,7 @@ class Process(QObject):
         pass
 
     def wait_for(self, timeout=None, *, override_waited_for=False,
-                 do_skip=False, **kwargs):
+                 do_skip=False, divisor=1, **kwargs):
         """Wait until a given value is found in the data.
 
         Keyword arguments to this function get interpreted as attributes of the
@@ -436,11 +431,12 @@ class Process(QObject):
             override_waited_for: If set, gets triggered by previous messages
                                  again.
             do_skip: If set, call pytest.skip on a timeout.
+            divisor: A factor to decrease the timeout by.
 
         Return:
             The matched line.
         """
-        __tracebackhide__ = True
+        __tracebackhide__ = lambda e: e.errisinstance(WaitForTimeout)
 
         if timeout is None:
             if do_skip:
@@ -449,6 +445,9 @@ class Process(QObject):
                 timeout = 15000
             else:
                 timeout = 5000
+
+        timeout /= divisor
+
         if not kwargs:
             raise TypeError("No keyword arguments given!")
         for key in kwargs:
@@ -467,7 +466,7 @@ class Process(QObject):
         If nothing is found in the log, we wait for delay ms to make sure
         nothing arrives.
         """
-        __tracebackhide__ = True
+        __tracebackhide__ = lambda e: e.errisinstance(BlacklistedMessageError)
         try:
             line = self.wait_for(timeout=delay, override_waited_for=True,
                                  **kwargs)

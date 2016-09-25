@@ -261,6 +261,13 @@ arg2backend = {
 }
 
 
+# JS world for QtWebEngine
+JsWorld = enum('JsWorld', ['main', 'application', 'user', 'jseval'])
+
+
+MessageLevel = enum('MessageLevel', ['error', 'warning', 'info'])
+
+
 # Where a download should be saved
 class DownloadTarget:
 

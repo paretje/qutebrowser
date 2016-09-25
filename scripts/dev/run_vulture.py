@@ -33,7 +33,11 @@ import qutebrowser.app  # pylint: disable=unused-import
 from qutebrowser.commands import cmdutils
 from qutebrowser.utils import utils
 from qutebrowser.browser.webkit import rfc6266
-from qutebrowser.browser.webkit.network import qutescheme
+# To run the decorators from there
+# pylint: disable=unused-import
+from qutebrowser.browser.webkit.network import webkitqutescheme
+# pylint: enable=unused-import
+from qutebrowser.browser import qutescheme
 
 
 def whitelist_generator():
@@ -71,9 +75,9 @@ def whitelist_generator():
     yield 'PyQt5.QtWebKit.QWebPage.ErrorPageExtensionReturn().fileNames'
     yield 'PyQt5.QtWidgets.QStyleOptionViewItem.backgroundColor'
 
-    # qute:... handlers
-    for func in qutescheme.HANDLERS.values():
-        yield 'qutebrowser.browser.webkit.network.qutescheme.' + func.__name__
+    ## qute:... handlers
+    for name in qutescheme._HANDLERS:  # pylint: disable=protected-access
+        yield 'qutebrowser.browser.qutescheme.qute_' + name
 
     # Other false-positives
     yield ('qutebrowser.completion.models.sortfilter.CompletionFilterModel().'
@@ -81,6 +85,8 @@ def whitelist_generator():
     yield 'qutebrowser.utils.jinja.Loader.get_source'
     yield 'qutebrowser.utils.log.QtWarningFilter.filter'
     yield 'qutebrowser.browser.pdfjs.is_available'
+    yield 'QEvent.posted'
+    yield 'log_stack'  # from message.py
     # vulture doesn't notice the hasattr() and thus thinks netrc_used is unused
     # in NetworkManager.on_authentication_required
     yield 'PyQt5.QtNetwork.QNetworkReply.netrc_used'

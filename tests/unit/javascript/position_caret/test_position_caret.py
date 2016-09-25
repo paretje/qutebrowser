@@ -21,12 +21,15 @@
 
 import pytest
 
+# FIXME:qtwebengine Make these tests use the tab API
+pytest.importorskip('PyQt5.QtWebKit')
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWebKit import QWebSettings
 from PyQt5.QtWebKitWidgets import QWebPage
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def enable_caret_browsing(qapp):
     """Fixture to enable caret browsing globally."""
     settings = QWebSettings.globalSettings()

@@ -51,6 +51,7 @@ available:
 * A http://qutebrowser.org/img/cheatsheet-big.png[key binding cheatsheet]: +
 image:http://qutebrowser.org/img/cheatsheet-small.png["qutebrowser key binding cheatsheet",link="http://qutebrowser.org/img/cheatsheet-big.png"]
 * link:doc/quickstart.asciidoc[Quick start guide]
+* A https://www.shortcutfoo.com/app/dojos/qutebrowser[free training course] to remember those key bindings.
 * link:FAQ.asciidoc[Frequently asked questions]
 * link:CONTRIBUTING.asciidoc[Contributing to qutebrowser]
 * link:INSTALL.asciidoc[INSTALL]
@@ -146,9 +147,9 @@ Contributors, sorted by the number of commits in descending order:
 * Antoni Boucher
 * Lamar Pavel
 * Jan Verbeek
+* Marshall Lochbaum
 * Bruno Oliveira
 * Alexander Cogneau
-* Marshall Lochbaum
 * Felix Van der Jeugt
 * Martin Tournoij
 * Raphael Pierzina
@@ -168,14 +169,16 @@ Contributors, sorted by the number of commits in descending order:
 * Jimmy
 * Niklas Haas
 * Alexey "Averrin" Nabrodov
+* nanjekyejoannah
 * avk
 * ZDarian
 * Milan Svoboda
 * John ShaggyTwoDope Jenkins
-* Peter Vilim
 * Clayton Craft
-* nanjekyejoannah
+* Peter Vilim
+* knaggita
 * Oliver Caldwell
+* Julian Weigt
 * Jonas Schürmann
 * error800
 * Michael Hoang
@@ -195,6 +198,7 @@ Contributors, sorted by the number of commits in descending order:
 * Michał Góral
 * Michael Ilsaas
 * Martin Zimmermann
+* Jussi Timperi
 * Fritz Reichwald
 * Brian Jackson
 * sbinix
@@ -207,12 +211,12 @@ Contributors, sorted by the number of commits in descending order:
 * Panashe M. Fundira
 * Link
 * Larry Hynes
-* Julian Weigt
 * Johannes Altmanninger
 * Jeremy Kaplan
 * Ismail
 * Edgar Hipp
 * Daryl Finlay
+* arza
 * adam
 * Samir Benmendil
 * Regina Hug
@@ -223,8 +227,8 @@ Contributors, sorted by the number of commits in descending order:
 * Franz Fellner
 * zwarag
 * xd1le
+* rmortens
 * oniondreams
-* knaggita
 * issue
 * haxwithaxe
 * evan
@@ -237,10 +241,12 @@ Contributors, sorted by the number of commits in descending order:
 * Tim Harder
 * Thiago Barroso Perrotta
 * Sorokin Alexei
+* Rok Mandeljc
 * Noah Huesser
 * Moez Bouhlel
 * Matthias Lisin
 * Marcel Schilling
+* Ján Kobezda
 * Julie Engel
 * Johannes Martinsson
 * Jean-Christophe Petkovich
@@ -250,6 +256,7 @@ Contributors, sorted by the number of commits in descending order:
 * Gregor Pohl
 * Eivind Uggedal
 * Dietrich Daroch
+* Derek Sivers
 * Daniel Lu
 * Arseniy Seroka
 * Andy Balaam

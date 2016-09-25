@@ -108,9 +108,10 @@ class TestGetQtArgs:
         # No Qt arguments
         (['--debug'], [sys.argv[0]]),
         # Qt flag
-        (['--debug', '--qt-reverse', '--nocolor'], [sys.argv[0], '-reverse']),
+        (['--debug', '--qt-flag', 'reverse'], [sys.argv[0], '-reverse']),
         # Qt argument with value
-        (['--qt-stylesheet', 'foo'], [sys.argv[0], '-stylesheet', 'foo']),
+        (['--qt-arg', 'stylesheet', 'foo'],
+         [sys.argv[0], '-stylesheet', 'foo']),
     ])
     def test_qt_args(self, args, expected, parser):
         """Test commandline with no Qt arguments given."""
@@ -119,7 +120,8 @@ class TestGetQtArgs:
 
     def test_qt_both(self, parser):
         """Test commandline with a Qt argument and flag."""
-        args = parser.parse_args(['--qt-stylesheet', 'foobar', '--qt-reverse'])
+        args = parser.parse_args(['--qt-arg', 'stylesheet', 'foobar',
+                                  '--qt-flag', 'reverse'])
         qt_args = qtutils.get_args(args)
         assert qt_args[0] == sys.argv[0]
         assert '-reverse' in qt_args
@@ -375,7 +377,7 @@ class TestSavefileOpen:
 
     ## Tests with a mock testing that the needed methods are called.
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def qsavefile_mock(self, mocker):
         """Mock for QSaveFile."""
         m = mocker.patch('qutebrowser.utils.qtutils.QSaveFile')
@@ -538,7 +540,7 @@ if test_file is not None and sys.platform != 'darwin':
 
     # Those are not run on OS X because that seems to cause a hang sometimes.
 
-    @pytest.yield_fixture(scope='session', autouse=True)
+    @pytest.fixture(scope='session', autouse=True)
     def clean_up_python_testfile():
         """Clean up the python testfile after tests if tests didn't."""
         yield
@@ -641,7 +643,7 @@ class TestPyQIODevice:
 
     """Tests for PyQIODevice."""
 
-    @pytest.yield_fixture
+    @pytest.fixture
     def pyqiodev(self):
         """Fixture providing a PyQIODevice with a QByteArray to test."""
         data = QByteArray()

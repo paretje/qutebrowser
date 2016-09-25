@@ -75,8 +75,7 @@ def _find_prevnext(prev, elems):
         if e.tag_name() != 'link' or 'rel' not in e:
             continue
         if e['rel'] in rel_values:
-            log.hints.debug("Found '{}' with rel={}".format(
-                e.debug_text(), e['rel']))
+            log.hints.debug("Found {!r} with rel={}".format(e, e['rel']))
             return e
 
     # Then check for regular links/buttons.
@@ -117,11 +116,11 @@ def prevnext(*, browsertab, win_id, baseurl, prev=False,
         word = 'prev' if prev else 'forward'
 
         if elem is None:
-            message.error(win_id, "No {} links found!".format(word))
+            message.error("No {} links found!".format(word))
             return
         url = elem.resolve_url(baseurl)
         if url is None:
-            message.error(win_id, "No {} links found!".format(word))
+            message.error("No {} links found!".format(word))
             return
         qtutils.ensure_valid(url)
 

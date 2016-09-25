@@ -23,6 +23,7 @@ import sys
 import json
 
 import qutebrowser
+from qutebrowser.utils import log
 try:
     from qutebrowser.misc.checkpyver import check_python_version
 except ImportError:
@@ -81,7 +82,7 @@ def get_argparser():
                        help="Set loglevel", default='info',
                        choices=['critical', 'error', 'warning', 'info',
                                 'debug', 'vdebug'])
-    debug.add_argument('--logfilter',
+    debug.add_argument('--logfilter', type=logfilter_error,
                        help="Comma-separated list of things to be logged "
                        "to the debug log on stdout.")
     debug.add_argument('--loglines',
@@ -111,32 +112,30 @@ def get_argparser():
                        "temporary basedir.")
     debug.add_argument('--no-err-windows', action='store_true', help="Don't "
                        "show any error windows (used for tests/smoke.py).")
-    # For the Qt args, we use store_const with const=True rather than
-    # store_true because we want the default to be None, to make
-    # utils.qt:get_args easier.
-    debug.add_argument('--qt-name', help="Set the window name.",
-                       metavar='NAME')
-    debug.add_argument('--qt-style', help="Set the Qt GUI style to use.",
-                       metavar='STYLE')
-    debug.add_argument('--qt-stylesheet', help="Override the Qt application "
-                       "stylesheet.", metavar='STYLESHEET')
-    debug.add_argument('--qt-widgetcount', help="Print debug message at the "
-                       "end about number of widgets left undestroyed and "
-                       "maximum number of widgets existed at the same time.",
-                       action='store_const', const=True)
-    debug.add_argument('--qt-reverse', help="Set the application's layout "
-                       "direction to right-to-left.", action='store_const',
-                       const=True)
-    debug.add_argument('--qt-qmljsdebugger', help="Activate the QML/JS "
-                       "debugger with a specified port. 'block' is optional "
-                       "and will make the application wait until a debugger "
-                       "connects to it.", metavar='port:PORT[,block]')
+    debug.add_argument('--qt-arg', help="Pass an argument with a value to Qt.",
+                       nargs=2)
+    debug.add_argument('--qt-flag', help="Pass an argument to Qt as flag.",
+                       nargs=1)
     parser.add_argument('command', nargs='*', help="Commands to execute on "
                         "startup.", metavar=':command')
     # URLs will actually be in command
     parser.add_argument('url', nargs='*', help="URLs to open on startup "
                         "(empty as a window separator).")
     return parser
+
+
+def logfilter_error(logfilter: str):
+    """Validate logger names passed to --logfilter.
+
+    Args:
+        logfilter: A comma separated list of logger names.
+    """
+    if set(logfilter.split(',')).issubset(log.LOGGER_NAMES):
+        return logfilter
+    else:
+        raise argparse.ArgumentTypeError(
+            "filters: Invalid value {} - expected a list of: {}".format(
+                logfilter, ', '.join(log.LOGGER_NAMES)))
 
 
 def main():

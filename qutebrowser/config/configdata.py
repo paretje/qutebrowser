@@ -139,6 +139,13 @@ def data(readonly=False):
              SettingValue(typ.List(typ.String()), 'https://duckduckgo.com'),
              "The default page(s) to open at the start, separated by commas."),
 
+            ('yank-ignored-url-parameters',
+             SettingValue(typ.List(typ.String()),
+                          'ref,utm_source,utm_medium,utm_campaign,utm_term,'
+                          'utm_content'),
+            "The URL parameters to strip with :yank url, separated by "
+            "commas."),
+
             ('default-page',
              SettingValue(typ.FuzzyUrl(), '${startpage}'),
              "The page to open if :open -t/-b/-w is used without URL. Use "
@@ -381,13 +388,11 @@ def data(readonly=False):
 
         ('network', sect.KeyValue(
             ('do-not-track',
-             SettingValue(typ.Bool(), 'true',
-                          backends=[usertypes.Backend.QtWebKit]),
+             SettingValue(typ.Bool(), 'true'),
              "Value to send in the `DNT` header."),
 
             ('accept-language',
-             SettingValue(typ.String(none_ok=True), 'en-US,en',
-                          backends=[usertypes.Backend.QtWebKit]),
+             SettingValue(typ.String(none_ok=True), 'en-US,en'),
              "Value to send in the `accept-language` header."),
 
             ('referer-header',
@@ -430,17 +435,21 @@ def data(readonly=False):
              "Whether to try to pre-fetch DNS entries to speed up browsing."),
 
             ('custom-headers',
-             SettingValue(typ.HeaderDict(none_ok=True), '',
-                          backends=[usertypes.Backend.QtWebKit]),
+             SettingValue(typ.HeaderDict(none_ok=True), ''),
              "Set custom headers for qutebrowser HTTP requests."),
 
             readonly=readonly
         )),
 
         ('completion', sect.KeyValue(
-            ('auto-open',
-             SettingValue(typ.Bool(), 'true'),
-             "Automatically open completion when typing."),
+            ('show',
+             SettingValue(typ.String(
+                 valid_values=typ.ValidValues(
+                     ('always', "Whenever a completion is available."),
+                     ('auto', "Whenever a completion is requested."),
+                     ('never', "Never.")
+                 )), 'always'),
+             "When to show the autocompletion window."),
 
             ('download-path-suggestion',
              SettingValue(
@@ -454,10 +463,6 @@ def data(readonly=False):
             ('timestamp-format',
              SettingValue(typ.TimestampTemplate(none_ok=True), '%Y-%m-%d'),
              "How to format timestamps (e.g. for history)"),
-
-            ('show',
-             SettingValue(typ.Bool(), 'true'),
-             "Whether to show the autocompletion window."),
 
             ('height',
              SettingValue(typ.PercOrInt(minperc=0, maxperc=100, minint=1),
@@ -650,7 +655,8 @@ def data(readonly=False):
             ('title-format',
              SettingValue(typ.FormatString(
                  fields=['perc', 'perc_raw', 'title', 'title_sep', 'index',
-                         'id', 'scroll_pos', 'host']), '{index}: {title}'),
+                         'id', 'scroll_pos', 'host'], none_ok=True),
+                 '{index}: {title}'),
              "The format to use for the tab title. The following placeholders "
              "are defined:\n\n"
              "* `{perc}`: The percentage as a string like `[10%]`.\n"
@@ -806,9 +812,10 @@ def data(readonly=False):
              SettingValue(typ.BoolAsk(), 'ask'),
              "Allow websites to show notifications."),
 
-            ('javascript-can-open-windows',
+            ('javascript-can-open-windows-automatically',
              SettingValue(typ.Bool(), 'false'),
-             "Whether JavaScript programs can open new windows."),
+             "Whether JavaScript programs can open new windows without user "
+             "interaction."),
 
             ('javascript-can-close-windows',
              SettingValue(typ.Bool(), 'false',
@@ -1062,22 +1069,6 @@ def data(readonly=False):
              SettingValue(typ.QssColor(), 'black'),
              "Background color of the statusbar."),
 
-            ('statusbar.fg.error',
-             SettingValue(typ.QssColor(), '${statusbar.fg}'),
-             "Foreground color of the statusbar if there was an error."),
-
-            ('statusbar.bg.error',
-             SettingValue(typ.QssColor(), 'red'),
-             "Background color of the statusbar if there was an error."),
-
-            ('statusbar.fg.warning',
-             SettingValue(typ.QssColor(), '${statusbar.fg}'),
-             "Foreground color of the statusbar if there is a warning."),
-
-            ('statusbar.bg.warning',
-             SettingValue(typ.QssColor(), 'darkorange'),
-             "Background color of the statusbar if there is a warning."),
-
             ('statusbar.fg.prompt',
              SettingValue(typ.QssColor(), '${statusbar.fg}'),
              "Foreground color of the statusbar if there is a prompt."),
@@ -1256,7 +1247,8 @@ def data(readonly=False):
              "Background color for downloads with errors."),
 
             ('webpage.bg',
-             SettingValue(typ.QtColor(none_ok=True), 'white'),
+             SettingValue(typ.QtColor(none_ok=True), 'white',
+                          backends=[usertypes.Backend.QtWebKit]),
              "Background color for webpages if unset (or empty to use the "
              "theme's color)"),
 
@@ -1271,6 +1263,42 @@ def data(readonly=False):
             ('keyhint.bg',
              SettingValue(typ.QssColor(), 'rgba(0, 0, 0, 80%)'),
              "Background color of the keyhint widget."),
+
+            ('messages.fg.error',
+             SettingValue(typ.QssColor(), 'white'),
+             "Foreground color of an error message."),
+
+            ('messages.bg.error',
+             SettingValue(typ.QssColor(), 'red'),
+             "Background color of an error message."),
+
+            ('messages.border.error',
+             SettingValue(typ.QssColor(), '#bb0000'),
+             "Border color of an error message."),
+
+            ('messages.fg.warning',
+             SettingValue(typ.QssColor(), 'white'),
+             "Foreground color a warning message."),
+
+            ('messages.bg.warning',
+             SettingValue(typ.QssColor(), 'darkorange'),
+             "Background color of a warning message."),
+
+            ('messages.border.warning',
+             SettingValue(typ.QssColor(), '#d47300'),
+             "Border color of an error message."),
+
+            ('messages.fg.info',
+             SettingValue(typ.QssColor(), 'white'),
+             "Foreground color an info message."),
+
+            ('messages.bg.info',
+             SettingValue(typ.QssColor(), 'black'),
+             "Background color of an info message."),
+
+            ('messages.border.info',
+             SettingValue(typ.QssColor(), '#333333'),
+             "Border color of an info message."),
 
             readonly=readonly
         )),
@@ -1361,6 +1389,18 @@ def data(readonly=False):
              SettingValue(typ.Font(), DEFAULT_FONT_SIZE + ' ${_monospace}'),
              "Font used in the keyhint widget."),
 
+            ('messages.error',
+             SettingValue(typ.Font(), DEFAULT_FONT_SIZE + ' ${_monospace}'),
+             "Font used for error messages."),
+
+            ('messages.warning',
+             SettingValue(typ.Font(), DEFAULT_FONT_SIZE + ' ${_monospace}'),
+             "Font used for warning messages."),
+
+            ('messages.info',
+             SettingValue(typ.Font(), DEFAULT_FONT_SIZE + ' ${_monospace}'),
+             "Font used for info messages."),
+
             readonly=readonly
         )),
     ])
@@ -1399,8 +1439,7 @@ KEY_FIRST_COMMENT = """
 #
 # For simple keys (no `<>`-signs), a capital letter means the key is pressed
 # with Shift. For special keys (with `<>`-signs), you need to explicitly add
-# `Shift-` to match a key pressed with shift.  You can bind multiple commands
-# by separating them with `;;`.
+# `Shift-` to match a key pressed with shift.
 #
 # Note that default keybindings are always bound, and need to be explicitly
 # unbound if you wish to remove them:
@@ -1448,8 +1487,8 @@ KEY_SECTION_DESC = {
         "bind special keys.\n"
         "Useful hidden commands to map in this section:\n\n"
         " * `prompt-accept`: Confirm the entered value.\n"
-        " * `prompt-yes`: Answer yes to a yes/no question.\n"
-        " * `prompt-no`: Answer no to a yes/no question."),
+        " * `prompt-accept yes`: Answer yes to a yes/no question.\n"
+        " * `prompt-accept no`: Answer no to a yes/no question."),
     'caret': (
         ""),
 }
@@ -1476,6 +1515,9 @@ KEY_DATA = collections.OrderedDict([
         ('set-cmd-text :open -b -i {url:pretty}', ['xO']),
         ('set-cmd-text -s :open -w', ['wo']),
         ('set-cmd-text :open -w {url:pretty}', ['wO']),
+        ('set-cmd-text /', ['/']),
+        ('set-cmd-text ?', ['?']),
+        ('set-cmd-text :', [':']),
         ('open -t', ['ga', '<Ctrl-T>']),
         ('open -w', ['<Ctrl-N>']),
         ('tab-close', ['d', '<Ctrl-W>']),
@@ -1551,7 +1593,7 @@ KEY_DATA = collections.OrderedDict([
         ('save', ['sf']),
         ('set-cmd-text -s :set', ['ss']),
         ('set-cmd-text -s :set -t', ['sl']),
-        ('set-cmd-text -s :set keybind', ['sk']),
+        ('set-cmd-text -s :bind', ['sk']),
         ('zoom-out', ['-']),
         ('zoom-in', ['+']),
         ('zoom', ['=']),
@@ -1628,8 +1670,8 @@ KEY_DATA = collections.OrderedDict([
 
     ('prompt', collections.OrderedDict([
         ('prompt-accept', RETURN_KEYS),
-        ('prompt-yes', ['y']),
-        ('prompt-no', ['n']),
+        ('prompt-accept yes', ['y']),
+        ('prompt-accept no', ['n']),
         ('prompt-open-download', ['<Ctrl-X>']),
     ])),
 
@@ -1719,6 +1761,7 @@ CHANGED_KEY_COMMANDS = [
     (re.compile(r'^yank-selected'), r'yank selection'),
 
     (re.compile(r'^paste$'), r'open -- {clipboard}'),
+    (re.compile(r'^paste -s$'), r'open -- {primary}'),
     (re.compile(r'^paste -([twb])$'), r'open -\1 -- {clipboard}'),
     (re.compile(r'^paste -([twb])s$'), r'open -\1 -- {primary}'),
     (re.compile(r'^paste -s([twb])$'), r'open -\1 -- {primary}'),
@@ -1732,4 +1775,12 @@ CHANGED_KEY_COMMANDS = [
     (re.compile(r'^open -([twb]) {primary}$'), r'open -\1 -- {primary}'),
 
     (re.compile(r'^paste-primary$'), r'insert-text {primary}'),
+
+    (re.compile(r'^set-cmd-text -s :search$'), r'set-cmd-text /'),
+    (re.compile(r'^set-cmd-text -s :search -r$'), r'set-cmd-text ?'),
+    (re.compile(r'^set-cmd-text -s :$'), r'set-cmd-text :'),
+    (re.compile(r'^set-cmd-text -s :set keybind$'), r'set-cmd-text -s :bind'),
+
+    (re.compile(r'^prompt-yes$'), r'prompt-accept yes'),
+    (re.compile(r'^prompt-no$'), r'prompt-accept no'),
 ]

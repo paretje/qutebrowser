@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with qutebrowser.  If not, see <http://www.gnu.org/licenses/>.
 
+# pylint: disable=invalid-name
 
 """pytest fixtures used by the whole testsuite.
 
@@ -26,6 +27,7 @@ See https://pytest.org/latest/fixture.html
 
 import sys
 import collections
+import tempfile
 import itertools
 import textwrap
 import unittest.mock
@@ -33,6 +35,7 @@ import types
 import os
 
 import pytest
+import py.path  # pylint: disable=no-name-in-module
 
 import helpers.stubs as stubsmod
 from qutebrowser.config import config
@@ -45,10 +48,6 @@ from PyQt5.QtCore import PYQT_VERSION, pyqtSignal, QEvent, QSize, Qt, QObject
 from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
 from PyQt5.QtNetwork import QNetworkCookieJar
-try:
-    from PyQt5 import QtWebEngineWidgets
-except ImportError as e:
-    QtWebEngineWidgets = None
 
 
 class WinRegistryHelper:
@@ -137,7 +136,7 @@ def fake_statusbar(qtbot):
     return statusbar
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def win_registry():
     """Fixture providing a window registry for win_id 0 and 1."""
     helper = WinRegistryHelper()
@@ -146,7 +145,7 @@ def win_registry():
     helper.cleanup()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def tab_registry(win_registry):
     """Fixture providing a tab registry for win_id 0."""
     registry = objreg.ObjectRegistry()
@@ -203,7 +202,7 @@ def cmdline_test(request):
     return request.param
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def config_stub(stubs):
     """Fixture which provides a fake config object."""
     stub = stubs.ConfigStub()
@@ -212,7 +211,7 @@ def config_stub(stubs):
     objreg.delete('config')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def default_config():
     """Fixture that provides and registers an empty default config object."""
     config_obj = config.ConfigManager()
@@ -222,7 +221,7 @@ def default_config():
     objreg.delete('config')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def key_config_stub(stubs):
     """Fixture which provides a fake key config object."""
     stub = stubs.KeyConfigStub()
@@ -231,7 +230,7 @@ def key_config_stub(stubs):
     objreg.delete('key-config')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def host_blocker_stub(stubs):
     """Fixture which provides a fake host blocker object."""
     stub = stubs.HostBlockerStub()
@@ -240,7 +239,7 @@ def host_blocker_stub(stubs):
     objreg.delete('host-blocker')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def quickmark_manager_stub(stubs):
     """Fixture which provides a fake quickmark manager object."""
     stub = stubs.QuickmarkManagerStub()
@@ -249,7 +248,7 @@ def quickmark_manager_stub(stubs):
     objreg.delete('quickmark-manager')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def bookmark_manager_stub(stubs):
     """Fixture which provides a fake bookmark manager object."""
     stub = stubs.BookmarkManagerStub()
@@ -258,7 +257,7 @@ def bookmark_manager_stub(stubs):
     objreg.delete('bookmark-manager')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def web_history_stub(stubs):
     """Fixture which provides a fake web-history object."""
     stub = stubs.WebHistoryStub()
@@ -267,7 +266,7 @@ def web_history_stub(stubs):
     objreg.delete('web-history')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def session_manager_stub(stubs):
     """Fixture which provides a fake web-history object."""
     stub = stubs.SessionManagerStub()
@@ -276,7 +275,7 @@ def session_manager_stub(stubs):
     objreg.delete('session-manager')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def tabbed_browser_stubs(stubs, win_registry):
     """Fixture providing a fake tabbed-browser object on win_id 0 and 1."""
     win_registry.add_window(1)
@@ -288,7 +287,7 @@ def tabbed_browser_stubs(stubs, win_registry):
     objreg.delete('tabbed-browser', scope='window', window=1)
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def app_stub(stubs):
     """Fixture which provides a fake app object."""
     stub = stubs.ApplicationStub()
@@ -297,7 +296,7 @@ def app_stub(stubs):
     objreg.delete('app')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def status_command_stub(stubs, qtbot, win_registry):
     """Fixture which provides a fake status-command object."""
     cmd = stubs.StatusBarCommandStub()
@@ -335,17 +334,15 @@ def qnam(qapp):
 @pytest.fixture
 def webengineview():
     """Get a QWebEngineView if QtWebEngine is available."""
-    if QtWebEngineWidgets is None:
-        pytest.skip("QtWebEngine unavailable")
+    QtWebEngineWidgets = pytest.importorskip('PyQt5.QtWebEngineWidgets')
     return QtWebEngineWidgets.QWebEngineView()
 
 
 @pytest.fixture
 def webpage(qnam):
     """Get a new QWebPage object."""
-    from PyQt5.QtWebKitWidgets import QWebPage
-
-    page = QWebPage()
+    QtWebKitWidgets = pytest.importorskip('PyQt5.QtWebKitWidgets')
+    page = QtWebKitWidgets.QWebPage()
     page.networkAccessManager().deleteLater()
     page.setNetworkAccessManager(qnam)
     return page
@@ -354,9 +351,9 @@ def webpage(qnam):
 @pytest.fixture
 def webview(qtbot, webpage):
     """Get a new QWebView object."""
-    from PyQt5.QtWebKitWidgets import QWebView
+    QtWebKitWidgets = pytest.importorskip('PyQt5.QtWebKitWidgets')
 
-    view = QWebView()
+    view = QtWebKitWidgets.QWebView()
     qtbot.add_widget(view)
 
     view.page().deleteLater()
@@ -387,7 +384,7 @@ def fake_keyevent_factory():
     return fake_keyevent
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def cookiejar_and_cache(stubs):
     """Fixture providing a fake cookie jar and cache."""
     jar = QNetworkCookieJar()
@@ -414,7 +411,7 @@ def py_proc():
     return func
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def fake_save_manager():
     """Create a mock of save-manager and register it into objreg."""
     fake_save_manager = unittest.mock.Mock(spec=savemanager.SaveManager)
@@ -423,7 +420,7 @@ def fake_save_manager():
     objreg.delete('save-manager')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def fake_args():
     ns = types.SimpleNamespace()
     objreg.register('args', ns)
@@ -431,7 +428,7 @@ def fake_args():
     objreg.delete('args')
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mode_manager(win_registry, config_stub, qapp):
     config_stub.data.update({'input': {'forward-unbound-keys': 'auto'}})
     mm = modeman.ModeManager(0)
@@ -467,11 +464,21 @@ def data_tmpdir(monkeypatch, tmpdir):
 
 
 @pytest.fixture
-def redirect_xdg_data(data_tmpdir, monkeypatch):
-    """Set XDG_DATA_HOME to a temp location.
+def redirect_webengine_data(data_tmpdir, monkeypatch):
+    """Set XDG_DATA_HOME and HOME to a temp location.
 
     While data_tmpdir covers most cases by redirecting standarddir.data(), this
-    is not enough for places Qt references the data dir internally. For these,
-    we need to set the environment variable to redirect data access.
+    is not enough for places QtWebEngine references the data dir internally.
+    For these, we need to set the environment variable to redirect data access.
+
+    We also set HOME as in some places, the home directory is used directly...
     """
     monkeypatch.setenv('XDG_DATA_HOME', str(data_tmpdir))
+    monkeypatch.setenv('HOME', str(data_tmpdir))
+
+
+@pytest.fixture()
+def short_tmpdir():
+    """A short temporary directory for a XDG_RUNTIME_DIR."""
+    with tempfile.TemporaryDirectory() as tdir:
+        yield py.path.local(tdir)  # pylint: disable=no-member

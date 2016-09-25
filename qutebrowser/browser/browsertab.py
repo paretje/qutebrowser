@@ -23,7 +23,7 @@ import itertools
 
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QUrl, QObject, QSizeF
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtWidgets import QWidget, QApplication
 
 from qutebrowser.keyinput import modeman
 from qutebrowser.config import config
@@ -55,9 +55,24 @@ def create(win_id, parent=None):
     return tab_class(win_id=win_id, mode_manager=mode_manager, parent=parent)
 
 
+def init(args):
+    """Initialize backend-specific modules."""
+    if args.backend == 'webengine':
+        from qutebrowser.browser.webengine import webenginetab
+        webenginetab.init()
+    else:
+        from qutebrowser.browser.webkit import webkittab
+        webkittab.init()
+
+
 class WebTabError(Exception):
 
     """Base class for various errors."""
+
+
+class UnsupportedOperationError(WebTabError):
+
+    """Raised when an operation is not supported with the given backend."""
 
 
 class TabData:
@@ -320,6 +335,12 @@ class AbstractScroller(QObject):
         super().__init__(parent)
         self._tab = tab
         self._widget = None
+        self.perc_changed.connect(self._log_scroll_pos_change)
+
+    @pyqtSlot()
+    def _log_scroll_pos_change(self):
+        log.webview.vdebug("Scroll position changed to {}".format(
+            self.pos_px()))
 
     def _init_widget(self, widget):
         self._widget = widget
@@ -470,6 +491,10 @@ class AbstractTab(QWidget):
 
     We use this to unify QWebView and QWebEngineView.
 
+    Class attributes:
+        WIDGET_CLASS: The class of the main widget recieving events.
+                      Needs to be overridden by subclasses.
+
     Attributes:
         history: The AbstractHistory for the current tab.
         registry: The ObjectRegistry associated with this tab.
@@ -503,7 +528,9 @@ class AbstractTab(QWidget):
     contents_size_changed = pyqtSignal(QSizeF)
     add_history_item = pyqtSignal(QUrl, QUrl, str)  # url, requested url, title
 
-    def __init__(self, win_id, parent=None):
+    WIDGET_CLASS = None
+
+    def __init__(self, win_id, mode_manager, parent=None):
         self.win_id = win_id
         self.tab_id = next(tab_id_gen)
         super().__init__(parent)
@@ -516,8 +543,8 @@ class AbstractTab(QWidget):
 
         # self.history = AbstractHistory(self)
         # self.scroller = AbstractScroller(self, parent=self)
-        # self.caret = AbstractCaret(win_id=win_id, tab=self, mode_manager=...,
-        #                            parent=self)
+        # self.caret = AbstractCaret(win_id=win_id, tab=self,
+        #                            mode_manager=mode_manager, parent=self)
         # self.zoom = AbstractZoom(win_id=win_id)
         # self.search = AbstractSearch(parent=self)
         # self.printing = AbstractPrinting()
@@ -528,8 +555,10 @@ class AbstractTab(QWidget):
         self._widget = None
         self._progress = 0
         self._has_ssl_errors = False
+        self._mode_manager = mode_manager
         self._load_status = usertypes.LoadStatus.none
-        self._mouse_event_filter = mouse.MouseEventFilter(self, parent=self)
+        self._mouse_event_filter = mouse.MouseEventFilter(
+            self, widget_class=self.WIDGET_CLASS, parent=self)
         self.backend = None
 
         # FIXME:qtwebengine  Should this be public api via self.hints?
@@ -562,9 +591,24 @@ class AbstractTab(QWidget):
         self._load_status = val
         self.load_status_changed.emit(val.name)
 
-    def post_event(self, evt):
-        """Send the given event to the underlying widget."""
+    def _event_target(self):
+        """Return the widget events should be sent to."""
         raise NotImplementedError
+
+    def send_event(self, evt):
+        """Send the given event to the underlying widget.
+
+        The event will be sent via QApplication.postEvent.
+        Note that a posted event may not be re-used in any way!
+        """
+        # This only gives us some mild protection against re-using events, but
+        # it's certainly better than a segfault.
+        if getattr(evt, 'posted', False):
+            raise AssertionError("Can't re-use an event which was already "
+                                 "posted!")
+        recipient = self._event_target()
+        evt.posted = True
+        QApplication.postEvent(recipient, evt)
 
     @pyqtSlot(QUrl)
     def _on_link_clicked(self, url):
@@ -576,7 +620,7 @@ class AbstractTab(QWidget):
 
         if not url.isValid():
             msg = urlutils.get_errstring(url, "Invalid link clicked")
-            message.error(self.win_id, msg)
+            message.error(msg)
             self.data.open_target = usertypes.ClickTarget.normal
             return False
 
@@ -619,6 +663,26 @@ class AbstractTab(QWidget):
         self._set_load_status(usertypes.LoadStatus.loading)
         self.load_started.emit()
 
+    def _handle_auto_insert_mode(self, ok):
+        """Handle auto-insert-mode after loading finished."""
+        if not config.get('input', 'auto-insert-mode') or not ok:
+            return
+
+        cur_mode = self._mode_manager.mode
+        if cur_mode == usertypes.KeyMode.insert:
+            return
+
+        def _auto_insert_mode_cb(elem):
+            """Called from JS after finding the focused element."""
+            if elem is None:
+                log.webview.debug("No focused element!")
+                return
+            if elem.is_editable():
+                modeman.enter(self.win_id, usertypes.KeyMode.insert,
+                              'load finished', only_if_normal=True)
+
+        self.elements.find_focused(_auto_insert_mode_cb)
+
     @pyqtSlot(bool)
     def _on_load_finished(self, ok):
         if ok and not self._has_ssl_errors:
@@ -634,13 +698,12 @@ class AbstractTab(QWidget):
         self.load_finished.emit(ok)
         if not self.title():
             self.title_changed.emit(self.url().toDisplayString())
+        self._handle_auto_insert_mode(ok)
 
     @pyqtSlot()
     def _on_history_trigger(self):
         """Emit add_history_item when triggered by backend-specific signal."""
-        url = self.url()
-        requested_url = self.url(requested=True)
-        self.add_history_item.emit(url, requested_url, self.title())
+        raise NotImplementedError
 
     @pyqtSlot(int)
     def _on_load_progress(self, perc):
@@ -684,12 +747,22 @@ class AbstractTab(QWidget):
         """
         raise NotImplementedError
 
-    def run_js_async(self, code, callback=None):
+    def run_js_async(self, code, callback=None, *, world=None):
         """Run javascript async.
 
         The given callback will be called with the result when running JS is
         complete.
+
+        Args:
+            code: The javascript code to run.
+            callback: The callback to call with the result, or None.
+            world: A world ID (int or usertypes.JsWorld member) to run the JS
+                   in the main world or in another isolated world.
         """
+        raise NotImplementedError
+
+    def has_js(self):
+        """Check if qutebrowser can run javascript in this tab."""
         raise NotImplementedError
 
     def shutdown(self):

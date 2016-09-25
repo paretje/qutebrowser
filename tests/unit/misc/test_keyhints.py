@@ -53,12 +53,27 @@ def keyhint(qtbot, config_stub, key_config_stub):
             'keyhint.bg': 'black'
         },
         'fonts': {'keyhint': 'Comic Sans'},
-        'ui': {'keyhint-blacklist': ''},
+        'ui': {'keyhint-blacklist': '', 'status-position': 'bottom'},
     }
     keyhint = KeyHintView(0, None)
     qtbot.add_widget(keyhint)
     assert keyhint.text() == ''
     return keyhint
+
+
+def test_show_and_hide(qtbot, keyhint):
+    with qtbot.waitSignal(keyhint.update_geometry):
+        keyhint.show()
+    qtbot.waitForWindowShown(keyhint)
+    keyhint.update_keyhint('normal', '')
+    assert not keyhint.isVisible()
+
+
+def test_position_change(keyhint, config_stub):
+    config_stub.set('ui', 'status-position', 'top')
+    stylesheet = keyhint.styleSheet()
+    assert 'border-bottom-right-radius' in stylesheet
+    assert 'border-top-right-radius' not in stylesheet
 
 
 def test_suggestions(keyhint, key_config_stub):

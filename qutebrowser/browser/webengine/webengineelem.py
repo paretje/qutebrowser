@@ -71,8 +71,7 @@ class WebEngineElement(webelem.AbstractWebElement):
 
     def classes(self):
         """Get a list of classes assigned to this element."""
-        log.stub()
-        return []
+        return self._js_dict['class_name'].split()
 
     def tag_name(self):
         """Get the tag name of this element.
@@ -108,10 +107,12 @@ class WebEngineElement(webelem.AbstractWebElement):
         js_code = javascript.assemble('webelem', 'set_text', self._id, text)
         self._tab.run_js_async(js_code)
 
-    def run_js_async(self, code, callback=None):
-        """Run the given JS snippet async on the element."""
-        # FIXME:qtwebengine get rid of this?
-        log.stub()
+    def insert_text(self, text):
+        if not self.is_editable(strict=True):
+            raise webelem.Error("Element is not editable!")
+        log.webelem.debug("Inserting text into element {!r}".format(self))
+        js_code = javascript.assemble('webelem', 'insert_text', self._id, text)
+        self._tab.run_js_async(js_code)
 
     def parent(self):
         """Get the parent element of this element."""
@@ -139,16 +140,15 @@ class WebEngineElement(webelem.AbstractWebElement):
             # height = rect.get("height", 0)
             width = rect['width']
             height = rect['height']
+            left = rect['left']
+            top = rect['top']
             if width > 1 and height > 1:
                 # Fix coordinates according to zoom level
                 # We're not checking for zoom-text-only here as that doesn't
                 # exist for QtWebEngine.
                 zoom = self._tab.zoom.factor()
-                rect["left"] *= zoom
-                rect["top"] *= zoom
-                width *= zoom
-                height *= zoom
-                rect = QRect(rect["left"], rect["top"], width, height)
+                rect = QRect(left * zoom, top * zoom,
+                             width * zoom, height * zoom)
                 # FIXME:qtwebengine
                 # frame = self._elem.webFrame()
                 # while frame is not None:
@@ -157,12 +157,6 @@ class WebEngineElement(webelem.AbstractWebElement):
                 #     rect.translate(frame.geometry().topLeft())
                 #     frame = frame.parentFrame()
                 return rect
-        log.webview.debug("Couldn't find rectangle for {!r} ({})".format(
+        log.webelem.debug("Couldn't find rectangle for {!r} ({})".format(
             self, rects))
         return QRect()
-
-    def is_visible(self, mainframe):
-        """Check if the given element is visible in the given frame."""
-        # FIXME:qtwebengine get rid of this?
-        log.stub()
-        return True

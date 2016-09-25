@@ -23,8 +23,6 @@ import inspect
 import collections
 import traceback
 
-from PyQt5.QtWebKit import QWebSettings
-
 from qutebrowser.commands import cmdexc, argparser
 from qutebrowser.utils import (log, utils, message, docutils, objreg,
                                usertypes, typing)
@@ -83,7 +81,6 @@ class Command:
                  both)
         no_replace_variables: Don't replace variables like {url}
         _qute_args: The saved data from @cmdutils.argument
-        _needs_js: Whether the command needs javascript enabled
         _modes: The modes the command can be executed in.
         _not_modes: The modes the command can not be executed in.
         _count: The count set for the command.
@@ -92,10 +89,10 @@ class Command:
     """
 
     def __init__(self, *, handler, name, instance=None, maxsplit=None,
-                 hide=False, modes=None, not_modes=None, needs_js=False,
-                 debug=False, ignore_args=False, deprecated=False,
-                 no_cmd_split=False, star_args_optional=False, scope='global',
-                 backend=None, no_replace_variables=False):
+                 hide=False, modes=None, not_modes=None, debug=False,
+                 ignore_args=False, deprecated=False, no_cmd_split=False,
+                 star_args_optional=False, scope='global', backend=None,
+                 no_replace_variables=False):
         # I really don't know how to solve this in a better way, I tried.
         # pylint: disable=too-many-locals
         if modes is not None and not_modes is not None:
@@ -120,7 +117,6 @@ class Command:
         self._modes = modes
         self._not_modes = not_modes
         self._scope = scope
-        self._needs_js = needs_js
         self._star_args_optional = star_args_optional
         self.debug = debug
         self.ignore_args = ignore_args
@@ -171,10 +167,6 @@ class Command:
                 "{}: This command is not allowed in {} mode.".format(
                     self.name, mode_names))
 
-        if self._needs_js and not QWebSettings.globalSettings().testAttribute(
-                QWebSettings.JavascriptEnabled):
-            raise cmdexc.PrerequisitesError(
-                "{}: This command needs javascript enabled.".format(self.name))
         used_backend = usertypes.arg2backend[objreg.get('args').backend]
         if self.backend is not None and used_backend != self.backend:
             raise cmdexc.PrerequisitesError(
@@ -182,8 +174,8 @@ class Command:
                 "backend.".format(self.name, self.backend.name))
 
         if self.deprecated:
-            message.warning(win_id, '{} is deprecated - {}'.format(
-                self.name, self.deprecated))
+            message.warning('{} is deprecated - {}'.format(self.name,
+                                                           self.deprecated))
 
     def _check_func(self):
         """Make sure the function parameters don't violate any rules."""
@@ -244,10 +236,21 @@ class Command:
 
         if not self.ignore_args:
             for param in signature.parameters.values():
+                # https://docs.python.org/3/library/inspect.html#inspect.Parameter.kind
+                # "Python has no explicit syntax for defining positional-only
+                # parameters, but many built-in and extension module functions
+                # (especially those that accept only one or two parameters)
+                # accept them."
+                assert param.kind != inspect.Parameter.POSITIONAL_ONLY
                 if param.name == 'self':
                     continue
                 if self._inspect_special_param(param):
                     continue
+                if (param.kind == inspect.Parameter.KEYWORD_ONLY and
+                        param.default is inspect.Parameter.empty):
+                    raise TypeError("{}: handler has keyword only argument "
+                                    "{!r} without default!".format(self.name,
+                                                                   param.name))
                 typ = self._get_type(param)
                 is_bool = typ is bool
                 kwargs = self._param_to_argparse_kwargs(param, is_bool)
@@ -340,12 +343,17 @@ class Command:
         Args:
             param: The inspect.Parameter to look at.
         """
+        arginfo = self.get_arg_info(param)
         if param.annotation is not inspect.Parameter.empty:
             return param.annotation
-        elif param.default is None or param.default is inspect.Parameter.empty:
+        elif param.default not in [None, inspect.Parameter.empty]:
+            return type(param.default)
+        elif arginfo.count or arginfo.win_id or param.kind in [
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD]:
             return None
         else:
-            return type(param.default)
+            return str
 
     def _get_self_arg(self, win_id, param, args):
         """Get the self argument for a function call.
@@ -416,7 +424,7 @@ class Command:
                 self.name))
         elif issubclass(typ, typing.Union):
             # this is... slightly evil, I know
-            types = list(typ.__union_params__)
+            types = list(typ.__union_params__)  # pylint: disable=no-member
             if param.default is not inspect.Parameter.empty:
                 types.append(type(param.default))
             choices = self.get_arg_info(param).choices
@@ -425,10 +433,10 @@ class Command:
         elif typ is str:
             choices = self.get_arg_info(param).choices
             value = argparser.type_conv(param, typ, value, str_choices=choices)
-        elif typ is None:
-            pass
         elif typ is bool:  # no type conversion for flags
             assert isinstance(value, bool)
+        elif typ is None:
+            pass
         else:
             value = argparser.type_conv(param, typ, value)
 
@@ -504,7 +512,7 @@ class Command:
         try:
             self.namespace = self.parser.parse_args(args)
         except argparser.ArgumentParserError as e:
-            message.error(win_id, '{}: {}'.format(self.name, e),
+            message.error('{}: {}'.format(self.name, e),
                           stack=traceback.format_exc())
             return
         except argparser.ArgumentParserExit as e:

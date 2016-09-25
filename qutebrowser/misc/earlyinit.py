@@ -36,6 +36,7 @@ import traceback
 import signal
 import operator
 import importlib
+import pkg_resources
 try:
     import tkinter
 except ImportError:
@@ -101,7 +102,8 @@ def _die(message, exception=None):
         print(message, file=sys.stderr)
         print("Exiting because of --no-err-windows.", file=sys.stderr)
     else:
-        message += '<br/><br/><br/><b>Error:</b><br/>{}'.format(exception)
+        if exception is not None:
+            message += '<br/><br/><br/><b>Error:</b><br/>{}'.format(exception)
         msgbox = QMessageBox(QMessageBox.Critical, "qutebrowser: Fatal error!",
                              message)
         msgbox.setTextFormat(Qt.RichText)
@@ -140,6 +142,16 @@ def init_faulthandler(fileobj=sys.__stderr__):
         faulthandler.register(signal.SIGUSR1)
 
 
+def _qt_version():
+    """Get the running Qt version.
+
+    Needs to be in a function so we can do a local import easily (to not import
+    from QtCore too early) but can patch this out easily for tests.
+    """
+    from PyQt5.QtCore import qVersion
+    return pkg_resources.parse_version(qVersion())
+
+
 def fix_harfbuzz(args):
     """Fix harfbuzz issues.
 
@@ -160,6 +172,8 @@ def fix_harfbuzz(args):
     - On Qt 5.3.1 this bug is fixed and the old engine will be the more stable
       one again.
 
+    - On Qt 5.4 the new engine is the default and most bugs are taken care of.
+
     IMPORTANT: This needs to be done before QWidgets is imported in any way!
 
     WORKAROUND (remove this when we bump the requirements to 5.3.1)
@@ -168,7 +182,6 @@ def fix_harfbuzz(args):
         args: The argparse namespace.
     """
     from qutebrowser.utils import log
-    from PyQt5.QtCore import qVersion
     if 'PyQt5.QtWidgets' in sys.modules:
         msg = "Harfbuzz fix attempted but QtWidgets is already imported!"
         if getattr(sys, 'frozen', False):
@@ -176,12 +189,14 @@ def fix_harfbuzz(args):
         else:
             log.init.warning(msg)
     if sys.platform.startswith('linux') and args.harfbuzz == 'auto':
-        if qVersion() == '5.3.0':
+        if _qt_version() == pkg_resources.parse_version('5.3.0'):
             log.init.debug("Using new harfbuzz engine (auto)")
             os.environ['QT_HARFBUZZ'] = 'new'
-        else:
+        elif _qt_version() < pkg_resources.parse_version('5.4.0'):
             log.init.debug("Using old harfbuzz engine (auto)")
             os.environ['QT_HARFBUZZ'] = 'old'
+        else:
+            log.init.debug("Using system harfbuzz engine (auto)")
     elif args.harfbuzz in ['old', 'new']:
         # forced harfbuzz variant
         # FIXME looking at the Qt code, 'new' isn't a valid value, but leaving
@@ -220,13 +235,18 @@ def check_pyqt_core():
         sys.exit(1)
 
 
-def check_qt_version():
+def check_qt_version(args):
     """Check if the Qt version is recent enough."""
     from PyQt5.QtCore import qVersion
     from qutebrowser.utils import qtutils
     if qtutils.version_check('5.2.0', operator.lt):
         text = ("Fatal error: Qt and PyQt >= 5.2.0 are required, but {} is "
                 "installed.".format(qVersion()))
+        _die(text)
+    elif args.backend == 'webengine' and qtutils.version_check('5.6.0',
+                                                               operator.lt):
+        text = ("Fatal error: Qt and PyQt >= 5.6.0 are required for "
+                "QtWebEngine support, but {} is installed.".format(qVersion()))
         _die(text)
 
 
@@ -246,7 +266,6 @@ def check_ssl_support():
 def check_libraries(args):
     """Check if all needed Python libraries are installed."""
     modules = {
-        'PyQt5.QtWebKit': _missing_str("PyQt5.QtWebKit"),
         'pkg_resources':
             _missing_str("pkg_resources/setuptools",
                          windows="Run   python -m ensurepip."),
@@ -273,6 +292,9 @@ def check_libraries(args):
     if args.backend == 'webengine':
         modules['PyQt5.QtWebEngineWidgets'] = _missing_str("QtWebEngine",
                                                            webengine=True)
+    else:
+        modules['PyQt5.QtWebKit'] = _missing_str("PyQt5.QtWebKit")
+
     for name, text in modules.items():
         try:
             importlib.import_module(name)
@@ -330,7 +352,7 @@ def earlyinit(args):
     fix_harfbuzz(args)
     # Now we can be sure QtCore is available, so we can print dialogs on
     # errors, so people only using the GUI notice them as well.
-    check_qt_version()
+    check_qt_version(args)
     remove_inputhook()
     check_libraries(args)
     check_ssl_support()

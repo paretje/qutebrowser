@@ -36,7 +36,7 @@ import pytest
      'true'),
 ])
 def test_insert_mode(file_name, elem_id, source, input_text, auto_insert,
-                     quteproc):
+                     quteproc, request):
     url_path = 'data/insert_mode_settings/html/{}'.format(file_name)
     quteproc.open_path(url_path)
 
@@ -48,10 +48,18 @@ def test_insert_mode(file_name, elem_id, source, input_text, auto_insert,
     if source == 'keypress':
         quteproc.press_keys(input_text)
     elif source == 'clipboard':
+        if request.config.webengine:
+            pytest.xfail(reason="QtWebEngine TODO: caret mode is not "
+                         "implemented")
+            # Note we actually run the keypress tests with QtWebEngine, as for
+            # some reason it selects all the text when clicking the field the
+            # second time.
         quteproc.send_cmd(':debug-set-fake-clipboard "{}"'.format(input_text))
         quteproc.send_cmd(':insert-text {clipboard}')
 
+    quteproc.send_cmd(':leave-mode')
     quteproc.send_cmd(':hint all')
+    quteproc.wait_for(message='hints: *')
     quteproc.send_cmd(':follow-hint a')
     quteproc.wait_for(message='Clicked editable element!')
     quteproc.send_cmd(':enter-mode caret')
@@ -76,6 +84,7 @@ def test_auto_leave_insert_mode(quteproc):
     quteproc.press_keys('abcd')
 
     quteproc.send_cmd(':hint all')
+    quteproc.wait_for(message='hints: *')
 
     # Select the disabled input box to leave insert mode
     quteproc.send_cmd(':follow-hint s')

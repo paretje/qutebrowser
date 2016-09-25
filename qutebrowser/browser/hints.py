@@ -211,13 +211,16 @@ class HintActions:
                                         window=self._win_id)
             tabbed_browser.set_mark("'")
 
-        if context.target == Target.hover:
-            elem.hover()
-        elif context.target == Target.current:
-            elem.remove_blank_target()
-            elem.click(target_mapping[context.target])
-        else:
-            elem.click(target_mapping[context.target])
+        try:
+            if context.target == Target.hover:
+                elem.hover()
+            elif context.target == Target.current:
+                elem.remove_blank_target()
+                elem.click(target_mapping[context.target])
+            else:
+                elem.click(target_mapping[context.target])
+        except webelem.Error as e:
+            raise HintingError(str(e))
 
     def yank(self, url, context):
         """Yank an element to the clipboard or primary selection.
@@ -235,7 +238,7 @@ class HintActions:
         msg = "Yanked URL to {}: {}".format(
             "primary selection" if sel else "clipboard",
             urlstr)
-        message.info(self._win_id, msg)
+        message.info(msg)
 
     def run_cmd(self, url, context):
         """Run the command based on a hint URL.
@@ -261,7 +264,10 @@ class HintActions:
         text = ' '.join(args)
         if text[0] not in modeparsers.STARTCHARS:
             raise HintingError("Invalid command text '{}'.".format(text))
-        message.set_cmd_text(self._win_id, text)
+
+        bridge = objreg.get('message-bridge', scope='window',
+                            window=self._win_id)
+        bridge.set_cmd_text(text)
 
     def download(self, elem, context):
         """Download a hint URL.
@@ -280,12 +286,12 @@ class HintActions:
 
         # FIXME:qtwebengine get a proper API for this
         # pylint: disable=protected-access
-        page = elem._elem.webFrame().page()
+        qnam = elem._elem.webFrame().page().networkAccessManager()
         # pylint: enable=protected-access
 
         download_manager = objreg.get('download-manager', scope='window',
                                       window=self._win_id)
-        download_manager.get(url, page=page, prompt_download_directory=prompt)
+        download_manager.get(url, qnam=qnam, prompt_download_directory=prompt)
 
     def call_userscript(self, elem, context):
         """Call a userscript from a hint.
@@ -408,7 +414,7 @@ class HintManager(QObject):
             try:
                 return self._word_hinter.hint(elems)
             except HintingError as e:
-                message.error(self._win_id, str(e), immediately=True)
+                message.error(str(e))
                 # falls back on letter hints
         if hint_mode == 'number':
             chars = '0123456789'
@@ -567,7 +573,8 @@ class HintManager(QObject):
         filterfunc = webelem.FILTERS.get(self._context.group, lambda e: True)
         elems = [e for e in elems if filterfunc(e)]
         if not elems:
-            raise cmdexc.CommandError("No elements found.")
+            message.error("No elements found.")
+            return
         strings = self._hint_strings(elems)
         log.hints.debug("hints: {}".format(', '.join(strings)))
 
@@ -658,8 +665,8 @@ class HintManager(QObject):
             raise cmdexc.CommandError("No WebView available yet!")
         if (tab.backend == usertypes.Backend.QtWebEngine and
                 target == Target.download):
-            message.error(self._win_id, "The download target is not available "
-                          "yet with QtWebEngine.", immediately=True)
+            message.error("The download target is not available yet with "
+                          "QtWebEngine.")
             return
 
         mode_manager = objreg.get('mode-manager', scope='window',
@@ -845,9 +852,7 @@ class HintManager(QObject):
         elem = self._context.labels[keystr].elem
 
         if not elem.has_frame():
-            message.error(self._win_id,
-                          "This element has no webframe.",
-                          immediately=True)
+            message.error("This element has no webframe.")
             return
 
         if self._context.target in elem_handlers:
@@ -856,9 +861,7 @@ class HintManager(QObject):
         elif self._context.target in url_handlers:
             url = elem.resolve_url(self._context.baseurl)
             if url is None:
-                message.error(self._win_id,
-                              "No suitable link found for this element.",
-                              immediately=True)
+                message.error("No suitable link found for this element.")
                 return
             handler = functools.partial(url_handlers[self._context.target],
                                         url, self._context)
@@ -878,7 +881,7 @@ class HintManager(QObject):
         try:
             handler()
         except HintingError as e:
-            message.error(self._win_id, str(e), immediately=True)
+            message.error(str(e))
 
     @cmdutils.register(instance='hintmanager', scope='tab', hide=True,
                        modes=[usertypes.KeyMode.hint])

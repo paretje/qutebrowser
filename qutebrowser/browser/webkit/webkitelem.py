@@ -126,21 +126,24 @@ class WebKitElement(webelem.AbstractWebElement):
     def set_text(self, text, *, use_js=False):
         self._check_vanished()
         if self.is_content_editable() or not use_js:
-            log.misc.debug("Filling element {} via set_text.".format(
-                self.debug_text()))
+            log.webelem.debug("Filling {!r} via set_text.".format(self))
             self._elem.setPlainText(text)
         else:
-            log.misc.debug("Filling element {} via javascript.".format(
-                self.debug_text()))
+            log.webelem.debug("Filling {!r} via javascript.".format(self))
             text = javascript.string_escape(text)
             self._elem.evaluateJavaScript("this.value='{}'".format(text))
 
-    def run_js_async(self, code, callback=None):
-        """Run the given JS snippet async on the element."""
+    def insert_text(self, text):
         self._check_vanished()
-        result = self._elem.evaluateJavaScript(code)
-        if callback is not None:
-            callback(result)
+        if not self.is_editable(strict=True):
+            raise webelem.Error("Element is not editable!")
+        log.webelem.debug("Inserting text into element {!r}".format(self))
+        self._elem.evaluateJavaScript("""
+            var text = "{}";
+            var event = document.createEvent("TextEvent");
+            event.initTextEvent("textInput", true, true, null, text);
+            this.dispatchEvent(event);
+        """.format(javascript.string_escape(text)))
 
     def parent(self):
         self._check_vanished()
@@ -154,13 +157,14 @@ class WebKitElement(webelem.AbstractWebElement):
         # FIXME:qtwebengine maybe we can reuse this?
         rects = self._elem.evaluateJavaScript("this.getClientRects()")
         if rects is None:  # pragma: no cover
-            # Depending on unknown circumstances, this might not work with JS
-            # disabled in QWebSettings:
+            # On e.g. Void Linux with musl libc, the stack size is too small
+            # for jsc, and running JS will fail. If that happens, fall back to
+            # the Python implementation.
             # https://github.com/The-Compiler/qutebrowser/issues/1641
             return None
 
         text = utils.compact_text(self._elem.toOuterXml(), 500)
-        log.hints.vdebug("Client rectangles of element '{}': {}".format(
+        log.webelem.vdebug("Client rectangles of element '{}': {}".format(
             text, rects))
 
         for i in range(int(rects.get("length", 0))):
@@ -230,8 +234,13 @@ class WebKitElement(webelem.AbstractWebElement):
         # No suitable rects found via JS, try via the QWebElement API
         return self._rect_on_view_python(elem_geometry)
 
-    def is_visible(self, mainframe):
-        """Check if the given element is visible in the given frame."""
+    def _is_visible(self, mainframe):
+        """Check if the given element is visible in the given frame.
+
+        This is not public API because it can't be implemented easily here with
+        QtWebEngine, and is only used via find_css(..., only_visible=True) via
+        the tab API.
+        """
         self._check_vanished()
         # CSS attributes which hide an element
         hidden_attributes = {
@@ -295,14 +304,3 @@ def get_child_frames(startframe):
             new_frames += frame.childFrames()
         frames = new_frames
     return results
-
-
-def focus_elem(frame):
-    """Get the focused element in a web frame.
-
-    Args:
-        frame: The QWebFrame to search in.
-    """
-    # FIXME:qtwebengine get rid of this
-    elem = frame.findFirstElement('*:focus')
-    return WebKitElement(elem, tab=None)

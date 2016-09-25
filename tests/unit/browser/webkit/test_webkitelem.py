@@ -24,9 +24,9 @@ import collections.abc
 import operator
 import itertools
 
-from PyQt5.QtCore import QRect, QPoint, QUrl
-from PyQt5.QtWebKit import QWebElement
 import pytest
+from PyQt5.QtCore import QRect, QPoint, QUrl
+QWebElement = pytest.importorskip('PyQt5.QtWebKit').QWebElement
 
 from qutebrowser.browser import webelem
 from qutebrowser.browser.webkit import webkitelem
@@ -260,22 +260,21 @@ class TestWebKitElement:
         lambda e: e.style_property('visibility', strategy='computed'),
         lambda e: e.text(),
         lambda e: e.set_text('foo'),
+        lambda e: e.insert_text('foo'),
         lambda e: e.is_writable(),
         lambda e: e.is_content_editable(),
         lambda e: e.is_editable(),
         lambda e: e.is_text_input(),
         lambda e: e.remove_blank_target(),
-        lambda e: e.debug_text(),
         lambda e: e.outer_xml(),
         lambda e: e.tag_name(),
-        lambda e: e.run_js_async(''),
         lambda e: e.rect_on_view(),
-        lambda e: e.is_visible(None),
+        lambda e: e._is_visible(None),
     ], ids=['str', 'getitem', 'setitem', 'delitem', 'contains', 'iter', 'len',
             'frame', 'geometry', 'style_property', 'text', 'set_text',
-            'is_writable', 'is_content_editable', 'is_editable',
-            'is_text_input', 'remove_blank_target', 'debug_text', 'outer_xml',
-            'tag_name', 'run_js_async', 'rect_on_view', 'is_visible'])
+            'insert_text', 'is_writable', 'is_content_editable', 'is_editable',
+            'is_text_input', 'remove_blank_target', 'outer_xml', 'tag_name',
+            'rect_on_view', 'is_visible'])
     def test_vanished(self, elem, code):
         """Make sure methods check if the element is vanished."""
         elem._elem.isNull.return_value = True
@@ -286,14 +285,19 @@ class TestWebKitElement:
     def test_str(self, elem):
         assert str(elem) == 'text'
 
-    @pytest.mark.parametrize('is_null, expected', [
-        (False, "<qutebrowser.browser.webkit.webkitelem.WebKitElement "
-                "html='<fakeelem/>'>"),
-        (True, '<qutebrowser.browser.webkit.webkitelem.WebKitElement '
-               'html=None>'),
+    wke_qualname = 'qutebrowser.browser.webkit.webkitelem.WebKitElement'
+
+    @pytest.mark.parametrize('is_null, xml, expected', [
+        (False, '<fakeelem/>', "<{} html='<fakeelem/>'>".format(wke_qualname)),
+        (False, '<foo>\n<bar/>\n</foo>',
+         "<{} html='<foo><bar/></foo>'>".format(wke_qualname)),
+        (False, '<foo>{}</foo>'.format('x' * 500),
+         "<{} html='<foo>{}…'>".format(wke_qualname, 'x' * 494)),
+        (True, None, '<{} html=None>'.format(wke_qualname)),
     ])
-    def test_repr(self, elem, is_null, expected):
+    def test_repr(self, elem, is_null, xml, expected):
         elem._elem.isNull.return_value = is_null
+        elem._elem.toOuterXml.return_value = xml
         assert repr(elem) == expected
 
     def test_getitem(self):
@@ -384,15 +388,6 @@ class TestWebKitElement:
         elem = get_webelem(tagname=tagname, attributes=attributes)
         assert elem.is_text_input() == expected
 
-    @pytest.mark.parametrize('xml, expected', [
-        ('<fakeelem/>', '<fakeelem/>'),
-        ('<foo>\n<bar/>\n</foo>', '<foo><bar/></foo>'),
-        ('<foo>{}</foo>'.format('x' * 500), '<foo>{}…'.format('x' * 494)),
-    ], ids=['fakeelem', 'newlines', 'long'])
-    def test_debug_text(self, elem, xml, expected):
-        elem._elem.toOuterXml.return_value = xml
-        assert elem.debug_text() == expected
-
     @pytest.mark.parametrize('attribute, code', [
         ('geometry', lambda e: e.geometry()),
         ('toOuterXml', lambda e: e.outer_xml()),
@@ -441,14 +436,6 @@ class TestWebKitElement:
         attr = 'evaluateJavaScript' if uses_js else 'setPlainText'
         called_mock = getattr(elem._elem, attr)
         called_mock.assert_called_with(arg)
-
-    @pytest.mark.parametrize('with_cb', [True, False])
-    def test_run_js_async(self, elem, with_cb):
-        cb = mock.Mock(spec={}) if with_cb else None
-        elem._elem.evaluateJavaScript.return_value = 42
-        elem.run_js_async('the_answer();', cb)
-        if with_cb:
-            cb.assert_called_with(42)
 
 
 class TestRemoveBlankTarget:
@@ -506,14 +493,14 @@ class TestIsVisible:
         assert not rect.isValid()
         frame = stubs.FakeWebFrame(rect)
         elem = get_webelem(QRect(0, 0, 10, 10), frame)
-        assert not elem.is_visible(frame)
+        assert not elem._is_visible(frame)
 
     def test_invalid_invisible(self, frame):
         """Test elements with an invalid geometry which are invisible."""
         elem = get_webelem(QRect(0, 0, 0, 0), frame)
         assert not elem.geometry().isValid()
         assert elem.geometry().x() == 0
-        assert not elem.is_visible(frame)
+        assert not elem._is_visible(frame)
 
     def test_invalid_visible(self, frame):
         """Test elements with an invalid geometry which are visible.
@@ -523,7 +510,7 @@ class TestIsVisible:
         """
         elem = get_webelem(QRect(10, 10, 0, 0), frame)
         assert not elem.geometry().isValid()
-        assert elem.is_visible(frame)
+        assert elem._is_visible(frame)
 
     @pytest.mark.parametrize('geometry, visible', [
         (QRect(5, 5, 4, 4), False),
@@ -533,7 +520,7 @@ class TestIsVisible:
         scrolled_frame = stubs.FakeWebFrame(QRect(0, 0, 100, 100),
                                             scroll=QPoint(10, 10))
         elem = get_webelem(geometry, scrolled_frame)
-        assert elem.is_visible(scrolled_frame) == visible
+        assert elem._is_visible(scrolled_frame) == visible
 
     @pytest.mark.parametrize('style, visible', [
         ({'visibility': 'visible'}, True),
@@ -545,7 +532,7 @@ class TestIsVisible:
     ])
     def test_css_attributes(self, frame, style, visible):
         elem = get_webelem(QRect(0, 0, 10, 10), frame, style=style)
-        assert elem.is_visible(frame) == visible
+        assert elem._is_visible(frame) == visible
 
 
 class TestIsVisibleIframe:
@@ -595,20 +582,20 @@ class TestIsVisibleIframe:
             get_webelem(QRect(30, 180, 10, 10), frame),
         ]
 
-        assert elems[0].is_visible(frame)
-        assert elems[1].is_visible(frame)
-        assert not elems[2].is_visible(frame)
-        assert elems[3].is_visible(frame)
+        assert elems[0]._is_visible(frame)
+        assert elems[1]._is_visible(frame)
+        assert not elems[2]._is_visible(frame)
+        assert elems[3]._is_visible(frame)
 
         return self.Objects(frame=frame, iframe=iframe, elems=elems)
 
     def test_iframe_scrolled(self, objects):
         """Scroll iframe down so elem3 gets visible and elem1/elem2 not."""
         objects.iframe.scrollPosition.return_value = QPoint(0, 100)
-        assert not objects.elems[0].is_visible(objects.frame)
-        assert not objects.elems[1].is_visible(objects.frame)
-        assert objects.elems[2].is_visible(objects.frame)
-        assert objects.elems[3].is_visible(objects.frame)
+        assert not objects.elems[0]._is_visible(objects.frame)
+        assert not objects.elems[1]._is_visible(objects.frame)
+        assert objects.elems[2]._is_visible(objects.frame)
+        assert objects.elems[3]._is_visible(objects.frame)
 
     def test_mainframe_scrolled_iframe_visible(self, objects):
         """Scroll mainframe down so iframe is partly visible but elem1 not."""
@@ -617,10 +604,10 @@ class TestIsVisibleIframe:
             objects.frame.scrollPosition())
         assert not geom.contains(objects.iframe.geometry())
         assert geom.intersects(objects.iframe.geometry())
-        assert not objects.elems[0].is_visible(objects.frame)
-        assert objects.elems[1].is_visible(objects.frame)
-        assert not objects.elems[2].is_visible(objects.frame)
-        assert objects.elems[3].is_visible(objects.frame)
+        assert not objects.elems[0]._is_visible(objects.frame)
+        assert objects.elems[1]._is_visible(objects.frame)
+        assert not objects.elems[2]._is_visible(objects.frame)
+        assert objects.elems[3]._is_visible(objects.frame)
 
     def test_mainframe_scrolled_iframe_invisible(self, objects):
         """Scroll mainframe down so iframe is invisible."""
@@ -629,10 +616,10 @@ class TestIsVisibleIframe:
             objects.frame.scrollPosition())
         assert not geom.contains(objects.iframe.geometry())
         assert not geom.intersects(objects.iframe.geometry())
-        assert not objects.elems[0].is_visible(objects.frame)
-        assert not objects.elems[1].is_visible(objects.frame)
-        assert not objects.elems[2].is_visible(objects.frame)
-        assert objects.elems[3].is_visible(objects.frame)
+        assert not objects.elems[0]._is_visible(objects.frame)
+        assert not objects.elems[1]._is_visible(objects.frame)
+        assert not objects.elems[2]._is_visible(objects.frame)
+        assert objects.elems[3]._is_visible(objects.frame)
 
     @pytest.fixture
     def invalid_objects(self, stubs):
@@ -676,24 +663,11 @@ class TestIsVisibleIframe:
         which *are* visible, but don't have a valid geometry.
         """
         elem = invalid_objects.elems[0]
-        assert elem.is_visible(invalid_objects.frame)
+        assert elem._is_visible(invalid_objects.frame)
 
     def test_invalid_invisible(self, invalid_objects):
         """Test elements with an invalid geometry which are invisible."""
-        assert not invalid_objects.elems[1].is_visible(invalid_objects.frame)
-
-
-def test_focus_element(stubs):
-    """Test getting focus element with a fake frame/element.
-
-    Testing this with a real webpage is almost impossible because the window
-    and the element would have focus, which is hard to achieve consistently in
-    a test.
-    """
-    frame = stubs.FakeWebFrame(QRect(0, 0, 100, 100))
-    elem = get_webelem()
-    frame.focus_elem = elem._elem
-    assert webkitelem.focus_elem(frame)._elem is elem._elem
+        assert not invalid_objects.elems[1]._is_visible(invalid_objects.frame)
 
 
 class TestRectOnView:

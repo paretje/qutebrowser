@@ -127,7 +127,8 @@ def _is_url_naive(urlstr):
     if not QHostAddress(urlstr).isNull():
         return False
 
-    return '.' in url.host()
+    host = url.host()
+    return '.' in host and not host.endswith('.')
 
 
 def _is_url_dns(urlstr):
@@ -211,7 +212,7 @@ def _has_explicit_scheme(url):
     # symbols, we treat this as not a URI anyways.
     return (url.isValid() and url.scheme() and
             (url.host() or url.path()) and
-            not url.path().startswith(' ') and
+            ' ' not in url.path() and
             not url.path().startswith(':'))
 
 
@@ -320,11 +321,10 @@ def qurl_from_user_input(urlstr):
         return QUrl('http://[{}]{}'.format(ipstr, rest))
 
 
-def invalid_url_error(win_id, url, action):
+def invalid_url_error(url, action):
     """Display an error message for a URL.
 
     Args:
-        win_id: The window ID to show the error message in.
         action: The action which was interrupted by the error.
     """
     if url.isValid():
@@ -332,7 +332,7 @@ def invalid_url_error(win_id, url, action):
             url.toDisplayString()))
     errstring = get_errstring(
         url, "Trying to {} with invalid URL".format(action))
-    message.error(win_id, errstring)
+    message.error(errstring)
 
 
 def raise_cmdexc_if_invalid(url):

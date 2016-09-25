@@ -9,12 +9,14 @@ In qutebrowser, all keybindings are mapped to commands.
 Some commands are hidden, which means they don't show up in the command
 completion when pressing `:`, as they're typically not useful to run by hand.
 
-In the commandline, there are also some variables you can use:
+For command arguments, there are also some variables you can use:
 
 - `{url}` expands to the URL of the current page
 - `{url:pretty}` expands to the URL in decoded format
 - `{clipboard}` expands to the clipboard contents
 - `{primary}` expands to the primary selection contents
+
+It is possible to run or bind multiple commands by separating them with `;;`.
 
 == Normal commands
 .Quick reference
@@ -92,7 +94,7 @@ In the commandline, there are also some variables you can use:
 === adblock-update
 Update the adblock block lists.
 
-This updates ~/.local/share/qutebrowser/blocked-hosts with downloaded host lists and re-reads ~/.config/qutebrowser/blocked-hosts.
+This updates `~/.local/share/qutebrowser/blocked-hosts` with downloaded host lists and re-reads `~/.config/qutebrowser/blocked-hosts`.
 
 [[back]]
 === back
@@ -436,7 +438,7 @@ Note: Due a bug in Qt, the inspector will show incorrect request headers in the 
 
 [[jseval]]
 === jseval
-Syntax: +:jseval [*--quiet*] 'js-code'+
+Syntax: +:jseval [*--quiet*] [*--world* 'world'] 'js-code'+
 
 Evaluate a JavaScript string.
 
@@ -445,6 +447,8 @@ Evaluate a JavaScript string.
 
 ==== optional arguments
 * +*-q*+, +*--quiet*+: Don't show resulting JS object.
+* +*-w*+, +*--world*+: Ignored on QtWebKit. On QtWebEngine, a world ID or name to run the snippet in.
+
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
@@ -724,8 +728,6 @@ Syntax: +:set-cmd-text [*--space*] [*--append*] 'text'+
 
 Preset the statusbar to some text.
 
-You can use the `{url}` and `{url:pretty}` variables here which will get replaced by the encoded/decoded URL.
-
 ==== positional arguments
 * +'text'+: The commandline to set.
 
@@ -741,8 +743,6 @@ You can use the `{url}` and `{url:pretty}` variables here which will get replace
 Syntax: +:spawn [*--userscript*] [*--verbose*] [*--detach*] 'cmdline'+
 
 Spawn a command in a shell.
-
-Note the `{url}` and `{url:pretty}` variables might be useful here. `{url}` gets replaced by the URL in fully encoded format and `{url:pretty}` uses a "pretty form" with most percent-encoded characters decoded.
 
 ==== positional arguments
 * +'cmdline'+: The commandline to execute.
@@ -976,9 +976,7 @@ How many steps to zoom out.
 |<<move-to-start-of-prev-block,move-to-start-of-prev-block>>|Move the cursor or selection to the start of previous block.
 |<<open-editor,open-editor>>|Open an external editor with the currently selected form field.
 |<<prompt-accept,prompt-accept>>|Accept the current prompt.
-|<<prompt-no,prompt-no>>|Answer no to a yes/no prompt.
 |<<prompt-open-download,prompt-open-download>>|Immediately open a download.
-|<<prompt-yes,prompt-yes>>|Answer yes to a yes/no prompt.
 |<<repeat-command,repeat-command>>|Repeat the last executed command.
 |<<rl-backward-char,rl-backward-char>>|Move back a character.
 |<<rl-backward-delete-char,rl-backward-delete-char>>|Delete the character before the cursor.
@@ -1221,11 +1219,13 @@ The editor which should be launched can be configured via the `general -> editor
 
 [[prompt-accept]]
 === prompt-accept
+Syntax: +:prompt-accept ['value']+
+
 Accept the current prompt.
 
-[[prompt-no]]
-=== prompt-no
-Answer no to a yes/no prompt.
+==== positional arguments
+* +'value'+: If given, uses this value instead of the entered one. For boolean prompts, "yes"/"no" are accepted as value.
+
 
 [[prompt-open-download]]
 === prompt-open-download
@@ -1243,10 +1243,6 @@ If no specific command is given, this will use the system's default application 
 
 ==== note
 * This command does not split arguments after the last argument and handles quotes literally.
-
-[[prompt-yes]]
-=== prompt-yes
-Answer yes to a yes/no prompt.
 
 [[repeat-command]]
 === repeat-command
@@ -1449,6 +1445,8 @@ These commands are mainly intended for debugging. They are hidden if qutebrowser
 |<<debug-crash,debug-crash>>|Crash for debugging purposes.
 |<<debug-dump-page,debug-dump-page>>|Dump the current page's content to a file.
 |<<debug-log-capacity,debug-log-capacity>>|Change the number of log lines to be stored in RAM.
+|<<debug-log-filter,debug-log-filter>>|Change the log filter for console logging.
+|<<debug-log-level,debug-log-level>>|Change the log level for console logging.
 |<<debug-pyeval,debug-pyeval>>|Evaluate a python string and display the results as a web page.
 |<<debug-set-fake-clipboard,debug-set-fake-clipboard>>|Put data into the fake clipboard and enable logging, used for tests.
 |<<debug-trace,debug-trace>>|Trace executed code via hunter.
@@ -1499,6 +1497,24 @@ Change the number of log lines to be stored in RAM.
 
 ==== positional arguments
 * +'capacity'+: Number of lines for the log.
+
+[[debug-log-filter]]
+=== debug-log-filter
+Syntax: +:debug-log-filter 'filters'+
+
+Change the log filter for console logging.
+
+==== positional arguments
+* +'filters'+: A comma separated list of logger names.
+
+[[debug-log-level]]
+=== debug-log-level
+Syntax: +:debug-log-level 'level'+
+
+Change the log level for console logging.
+
+==== positional arguments
+* +'level'+: The log level to set.
 
 [[debug-pyeval]]
 === debug-pyeval

@@ -29,27 +29,87 @@ from end2end.fixtures import quteprocess, testprocess
 from qutebrowser.utils import log
 
 
+class FakeRepCall:
+
+    """Fake for request.node.rep_call."""
+
+    def __init__(self):
+        self.failed = False
+
+
+class FakeConfig:
+
+    """Fake for request.config."""
+
+    ARGS = {
+        '--qute-delay': 0,
+        '--color': True,
+        '--verbose': False,
+    }
+
+    def getoption(self, name):
+        return self.ARGS[name]
+
+
+class FakeNode:
+
+    """Fake for request.node."""
+
+    def __init__(self, call):
+        self.rep_call = call
+
+    def get_marker(self, _name):
+        return None
+
+
+class FakeRequest:
+
+    """Fake for request."""
+
+    def __init__(self, node, config, httpbin):
+        self.node = node
+        self.config = config
+        self._httpbin = httpbin
+
+    def getfixturevalue(self, name):
+        assert name == 'httpbin'
+        return self._httpbin
+
+
+@pytest.fixture
+def request_mock(quteproc, monkeypatch, httpbin):
+    """Patch out a pytest request."""
+    fake_call = FakeRepCall()
+    fake_config = FakeConfig()
+    fake_node = FakeNode(fake_call)
+    fake_request = FakeRequest(fake_node, fake_config, httpbin)
+    assert not hasattr(fake_request.node.rep_call, 'wasxfail')
+    monkeypatch.setattr(quteproc, 'request', fake_request)
+    return fake_request
+
+
 @pytest.mark.parametrize('cmd', [
     ':message-error test',
     ':jseval console.log("[FAIL] test");'
 ])
-def test_quteproc_error_message(qtbot, quteproc, cmd):
+def test_quteproc_error_message(qtbot, quteproc, cmd, request_mock):
     """Make sure the test fails with an unexpected error message."""
     with qtbot.waitSignal(quteproc.got_error):
         quteproc.send_cmd(cmd)
     # Usually we wouldn't call this from inside a test, but here we force the
     # error to occur during the test rather than at teardown time.
     with pytest.raises(pytest.fail.Exception):
-        quteproc.after_test(did_fail=False)
+        quteproc.after_test()
 
 
-def test_quteproc_error_message_did_fail(qtbot, quteproc):
+def test_quteproc_error_message_did_fail(qtbot, quteproc, request_mock):
     """Make sure the test does not fail on teardown if the main test failed."""
+    request_mock.node.rep_call.failed = True
     with qtbot.waitSignal(quteproc.got_error):
         quteproc.send_cmd(':message-error test')
     # Usually we wouldn't call this from inside a test, but here we force the
     # error to occur during the test rather than at teardown time.
-    quteproc.after_test(did_fail=True)
+    quteproc.after_test()
 
 
 def test_quteproc_skip_via_js(qtbot, quteproc):
@@ -59,7 +119,7 @@ def test_quteproc_skip_via_js(qtbot, quteproc):
 
         # Usually we wouldn't call this from inside a test, but here we force
         # the error to occur during the test rather than at teardown time.
-        quteproc.after_test(did_fail=False)
+        quteproc.after_test()
 
     assert str(excinfo.value) == 'test'
 
@@ -83,15 +143,15 @@ def test_quteprocess_quitting(qtbot, quteproc_process):
     with qtbot.waitSignal(quteproc_process.proc.finished, timeout=15000):
         quteproc_process.send_cmd(':quit')
     with pytest.raises(testprocess.ProcessExited):
-        quteproc_process.after_test(did_fail=False)
+        quteproc_process.after_test()
 
 
 @pytest.mark.parametrize('data, attrs', [
     (
         # Normal message
-        '{"created": 0, "levelname": "DEBUG", "name": "init", "module": '
-        '"earlyinit", "funcName": "init_log", "lineno": 280, "levelno": 10, '
-        '"message": "Log initialized."}',
+        '{"created": 0, "msecs": 0, "levelname": "DEBUG", "name": "init", '
+        '"module": "earlyinit", "funcName": "init_log", "lineno": 280, '
+        '"levelno": 10, "message": "Log initialized."}',
         {
             'timestamp': datetime.datetime.fromtimestamp(0),
             'loglevel': logging.DEBUG,
@@ -105,28 +165,29 @@ def test_quteprocess_quitting(qtbot, quteproc_process):
     ),
     (
         # VDEBUG
-        '{"created": 0, "levelname": "VDEBUG", "name": "foo", "module": '
-        '"foo", "funcName": "foo", "lineno": 0, "levelno": 9, "message": ""}',
+        '{"created": 0, "msecs": 0, "levelname": "VDEBUG", "name": "foo", '
+        '"module": "foo", "funcName": "foo", "lineno": 0, "levelno": 9, '
+        '"message": ""}',
         {'loglevel': log.VDEBUG_LEVEL}
     ),
     (
         # Unknown module
-        '{"created": 0, "levelname": "DEBUG", "name": "qt", "module": '
-        'null, "funcName": null, "lineno": 0, "levelno": 10, "message": '
-        '"test"}',
+        '{"created": 0, "msecs": 0, "levelname": "DEBUG", "name": "qt", '
+        '"module": null, "funcName": null, "lineno": 0, "levelno": 10, '
+        '"message": "test"}',
         {'module': None, 'function': None, 'line': None},
     ),
     (
         # Expected message
-        '{"created": 0, "levelname": "VDEBUG", "name": "foo", "module": '
-        '"foo", "funcName": "foo", "lineno": 0, "levelno": 9, "message": '
-        '"SpellCheck: test"}',
+        '{"created": 0, "msecs": 0, "levelname": "VDEBUG", "name": "foo", '
+        '"module": "foo", "funcName": "foo", "lineno": 0, "levelno": 9, '
+        '"message": "SpellCheck: test"}',
         {'expected': True},
     ),
     (
         # Weird Qt location
-        '{"created": 0, "levelname": "DEBUG", "name": "qt", "module": '
-        '"qnetworkreplyhttpimpl", "funcName": '
+        '{"created": 0, "msecs": 0, "levelname": "DEBUG", "name": "qt", '
+        '"module": "qnetworkreplyhttpimpl", "funcName": '
         '"void QNetworkReplyHttpImplPrivate::error('
         'QNetworkReply::NetworkError, const QString&)", "lineno": 1929, '
         '"levelno": 10, "message": "QNetworkReplyImplPrivate::error: '
@@ -139,8 +200,8 @@ def test_quteprocess_quitting(qtbot, quteproc_process):
         }
     ),
     (
-        '{"created": 0, "levelname": "DEBUG", "name": "qt", "module": '
-        '"qxcbxsettings", "funcName": "QXcbXSettings::QXcbXSettings('
+        '{"created": 0, "msecs": 0, "levelname": "DEBUG", "name": "qt", '
+        '"module": "qxcbxsettings", "funcName": "QXcbXSettings::QXcbXSettings('
         'QXcbScreen*)", "lineno": 233, "levelno": 10, "message": '
         '"QXcbXSettings::QXcbXSettings(QXcbScreen*) Failed to get selection '
         'owner for XSETTINGS_S atom"}',
@@ -151,24 +212,16 @@ def test_quteprocess_quitting(qtbot, quteproc_process):
         }
     ),
     (
-        # With [2s ago] marker
-        '{"created": 0, "levelname": "DEBUG", "name": "foo", "module": '
-        '"foo", "funcName": "foo", "lineno": 0, "levelno": 10, "message": '
-        '"[2s ago] test"}',
-        {'prefix': '2s ago', 'message': 'test'}
-    ),
-    (
         # ResourceWarning
-        '{"created": 0, "levelname": "WARNING", "name": "py.warnings", '
-        '"module": "app", "funcName": "qt_mainloop", "lineno": 121, "levelno":'
-        ' 30, "message": '
+        '{"created": 0, "msecs": 0, "levelname": "WARNING", '
+        '"name": "py.warnings", "module": "app", "funcName": "qt_mainloop", '
+        '"lineno": 121, "levelno": 30, "message": '
         '".../app.py:121: ResourceWarning: unclosed file <_io.TextIOWrapper '
         'name=18 mode=\'r\' encoding=\'UTF-8\'>"}',
         {'category': 'py.warnings'}
     ),
 ], ids=['normal', 'vdebug', 'unknown module', 'expected message',
-        'weird Qt location', 'QXcbXSettings', '2s ago marker',
-        'resourcewarning'])
+        'weird Qt location', 'QXcbXSettings', 'resourcewarning'])
 def test_log_line_parse(data, attrs):
     line = quteprocess.LogLine(data)
     for name, expected in attrs.items():
@@ -178,48 +231,53 @@ def test_log_line_parse(data, attrs):
 
 @pytest.mark.parametrize('data, colorized, expect_error, expected', [
     (
-        {'created': 0, 'levelname': 'DEBUG', 'name': 'foo', 'module': 'bar',
-         'funcName': 'qux', 'lineno': 10, 'levelno': 10, 'message': 'quux'},
+        {'created': 0, 'msecs': 0, 'levelname': 'DEBUG', 'name': 'foo',
+         'module': 'bar', 'funcName': 'qux', 'lineno': 10, 'levelno': 10,
+         'message': 'quux'},
         False, False,
         '{timestamp} DEBUG    foo        bar:qux:10 quux',
     ),
     # Traceback attached
     (
-        {'created': 0, 'levelname': 'DEBUG', 'name': 'foo', 'module': 'bar',
-         'funcName': 'qux', 'lineno': 10, 'levelno': 10, 'message': 'quux',
-         'traceback': 'Traceback (most recent call last):\n    here be '
-         'dragons'},
+        {'created': 0, 'msecs': 0, 'levelname': 'DEBUG', 'name': 'foo',
+         'module': 'bar', 'funcName': 'qux', 'lineno': 10, 'levelno': 10,
+         'message': 'quux', 'traceback': 'Traceback (most recent call '
+         'last):\n here be dragons'},
         False, False,
         '{timestamp} DEBUG    foo        bar:qux:10 quux\n'
         'Traceback (most recent call last):\n'
-        '    here be dragons',
+        ' here be dragons',
     ),
     # Colorized
     (
-        {'created': 0, 'levelname': 'DEBUG', 'name': 'foo', 'module': 'bar',
-         'funcName': 'qux', 'lineno': 10, 'levelno': 10, 'message': 'quux'},
+        {'created': 0, 'msecs': 0, 'levelname': 'DEBUG', 'name': 'foo',
+         'module': 'bar', 'funcName': 'qux', 'lineno': 10, 'levelno': 10,
+         'message': 'quux'},
         True, False,
         '\033[32m{timestamp}\033[0m \033[37mDEBUG   \033[0m \033[36mfoo     '
         '   bar:qux:10\033[0m \033[37mquux\033[0m',
     ),
     # Expected error
     (
-        {'created': 0, 'levelname': 'ERROR', 'name': 'foo', 'module': 'bar',
-         'funcName': 'qux', 'lineno': 10, 'levelno': 40, 'message': 'quux'},
+        {'created': 0, 'msecs': 0, 'levelname': 'ERROR', 'name': 'foo',
+         'module': 'bar', 'funcName': 'qux', 'lineno': 10, 'levelno': 40,
+         'message': 'quux'},
         False, True,
         '{timestamp} ERROR (expected) foo        bar:qux:10 quux',
     ),
     # Expected other message (i.e. should make no difference)
     (
-        {'created': 0, 'levelname': 'DEBUG', 'name': 'foo', 'module': 'bar',
-         'funcName': 'qux', 'lineno': 10, 'levelno': 10, 'message': 'quux'},
+        {'created': 0, 'msecs': 0, 'levelname': 'DEBUG', 'name': 'foo',
+         'module': 'bar', 'funcName': 'qux', 'lineno': 10, 'levelno': 10,
+         'message': 'quux'},
         False, True,
         '{timestamp} DEBUG    foo        bar:qux:10 quux',
     ),
     # Expected error colorized (shouldn't be red)
     (
-        {'created': 0, 'levelname': 'ERROR', 'name': 'foo', 'module': 'bar',
-         'funcName': 'qux', 'lineno': 10, 'levelno': 40, 'message': 'quux'},
+        {'created': 0, 'msecs': 0, 'levelname': 'ERROR', 'name': 'foo',
+         'module': 'bar', 'funcName': 'qux', 'lineno': 10, 'levelno': 40,
+         'message': 'quux'},
         True, True,
         '\033[32m{timestamp}\033[0m \033[37mERROR (expected)\033[0m '
         '\033[36mfoo        bar:qux:10\033[0m \033[37mquux\033[0m',
@@ -231,6 +289,7 @@ def test_log_line_formatted(data, colorized, expect_error, expected):
     record = quteprocess.LogLine(line)
     record.expected = expect_error
     ts = datetime.datetime.fromtimestamp(data['created']).strftime('%H:%M:%S')
+    ts += '.{:03.0f}'.format(data['msecs'])
     expected = expected.format(timestamp=ts)
     assert record.formatted_str(colorized=colorized) == expected
 
@@ -281,6 +340,6 @@ def test_xpath_escape(string, expected):
     'foo"bar',  # Make sure a " is preserved
 ])
 def test_set(quteproc, value):
-    quteproc.set_setting('network', 'accept-language', value)
-    read_back = quteproc.get_setting('network', 'accept-language')
+    quteproc.set_setting('general', 'default-encoding', value)
+    read_back = quteproc.get_setting('general', 'default-encoding')
     assert read_back == value

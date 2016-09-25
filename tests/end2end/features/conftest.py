@@ -19,11 +19,11 @@
 
 """Steps for bdd-like tests."""
 
+import os
 import re
 import sys
 import time
 import json
-import os.path
 import logging
 import collections
 import textwrap
@@ -32,18 +32,20 @@ import pytest
 import pytest_bdd as bdd
 
 from qutebrowser.utils import log
+from qutebrowser.browser import pdfjs
 from helpers import utils
 
 
-def pytest_collection_modifyitems(config, items):
-    """Apply @qtwebengine_* markers."""
-    webengine = config.getoption('--qute-bdd-webengine')
+def _get_echo_exe_path():
+    """Return the path to an echo-like command, depending on the system.
 
-    for item in items:
-        marker = item.get_marker('qtwebengine_todo')
-        if marker:
-            text = 'QtWebEngine TODO: {}'.format(marker.args[0])
-            item.add_marker(pytest.mark.skipif(webengine, reason=text))
+    Return:
+        Path to the "echo"-utility.
+    """
+    if sys.platform == "win32":
+        return os.path.join(utils.abs_datapath(), 'userscripts', 'echo.bat')
+    else:
+        return 'echo'
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -159,6 +161,12 @@ def clean_open_tabs(quteproc):
     quteproc.send_cmd(':tab-close')
 
 
+@bdd.given('pdfjs is available')
+def pdfjs_available():
+    if not pdfjs.is_available():
+        pytest.skip("No pdfjs installation found.")
+
+
 ## When
 
 
@@ -227,6 +235,8 @@ def run_command(quteproc, httpbin, tmpdir, command):
     command = command.replace('(port)', str(httpbin.port))
     command = command.replace('(testdata)', utils.abs_datapath())
     command = command.replace('(tmpdir)', str(tmpdir))
+    command = command.replace('(dirsep)', os.sep)
+    command = command.replace('(echo-exe)', _get_echo_exe_path())
 
     quteproc.send_cmd(command, count=count, invalid=invalid)
 
@@ -307,6 +317,37 @@ def fill_clipboard(quteproc, httpbin, what, content):
                          r'(?P<content>.+)$', flags=re.DOTALL))
 def fill_clipboard_multiline(quteproc, httpbin, what, content):
     fill_clipboard(quteproc, httpbin, what, textwrap.dedent(content))
+
+
+@bdd.when(bdd.parsers.parse('I hint with args "{args}"'))
+def hint(quteproc, args):
+    quteproc.send_cmd(':hint {}'.format(args))
+    quteproc.wait_for(message='hints: *')
+
+
+@bdd.when(bdd.parsers.parse('I hint with args "{args}" and follow {letter}'))
+def hint_and_follow(quteproc, args, letter):
+    args = args.replace('(testdata)', utils.abs_datapath())
+    quteproc.send_cmd(':hint {}'.format(args))
+    quteproc.wait_for(message='hints: *')
+    quteproc.send_cmd(':follow-hint {}'.format(letter))
+
+
+@bdd.when("I wait until the scroll position changed")
+def wait_scroll_position(quteproc):
+    quteproc.wait_scroll_pos_changed()
+
+
+@bdd.when(bdd.parsers.parse("I wait until the scroll position changed to "
+                            "{x}/{y}"))
+def wait_scroll_position_arg(quteproc, x, y):
+    quteproc.wait_scroll_pos_changed(x, y)
+
+
+@bdd.when(bdd.parsers.parse('I wait for the javascript message "{message}"'))
+def javascript_message_when(quteproc, message):
+    """Make sure the given message was logged via javascript."""
+    quteproc.wait_for_js(message)
 
 
 ## Then
@@ -400,7 +441,7 @@ def javascript_message_not_logged(quteproc, message):
 
 
 @bdd.then(bdd.parsers.parse("The session should look like:\n{expected}"))
-def compare_session(quteproc, expected):
+def compare_session(request, quteproc, expected):
     """Compare the current sessions against the given template.
 
     partial_compare is used, which means only the keys/values listed will be
@@ -430,18 +471,11 @@ def check_header(quteproc, header, value):
     assert data['headers'][header] == value
 
 
-@bdd.then(bdd.parsers.parse("the page source should look like {filename}"))
-def check_contents(quteproc, filename):
-    """Check the current page's content.
-
-    The filename is interpreted relative to tests/end2end/data.
-    """
+@bdd.then(bdd.parsers.parse('the page should contain the html "{text}"'))
+def check_contents_html(quteproc, text):
+    """Check the current page's content based on a substring."""
     content = quteproc.get_content(plain=False)
-    path = os.path.join(utils.abs_datapath(),
-                        os.path.join(*filename.split('/')))
-    with open(path, 'r', encoding='utf-8') as f:
-        file_content = f.read()
-        assert content == file_content
+    assert text in content
 
 
 @bdd.then(bdd.parsers.parse('the page should contain the plaintext "{text}"'))
@@ -469,7 +503,7 @@ def check_contents_json(quteproc, text):
 
 
 @bdd.then(bdd.parsers.parse("the following tabs should be open:\n{tabs}"))
-def check_open_tabs(quteproc, tabs):
+def check_open_tabs(quteproc, request, tabs):
     """Check the list of open tabs in the session.
 
     This is a lightweight alternative for "The session should look like: ...".
@@ -531,6 +565,7 @@ def _get_scroll_values(quteproc):
 @bdd.then(bdd.parsers.re(r"the page should be scrolled "
                          r"(?P<direction>horizontally|vertically)"))
 def check_scrolled(quteproc, direction):
+    quteproc.wait_scroll_pos_changed()
     x, y = _get_scroll_values(quteproc)
     if direction == 'horizontally':
         assert x != 0
@@ -541,7 +576,7 @@ def check_scrolled(quteproc, direction):
 
 
 @bdd.then("the page should not be scrolled")
-def check_not_scrolled(quteproc):
+def check_not_scrolled(request, quteproc):
     x, y = _get_scroll_values(quteproc)
     assert x == 0
     assert y == 0

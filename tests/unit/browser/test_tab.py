@@ -25,7 +25,7 @@ from qutebrowser.browser import browsertab
 from qutebrowser.keyinput import modeman
 from qutebrowser.utils import objreg
 
-pytestmark = pytest.mark.usefixtures('redirect_xdg_data')
+pytestmark = pytest.mark.usefixtures('redirect_webengine_data')
 
 try:
     from PyQt5.QtWebKitWidgets import QWebView
@@ -58,7 +58,7 @@ def view(qtbot, config_stub, request):
     return v
 
 
-@pytest.yield_fixture(params=['webkit', 'webengine'])
+@pytest.fixture(params=['webkit', 'webengine'])
 def tab(request, default_config, qtbot, tab_registry, cookiejar_and_cache):
     if PYQT_VERSION < 0x050600:
         pytest.skip('Causes segfaults, see #1638')
@@ -90,7 +90,8 @@ class Tab(browsertab.AbstractTab):
     # pylint: disable=abstract-method
 
     def __init__(self, win_id, mode_manager, parent=None):
-        super().__init__(win_id, parent)
+        super().__init__(win_id=win_id, mode_manager=mode_manager,
+                         parent=parent)
         self.history = browsertab.AbstractHistory(self)
         self.scroller = browsertab.AbstractScroller(self, parent=self)
         self.caret = browsertab.AbstractCaret(win_id=self.win_id,

@@ -83,7 +83,7 @@ class DownloadView(QListView):
         self.setFlow(QListView.LeftToRight)
         self.setSpacing(1)
         self._menu = None
-        model = objreg.get('download-manager', scope='window', window=win_id)
+        model = objreg.get('download-model', scope='window', window=win_id)
         model.rowsInserted.connect(functools.partial(update_geometry, self))
         model.rowsRemoved.connect(functools.partial(update_geometry, self))
         model.dataChanged.connect(functools.partial(update_geometry, self))
@@ -113,7 +113,7 @@ class DownloadView(QListView):
         item = self.model().data(index, downloads.ModelRole.item)
         if item.done and item.successful:
             item.open_file()
-            self.model().remove_item(item)
+            item.remove()
 
     def _get_menu_actions(self, item):
         """Get the available context menu actions for a given DownloadItem.
@@ -135,8 +135,7 @@ class DownloadView(QListView):
                 actions.append(("Open", item.open_file))
             else:
                 actions.append(("Retry", item.retry))
-            actions.append(("Remove",
-                            functools.partial(model.remove_item, item)))
+            actions.append(("Remove", item.remove))
         else:
             actions.append(("Cancel", item.cancel))
         if model.can_clear():

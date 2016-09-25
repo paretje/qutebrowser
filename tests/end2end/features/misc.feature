@@ -64,19 +64,19 @@ Feature: Various utility commands.
     Scenario: :jseval
         When I set general -> log-javascript-console to info
         And I run :jseval console.log("Hello from JS!");
-        And I wait for "[:0] Hello from JS!" in the log
+        And I wait for the javascript message "Hello from JS!"
         Then the message "No output or error" should be shown
 
     Scenario: :jseval without logging
         When I set general -> log-javascript-console to none
         And I run :jseval console.log("Hello from JS!");
         Then the message "No output or error" should be shown
-        And "[:0] Hello from JS!" should not be logged
+        And "[:*] Hello from JS!" should not be logged
 
     Scenario: :jseval with --quiet
         When I set general -> log-javascript-console to info
         And I run :jseval --quiet console.log("Hello from JS!");
-        And I wait for "[:0] Hello from JS!" in the log
+        And I wait for the javascript message "Hello from JS!"
         Then "No output or error" should not be logged
 
     Scenario: :jseval with a value
@@ -86,6 +86,35 @@ Feature: Various utility commands.
     Scenario: :jseval with a long, truncated value
         When I run :jseval Array(5002).join("x")
         Then the message "x* [...trimmed...]" should be shown
+
+    @qtwebengine_skip
+    Scenario: :jseval with --world on QtWebKit
+        When I set general -> log-javascript-console to info
+        And I run :jseval --world=1 console.log("Hello from JS!");
+        And I wait for the javascript message "Hello from JS!"
+        Then "Ignoring world ID 1" should be logged
+
+    @qtwebkit_skip @pyqt>=5.7.0
+    Scenario: :jseval uses separate world without --world
+        When I set general -> log-javascript-console to info
+        And I open data/misc/jseval.html
+        And I run :jseval do_log()
+        Then the javascript message "Hello from the page!" should not be logged
+        And the javascript message "Uncaught ReferenceError: do_log is not defined" should be logged
+
+    @qtwebkit_skip @pyqt>=5.7.0
+    Scenario: :jseval using the main world
+        When I set general -> log-javascript-console to info
+        And I open data/misc/jseval.html
+        And I run :jseval --world 0 do_log()
+        Then the javascript message "Hello from the page!" should be logged
+
+    @qtwebkit_skip @pyqt>=5.7.0
+    Scenario: :jseval using the main world as name
+        When I set general -> log-javascript-console to info
+        And I open data/misc/jseval.html
+        And I run :jseval --world main do_log()
+        Then the javascript message "Hello from the page!" should be logged
 
     # :debug-webaction
 
@@ -190,6 +219,8 @@ Feature: Various utility commands.
 
     # :view-source
 
+    # Flaky due to :view-source being async?
+    @qtwebengine_flaky
     Scenario: :view-source
         Given I open data/hello.txt
         When I run :tab-only
@@ -202,8 +233,10 @@ Feature: Various utility commands.
                   url: http://localhost:*/data/hello.txt
               - active: true
                 history: []
-        And the page source should look like misc/hello.txt.html
+        And the page should contain the html "/* Literal.Number.Integer */"
 
+    # Flaky due to :view-source being async?
+    @qtwebengine_flaky
     Scenario: :view-source on source page.
         When I open data/hello.txt
         And I run :view-source
@@ -288,18 +321,21 @@ Feature: Various utility commands.
 
     # pdfjs support
 
+    @qtwebengine_todo: pdfjs is not implemented yet
     Scenario: pdfjs is used for pdf files
         Given pdfjs is available
         When I set content -> enable-pdfjs to true
         And I open data/misc/test.pdf
         Then the javascript message "PDF * [*] (PDF.js: *)" should be logged
 
+    @qtwebengine_todo: pdfjs is not implemented yet
     Scenario: pdfjs is not used when disabled
         When I set content -> enable-pdfjs to false
         And I set storage -> prompt-download-directory to false
         And I open data/misc/test.pdf
-        Then "Download finished" should be logged
+        Then "Download test.pdf finished" should be logged
 
+    @qtwebengine_todo: pdfjs is not implemented yet
     Scenario: Downloading a pdf via pdf.js button (issue 1214)
         Given pdfjs is available
         # WORKAROUND to prevent the "Painter ended with 2 saved states" warning
@@ -339,6 +375,8 @@ Feature: Various utility commands.
         And I run :debug-pyeval QApplication.instance().activeModalWidget().close()
         Then no crash should happen
 
+    # FIXME:qtwebengine use a finer skipping here
+    @qtwebengine_skip: printing to pdf is not implemented with older Qt versions
     Scenario: print --pdf
         When I open data/hello.txt
         And I run :print --pdf (tmpdir)/hello.pdf
@@ -346,7 +384,6 @@ Feature: Various utility commands.
         Then the PDF hello.pdf should exist in the tmpdir
 
     # :pyeval
-
     Scenario: Running :pyeval
         When I run :debug-pyeval 1+1
         And I wait until qute:pyeval is loaded
@@ -369,7 +406,7 @@ Feature: Various utility commands.
         And I press the key "<Ctrl-C>"
         Then no crash should happen
 
-    @pyqt>=5.3.1
+    @pyqt>=5.3.1 @qtwebengine_skip: JS prompt is not implemented yet
     Scenario: Focusing download widget via Tab (original issue)
         When I open data/prompt/jsprompt.html
         And I run :click-element id button
@@ -384,6 +421,23 @@ Feature: Various utility commands.
         When I set network -> custom-headers to {"X-Qute-Test": "testvalue"}
         And I open headers
         Then the header X-Qute-Test should be set to testvalue
+
+    Scenario: DNT header
+        When I set network -> do-not-track to true
+        And I open headers
+        Then the header Dnt should be set to 1
+        And the header X-Do-Not-Track should be set to 1
+
+    Scenario: DNT header (off)
+        When I set network -> do-not-track to false
+        And I open headers
+        Then the header Dnt should be set to 0
+        And the header X-Do-Not-Track should be set to 0
+
+    Scenario: Accept-Language header
+        When I set network -> accept-language to en,de
+        And I open headers
+        Then the header Accept-Language should be set to en,de
 
     ## :messages
 
@@ -423,6 +477,7 @@ Feature: Various utility commands.
         And the page should contain the plaintext "the-warning-message"
         And the page should contain the plaintext "the-info-message"
 
+    @qtwebengine_flaky
     Scenario: Showing messages of an invalid level
         When I run :messages cataclysmic
         Then the error "Invalid log level cataclysmic!" should be shown
@@ -444,16 +499,32 @@ Feature: Various utility commands.
     Scenario: Using :debug-log-capacity
         When I run :debug-log-capacity 100
         And I run :message-info oldstuff
-        And I run :repeat 10 :message-info otherstuff
+        And I run :repeat 20 :message-info otherstuff
         And I run :message-info newstuff
         And I open qute:log
         Then the page should contain the plaintext "newstuff"
         And the page should not contain the plaintext "oldstuff"
 
+   Scenario: Using :debug-log-capacity with negative capacity
+       When I run :debug-log-capacity -1
+       Then the error "Can't set a negative log capacity!" should be shown
+
+    # :debug-log-level / :debug-log-filter
+    # Other :debug-log-{level,filter} features are tested in
+    # unit/utils/test_log.py as using them would break end2end tests.
+
+    Scenario: Using debug-log-level with invalid level
+        When I run :debug-log-level hello
+        Then the error "level: Invalid value hello - expected one of: vdebug, debug, info, warning, error, critical" should be shown
+
+    Scenario: Using debug-log-filter with invalid filter
+        When I run :debug-log-filter blah
+        Then the error "filters: Invalid value blah - expected one of: statusbar, *" should be shown
+
     ## https://github.com/The-Compiler/qutebrowser/issues/1523
 
     Scenario: Completing a single option argument
-        When I run :set-cmd-text -s :-- 
+        When I run :set-cmd-text -s :--
         Then no crash should happen
 
     ## https://github.com/The-Compiler/qutebrowser/issues/1386
@@ -472,6 +543,7 @@ Feature: Various utility commands.
 
     ## https://github.com/The-Compiler/qutebrowser/issues/1219
 
+    @qtwebengine_todo: private browsing is not implemented yet
     Scenario: Sharing cookies with private browsing
         When I set general -> private-browsing to true
         And I open cookies/set?qute-test=42 without waiting
@@ -481,6 +553,7 @@ Feature: Various utility commands.
 
     ## https://github.com/The-Compiler/qutebrowser/issues/1742
 
+    @qtwebengine_todo: private browsing is not implemented yet
     Scenario: Private browsing is activated in QtWebKit without restart
         When I set general -> private-browsing to true
         And I open data/javascript/localstorage.html
@@ -498,24 +571,31 @@ Feature: Various utility commands.
         Given I open data/scroll/simple.html
         And I run :tab-only
         When I run :scroll down with count 3
+        And I wait until the scroll position changed
         And I run :scroll up
+        And I wait until the scroll position changed
         And I run :repeat-command with count 2
+        And I wait until the scroll position changed to 0/0
         Then the page should not be scrolled
 
     Scenario: :repeat-command with not-normal command inbetween
         Given I open data/scroll/simple.html
         And I run :tab-only
         When I run :scroll down with count 3
+        And I wait until the scroll position changed
         And I run :scroll up
+        And I wait until the scroll position changed
         And I run :prompt-accept
         And I run :repeat-command with count 2
+        And I wait until the scroll position changed to 0/0
         Then the page should not be scrolled
         And the error "prompt-accept: This command is only allowed in prompt/yesno mode." should be shown
 
+    @qtwebengine_createWindow
     Scenario: :repeat-command with mode-switching command
         Given I open data/hints/link_blank.html
         And I run :tab-only
-        When I run :hint
+        When I hint with args "all"
         And I run :leave-mode
         And I run :repeat-command
         And I run :follow-hint a
@@ -579,3 +659,11 @@ Feature: Various utility commands.
         And the following tabs should be open:
             - data/click_element.html
             - data/hello.txt (active)
+
+    @qtwebengine_flaky
+    Scenario: Clicking an element which is out of view
+        When I open data/scroll/simple.html
+        And I run :scroll-page 0 1
+        And I wait until the scroll position changed
+        And I run :click-element id link
+        Then the error "Element position is out of view!" should be shown

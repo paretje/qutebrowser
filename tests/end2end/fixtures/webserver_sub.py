@@ -84,6 +84,41 @@ def redirect_later_continue():
     return flask.Response(b'Continued redirect.')
 
 
+@app.route('/custom/content-size')
+def content_size():
+    """Send two bytes of data without a content-size."""
+    def generate_bytes():
+        yield b'*'
+        time.sleep(0.2)
+        yield b'*'
+
+    response = flask.Response(generate_bytes(), headers={
+        "Content-Type": "application/octet-stream",
+    })
+    response.status_code = 200
+    return response
+
+
+@app.route('/custom/twenty-mb')
+def twenty_mb():
+    """Send 20MB of data."""
+    def generate_bytes():
+        yield b'*' * 20 * 1024 * 1024
+
+    response = flask.Response(generate_bytes(), headers={
+        "Content-Type": "application/octet-stream",
+        "Content-Length": str(20 * 1024 * 1024),
+    })
+    response.status_code = 200
+    return response
+
+
+@app.route('/custom/redirect-self')
+def redirect_self():
+    """302 Redirects to itself."""
+    return app.make_response(flask.redirect(flask.url_for('redirect_self')))
+
+
 @app.after_request
 def log_request(response):
     """Log a webserver request."""

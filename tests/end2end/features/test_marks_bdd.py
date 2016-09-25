@@ -22,7 +22,7 @@ bdd.scenarios('marks.feature')
 
 
 @bdd.then(bdd.parsers.parse("the page should be scrolled to {x} {y}"))
-def check_y(quteproc, x, y):
+def check_y(request, quteproc, x, y):
     data = quteproc.get_session()
     pos = data['windows'][0]['tabs'][0]['history'][-1]['scroll-pos']
     assert int(x) == pos['x']

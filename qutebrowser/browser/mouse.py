@@ -64,6 +64,8 @@ class MouseEventFilter(QObject):
     """Handle mouse events on a tab.
 
     Attributes:
+        _widget_class: The class of the main widget getting the events.
+                       All other events are ignored.
         _tab: The browsertab object this filter is installed on.
         _handlers: A dict of handler functions for the handled events.
         _ignore_wheel_event: Whether to ignore the next wheelEvent.
@@ -71,8 +73,9 @@ class MouseEventFilter(QObject):
                                       done when the mouse is released.
     """
 
-    def __init__(self, tab, parent=None):
+    def __init__(self, tab, *, widget_class, parent=None):
         super().__init__(parent)
+        self._widget_class = widget_class
         self._tab = tab
         self._handlers = {
             QEvent.MouseButtonPress: self._handle_mouse_press,
@@ -122,7 +125,7 @@ class MouseEventFilter(QObject):
             if factor < 0:
                 return False
             perc = int(100 * factor)
-            message.info(self._tab.win_id, "Zoom level: {}%".format(perc))
+            message.info("Zoom level: {}%".format(perc))
             self._tab.zoom.set_factor(factor)
 
         return False
@@ -188,15 +191,13 @@ class MouseEventFilter(QObject):
             if self._tab.history.can_go_back():
                 self._tab.history.back()
             else:
-                message.error(self._tab.win_id, "At beginning of history.",
-                              immediately=True)
+                message.error("At beginning of history.")
         elif e.button() in [Qt.XButton2, Qt.RightButton]:
             # Forward button on mice which have it, or rocker gesture
             if self._tab.history.can_go_forward():
                 self._tab.history.forward()
             else:
-                message.error(self._tab.win_id, "At end of history.",
-                              immediately=True)
+                message.error("At end of history.")
 
     def _mousepress_opentarget(self, e):
         """Set the open target when something was clicked.
@@ -219,9 +220,14 @@ class MouseEventFilter(QObject):
             self._tab.data.open_target = usertypes.ClickTarget.normal
             log.mouse.debug("Normal click, setting normal target")
 
-    def eventFilter(self, _obj, event):
+    def eventFilter(self, obj, event):
         """Filter events going to a QWeb(Engine)View."""
         evtype = event.type()
         if evtype not in self._handlers:
+            return False
+        if not isinstance(obj, self._widget_class):
+            log.mouse.debug("Ignoring {} to {} which is not an instance of "
+                            "{}".format(event.__class__.__name__, obj,
+                                        self._widget_class))
             return False
         return self._handlers[evtype](event)

@@ -21,7 +21,6 @@
 
 import sys
 import enum
-import datetime
 import os.path
 import io
 import logging
@@ -296,12 +295,11 @@ class TestInterpolateColor:
         with pytest.raises(qtutils.QtValueError):
             utils.interpolate_color(colors.white, Color(), 0)
 
-    def test_invalid_percentage(self, colors):
+    @pytest.mark.parametrize('perc', [-1, 101])
+    def test_invalid_percentage(self, colors, perc):
         """Test an invalid percentage."""
         with pytest.raises(ValueError):
-            utils.interpolate_color(colors.white, colors.white, -1)
-        with pytest.raises(ValueError):
-            utils.interpolate_color(colors.white, colors.white, 101)
+            utils.interpolate_color(colors.white, colors.white, perc)
 
     def test_invalid_colorspace(self, colors):
         """Test an invalid colorspace."""
@@ -309,30 +307,14 @@ class TestInterpolateColor:
             utils.interpolate_color(colors.white, colors.black, 10,
                                     QColor.Cmyk)
 
-    def test_valid_percentages_rgb(self, colors):
-        """Test 0% and 100% in the RGB colorspace."""
+    @pytest.mark.parametrize('colorspace', [QColor.Rgb, QColor.Hsv,
+                                            QColor.Hsl])
+    def test_0_100(self, colors, colorspace):
+        """Test 0% and 100% in different colorspaces."""
         white = utils.interpolate_color(colors.white, colors.black, 0,
-                                        QColor.Rgb)
+                                        colorspace)
         black = utils.interpolate_color(colors.white, colors.black, 100,
-                                        QColor.Rgb)
-        assert Color(white) == colors.white
-        assert Color(black) == colors.black
-
-    def test_valid_percentages_hsv(self, colors):
-        """Test 0% and 100% in the HSV colorspace."""
-        white = utils.interpolate_color(colors.white, colors.black, 0,
-                                        QColor.Hsv)
-        black = utils.interpolate_color(colors.white, colors.black, 100,
-                                        QColor.Hsv)
-        assert Color(white) == colors.white
-        assert Color(black) == colors.black
-
-    def test_valid_percentages_hsl(self, colors):
-        """Test 0% and 100% in the HSL colorspace."""
-        white = utils.interpolate_color(colors.white, colors.black, 0,
-                                        QColor.Hsl)
-        black = utils.interpolate_color(colors.white, colors.black, 100,
-                                        QColor.Hsl)
+                                        colorspace)
         assert Color(white) == colors.white
         assert Color(black) == colors.black
 
@@ -392,25 +374,6 @@ class TestInterpolateColor:
 ])
 def test_format_seconds(seconds, out):
     assert utils.format_seconds(seconds) == out
-
-
-@pytest.mark.parametrize('td, out', [
-    (datetime.timedelta(seconds=-1), '-1s'),
-    (datetime.timedelta(seconds=0), '0s'),
-    (datetime.timedelta(seconds=59), '59s'),
-    (datetime.timedelta(seconds=120), '2m'),
-    (datetime.timedelta(seconds=60.4), '1m'),
-    (datetime.timedelta(seconds=63), '1m 3s'),
-    (datetime.timedelta(seconds=-64), '-1m 4s'),
-    (datetime.timedelta(seconds=3599), '59m 59s'),
-    (datetime.timedelta(seconds=3600), '1h'),
-    (datetime.timedelta(seconds=3605), '1h 5s'),
-    (datetime.timedelta(seconds=3723), '1h 2m 3s'),
-    (datetime.timedelta(seconds=3780), '1h 3m'),
-    (datetime.timedelta(seconds=36000), '10h'),
-])
-def test_format_timedelta(td, out):
-    assert utils.format_timedelta(td) == out
 
 
 class TestFormatSize:
@@ -606,7 +569,7 @@ class TestFakeIO:
 
     """Test FakeIO."""
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def restore_streams(self):
         """Restore sys.stderr/sys.stdout after tests."""
         old_stdout = sys.stdout
@@ -699,7 +662,7 @@ class TestDisabledExcepthook:
     the excepthook (which is hard to test).
     """
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.fixture(autouse=True)
     def restore_excepthook(self):
         """Restore sys.excepthook and sys.__excepthook__ after tests."""
         old_excepthook = sys.excepthook
@@ -866,22 +829,17 @@ class TestRaises:
         """Helper function which does nothing."""
         pass
 
-    def test_raises_single_exc_true(self):
+    @pytest.mark.parametrize('exception, value, expected', [
+        (ValueError, 'a', True),
+        ((ValueError, TypeError), 'a', True),
+        ((ValueError, TypeError), None, True),
+
+        (ValueError, '1', False),
+        ((ValueError, TypeError), 1, False),
+    ])
+    def test_raises_int(self, exception, value, expected):
         """Test raises with a single exception which gets raised."""
-        assert utils.raises(ValueError, int, 'a')
-
-    def test_raises_single_exc_false(self):
-        """Test raises with a single exception which does not get raised."""
-        assert not utils.raises(ValueError, int, '1')
-
-    def test_raises_multiple_exc_true(self):
-        """Test raises with multiple exceptions which get raised."""
-        assert utils.raises((ValueError, TypeError), int, 'a')
-        assert utils.raises((ValueError, TypeError), int, None)
-
-    def test_raises_multiple_exc_false(self):
-        """Test raises with multiple exceptions which do not get raised."""
-        assert not utils.raises((ValueError, TypeError), int, '1')
+        assert utils.raises(exception, int, value) == expected
 
     def test_no_args_true(self):
         """Test with no args and an exception which gets raised."""

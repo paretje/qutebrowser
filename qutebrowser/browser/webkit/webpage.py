@@ -170,7 +170,8 @@ class BrowserPage(QWebPage):
             title = "Error loading page: {}".format(urlstr)
             html = jinja.render(
                 'error.html',
-                title=title, url=urlstr, error=error_str, icon='')
+                title=title, url=urlstr, error=error_str, icon='',
+                qutescheme=False)
             errpage.content = html.encode('utf-8')
             errpage.encoding = 'utf-8'
             return True
@@ -249,8 +250,8 @@ class BrowserPage(QWebPage):
     def on_print_requested(self, frame):
         """Handle printing when requested via javascript."""
         if not qtutils.check_print_compat():
-            message.error(self._win_id, "Printing on Qt < 5.3.0 on Windows is "
-                          "broken, please upgrade!", immediately=True)
+            message.error("Printing on Qt < 5.3.0 on Windows is broken, "
+                          "please upgrade!")
             return
         printdiag = QPrintDialog()
         printdiag.setAttribute(Qt.WA_DeleteOnClose)
@@ -268,7 +269,7 @@ class BrowserPage(QWebPage):
         req = QNetworkRequest(request)
         download_manager = objreg.get('download-manager', scope='window',
                                       window=self._win_id)
-        download_manager.get_request(req, page=self)
+        download_manager.get_request(req, qnam=self.networkAccessManager())
 
     @pyqtSlot('QNetworkReply*')
     def on_unsupported_content(self, reply):
@@ -319,6 +320,13 @@ class BrowserPage(QWebPage):
     @pyqtSlot('QWebFrame*', 'QWebPage::Feature')
     def on_feature_permission_requested(self, frame, feature):
         """Ask the user for approval for geolocation/notifications."""
+        if not isinstance(frame, QWebFrame):  # pragma: no cover
+            # This makes no sense whatsoever, but someone reported this being
+            # called with a QBuffer...
+            log.misc.error("on_feature_permission_requested got called with "
+                           "{!r}!".format(frame))
+            return
+
         options = {
             QWebPage.Notifications: ('content', 'notifications'),
             QWebPage.Geolocation: ('content', 'geolocation'),
@@ -495,24 +503,6 @@ class BrowserPage(QWebPage):
             'none': lambda arg: None
         }
         logmap[log_javascript_console](logstring)
-
-    def chooseFile(self, _frame, suggested_file):
-        """Override QWebPage's chooseFile to be able to chose a file to upload.
-
-        Args:
-            frame: The parent QWebFrame.
-            suggested_file: A suggested filename.
-        """
-        filename, _ = QFileDialog.getOpenFileName(None, None, suggested_file)
-        return filename
-
-    def shouldInterruptJavaScript(self):
-        """Override shouldInterruptJavaScript to use the statusbar."""
-        answer = self._ask("Interrupt long-running javascript?",
-                           usertypes.PromptMode.yesno)
-        if answer is None:
-            answer = True
-        return answer
 
     def acceptNavigationRequest(self,
                                 _frame: QWebFrame,

@@ -32,7 +32,6 @@ import datetime
 import tokenize
 
 from PyQt5.QtWidgets import QApplication, QWidget
-from PyQt5.QtWebKit import QWebSettings
 from PyQt5.QtGui import QDesktopServices, QPixmap, QIcon, QWindow
 from PyQt5.QtCore import (pyqtSlot, qInstallMessageHandler, QTimer, QUrl,
                           QObject, QEvent, pyqtSignal)
@@ -46,9 +45,9 @@ import qutebrowser.resources
 from qutebrowser.completion.models import instances as completionmodels
 from qutebrowser.commands import cmdutils, runners, cmdexc
 from qutebrowser.config import style, config, websettings, configexc
-from qutebrowser.browser import urlmarks, adblock, history
+from qutebrowser.browser import urlmarks, adblock, history, browsertab
 from qutebrowser.browser.webkit import cookies, cache, downloads
-from qutebrowser.browser.webkit.network import (qutescheme, proxy,
+from qutebrowser.browser.webkit.network import (webkitqutescheme, proxy,
                                                 networkmanager)
 from qutebrowser.mainwindow import mainwindow
 from qutebrowser.misc import (readline, ipc, savemanager, sessions,
@@ -150,7 +149,6 @@ def init(args, crash_handler):
     config_obj = objreg.get('config')
     config_obj.style_changed.connect(style.get_stylesheet.cache_clear)
     qApp.focusChanged.connect(on_focus_changed)
-    qApp.focusChanged.connect(message.on_focus_changed)
 
     QDesktopServices.setUrlHandler('http', open_desktopservices_url)
     QDesktopServices.setUrlHandler('https', open_desktopservices_url)
@@ -182,8 +180,7 @@ def _process_args(args):
         try:
             config_obj.set('temp', sect, opt, val)
         except (configexc.Error, configparser.Error) as e:
-            message.error('current', "set: {} - {}".format(
-                e.__class__.__name__, e))
+            message.error("set: {} - {}".format(e.__class__.__name__, e))
 
     domains.init()
     if not args.override_restore:
@@ -219,10 +216,9 @@ def _load_session(name):
     try:
         session_manager.load(name)
     except sessions.SessionNotFoundError:
-        message.error('current', "Session {} not found!".format(name))
+        message.error("Session {} not found!".format(name))
     except sessions.SessionError as e:
-        message.error('current', "Failed to load session {}: {}".format(
-            name, e))
+        message.error("Failed to load session {}: {}".format(name, e))
     try:
         del state_config['general']['session']
     except KeyError:
@@ -274,8 +270,8 @@ def process_pos_args(args, via_ipc=False, cwd=None, target_arg=None):
             try:
                 url = urlutils.fuzzy_url(cmd, cwd, relative=True)
             except urlutils.InvalidUrlError as e:
-                message.error('current', "Error in startup argument '{}': "
-                              "{}".format(cmd, e))
+                message.error("Error in startup argument '{}': {}".format(
+                    cmd, e))
             else:
                 background = open_target in ['tab-bg', 'tab-bg-silent']
                 tabbed_browser.tabopen(url, background=background,
@@ -304,8 +300,7 @@ def _open_startpage(win_id=None):
                 try:
                     url = urlutils.fuzzy_url(urlstr, do_search=False)
                 except urlutils.InvalidUrlError as e:
-                    message.error('current', "Error when opening startpage: "
-                                  "{}".format(e))
+                    message.error("Error when opening startpage: {}".format(e))
                     tabbed_browser.tabopen(QUrl('about:blank'))
                 else:
                     tabbed_browser.tabopen(url)
@@ -377,50 +372,67 @@ def _init_modules(args, crash_handler):
     save_manager = savemanager.SaveManager(qApp)
     objreg.register('save-manager', save_manager)
     save_manager.add_saveable('version', _save_version)
+
     log.init.debug("Initializing network...")
     networkmanager.init()
+
     log.init.debug("Initializing readline-bridge...")
     readline_bridge = readline.ReadlineBridge()
     objreg.register('readline-bridge', readline_bridge)
+
     log.init.debug("Initializing directories...")
     standarddir.init(args)
+
     log.init.debug("Initializing config...")
     config.init(qApp)
     save_manager.init_autosave()
+
     log.init.debug("Initializing web history...")
     history.init(qApp)
+
     log.init.debug("Initializing crashlog...")
     if not args.no_err_windows:
         crash_handler.handle_segfault()
+
     log.init.debug("Initializing sessions...")
     sessions.init(qApp)
+
     log.init.debug("Initializing js-bridge...")
-    js_bridge = qutescheme.JSBridge(qApp)
+    js_bridge = webkitqutescheme.JSBridge(qApp)
     objreg.register('js-bridge', js_bridge)
+
     log.init.debug("Initializing websettings...")
     websettings.init()
+
     log.init.debug("Initializing adblock...")
     host_blocker = adblock.HostBlocker()
     host_blocker.read_hosts()
     objreg.register('host-blocker', host_blocker)
+
     log.init.debug("Initializing quickmarks...")
     quickmark_manager = urlmarks.QuickmarkManager(qApp)
     objreg.register('quickmark-manager', quickmark_manager)
+
     log.init.debug("Initializing bookmarks...")
     bookmark_manager = urlmarks.BookmarkManager(qApp)
     objreg.register('bookmark-manager', bookmark_manager)
+
     log.init.debug("Initializing proxy...")
     proxy.init()
+
     log.init.debug("Initializing cookies...")
     cookie_jar = cookies.CookieJar(qApp)
     ram_cookie_jar = cookies.RAMCookieJar(qApp)
     objreg.register('cookie-jar', cookie_jar)
     objreg.register('ram-cookie-jar', ram_cookie_jar)
+
     log.init.debug("Initializing cache...")
     diskcache = cache.DiskCache(standarddir.cache(), parent=qApp)
     objreg.register('cache', diskcache)
+
     log.init.debug("Initializing completions...")
     completionmodels.init()
+
     log.init.debug("Misc initialization...")
     if config.get('ui', 'hide-wayland-decoration'):
         os.environ['QT_WAYLAND_DISABLE_WINDOWDECORATION'] = '1'
@@ -428,6 +440,8 @@ def _init_modules(args, crash_handler):
         os.environ.pop('QT_WAYLAND_DISABLE_WINDOWDECORATION', None)
     temp_downloads = downloads.TempDownloadManager(qApp)
     objreg.register('temporary-downloads', temp_downloads)
+    # Init backend-specific stuff
+    browsertab.init(args)
 
 
 def _init_late_modules(args):
@@ -690,9 +704,7 @@ class Quitter:
                         e, self._args, "Error while saving!",
                         pre_text="Error while saving {}".format(key))
         # Disable storage so removing tempdir will work
-        QWebSettings.setIconDatabasePath('')
-        QWebSettings.setOfflineWebApplicationCachePath('')
-        QWebSettings.globalSettings().setLocalStoragePath('')
+        websettings.shutdown()
         # Re-enable faulthandler to stdout, then remove crash log
         log.destroy.debug("Deactivating crash log...")
         objreg.get('crash-handler').destroy_crashlogfile()

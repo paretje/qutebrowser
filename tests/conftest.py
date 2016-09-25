@@ -21,23 +21,19 @@
 
 """The qutebrowser test suite conftest file."""
 
-import re
 import os
 import sys
 import warnings
-import operator
 
 import pytest
 import hypothesis
+
+pytest.register_assert_rewrite('helpers')
 
 from helpers import logfail
 from helpers.logfail import fail_on_logging
 from helpers.messagemock import message_mock
 from helpers.fixtures import *  # pylint: disable=wildcard-import
-
-from PyQt5.QtCore import PYQT_VERSION
-
-from qutebrowser.utils import qtutils
 
 
 # Set hypothesis settings
@@ -76,7 +72,7 @@ def _apply_platform_markers(item):
         item.add_marker(skipif_marker)
 
 
-def pytest_collection_modifyitems(items):
+def pytest_collection_modifyitems(config, items):
     """Handle custom markers.
 
     pytest hook called after collection has been performed.
@@ -86,8 +82,8 @@ def pytest_collection_modifyitems(items):
 
     For example:
 
-        py.test -m "not gui"  # run all tests except gui tests
-        py.test -m "gui"  # run only gui tests
+        pytest -m "not gui"  # run all tests except gui tests
+        pytest -m "gui"  # run only gui tests
 
     It also handles the platform specific markers by translating them to skipif
     markers.
@@ -99,7 +95,12 @@ def pytest_collection_modifyitems(items):
     Reference:
         http://pytest.org/latest/plugins.html
     """
+    remaining_items = []
+    deselected_items = []
+
     for item in items:
+        deselected = False
+
         if 'qapp' in getattr(item, 'fixturenames', ()):
             item.add_marker('gui')
 
@@ -108,9 +109,13 @@ def pytest_collection_modifyitems(items):
                 item.module.__file__,
                 os.path.commonprefix([__file__, item.module.__file__]))
 
-            module_root_dir = os.path.split(module_path)[0]
+            module_root_dir = module_path.split(os.sep)[0]
+            assert module_root_dir in ['end2end', 'unit', 'helpers',
+                                       'test_conftest.py']
             if module_root_dir == 'end2end':
                 item.add_marker(pytest.mark.end2end)
+            elif os.environ.get('QUTE_BDD_WEBENGINE', ''):
+                deselected = True
 
         _apply_platform_markers(item)
         if item.get_marker('xfail_norun'):
@@ -118,11 +123,18 @@ def pytest_collection_modifyitems(items):
         if item.get_marker('flaky_once'):
             item.add_marker(pytest.mark.flaky(reruns=1))
 
+        if deselected:
+            deselected_items.append(item)
+        else:
+            remaining_items.append(item)
+
+    config.hook.pytest_deselected(items=deselected_items)
+    items[:] = remaining_items
+
 
 def pytest_ignore_collect(path):
     """Ignore BDD tests if we're unable to run them."""
-    skip_bdd = (hasattr(sys, 'frozen') or
-                int(pytest.__version__.split('.')[0]) == 3)
+    skip_bdd = hasattr(sys, 'frozen')
     rel_path = path.relto(os.path.dirname(__file__))
     return rel_path == os.path.join('end2end', 'features') and skip_bdd
 
@@ -141,6 +153,17 @@ def pytest_addoption(parser):
                      default=False, help="Run cProfile for subprocesses.")
     parser.addoption('--qute-bdd-webengine', action='store_true',
                      help='Use QtWebEngine for BDD tests')
+
+
+def pytest_configure(config):
+    webengine_arg = config.getoption('--qute-bdd-webengine')
+    webengine_env = os.environ.get('QUTE_BDD_WEBENGINE', '')
+    config.webengine = bool(webengine_arg or webengine_env)
+    # Fail early if QtWebEngine is not available
+    # pylint: disable=no-name-in-module,unused-variable,useless-suppression
+    if config.webengine:
+        import PyQt5.QtWebEngineWidgets
+    # pylint: enable=no-name-in-module,unused-variable,useless-suppression
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -181,51 +204,3 @@ def pytest_sessionfinish(exitstatus):
     status_file = os.path.join(cache_dir, 'pytest_status')
     with open(status_file, 'w', encoding='ascii') as f:
         f.write(str(exitstatus))
-
-
-if not getattr(sys, 'frozen', False):
-    def pytest_bdd_apply_tag(tag, function):
-        """Handle tags like pyqt>=5.3.1 for BDD tests.
-
-        This transforms e.g. pyqt>=5.3.1 into an appropriate @pytest.mark.skip
-        marker, and falls back to pytest-bdd's implementation for all other
-        casesinto an appropriate @pytest.mark.skip marker, and falls back to
-        pytest-bdd's implementation for all other cases
-        """
-        version_re = re.compile(r"""
-            (?P<package>qt|pyqt)
-            (?P<operator>==|>|>=|<|<=|!=)
-            (?P<version>\d+\.\d+\.\d+)
-        """, re.VERBOSE)
-
-        match = version_re.match(tag)
-        if not match:
-            # Use normal tag mapping
-            return None
-
-        operators = {
-            '==': operator.eq,
-            '>': operator.gt,
-            '<': operator.lt,
-            '>=': operator.ge,
-            '<=': operator.le,
-            '!=': operator.ne,
-        }
-
-        package = match.group('package')
-        op = operators[match.group('operator')]
-        version = match.group('version')
-
-        if package == 'qt':
-            mark = pytest.mark.skipif(qtutils.version_check(version, op),
-                                      reason='Needs ' + tag)
-        elif package == 'pyqt':
-            major, minor, patch = [int(e) for e in version.split('.')]
-            hex_version = (major << 16) | (minor << 8) | patch
-            mark = pytest.mark.skipif(not op(PYQT_VERSION, hex_version),
-                                      reason='Needs ' + tag)
-        else:
-            raise ValueError("Invalid package {!r}".format(package))
-
-        mark(function)
-        return True

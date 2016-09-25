@@ -84,7 +84,6 @@ class _BaseUserscriptRunner(QObject):
     Attributes:
         _filepath: The path of the file/FIFO which is being read.
         _proc: The GUIProcess which is being executed.
-        _win_id: The window ID this runner is associated with.
         _cleaned_up: Whether temporary files were cleaned up.
         _text_stored: Set when the page text was stored async.
         _html_stored: Set when the page html was stored async.
@@ -99,10 +98,9 @@ class _BaseUserscriptRunner(QObject):
     got_cmd = pyqtSignal(str)
     finished = pyqtSignal()
 
-    def __init__(self, win_id, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self._cleaned_up = False
-        self._win_id = win_id
         self._filepath = None
         self._proc = None
         self._env = {}
@@ -151,7 +149,7 @@ class _BaseUserscriptRunner(QObject):
         self._env['QUTE_FIFO'] = self._filepath
         if env is not None:
             self._env.update(env)
-        self._proc = guiprocess.GUIProcess(self._win_id, 'userscript',
+        self._proc = guiprocess.GUIProcess('userscript',
                                            additional_env=self._env,
                                            verbose=verbose, parent=self)
         self._proc.finished.connect(self.on_proc_finished)
@@ -175,9 +173,8 @@ class _BaseUserscriptRunner(QObject):
             except OSError as e:
                 # NOTE: Do not replace this with "raise CommandError" as it's
                 # executed async.
-                message.error(
-                    self._win_id, "Failed to delete tempfile {} ({})!".format(
-                        fn, e))
+                message.error("Failed to delete tempfile {} ({})!".format(
+                    fn, e))
         self._filepath = None
         self._proc = None
         self._env = {}
@@ -223,8 +220,8 @@ class _POSIXUserscriptRunner(_BaseUserscriptRunner):
         _reader: The _QtFIFOReader instance.
     """
 
-    def __init__(self, win_id, parent=None):
-        super().__init__(win_id, parent)
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self._reader = None
 
     def prepare_run(self, *args, **kwargs):
@@ -242,8 +239,7 @@ class _POSIXUserscriptRunner(_BaseUserscriptRunner):
             # pylint: disable=no-member,useless-suppression
             os.mkfifo(self._filepath)
         except OSError as e:
-            message.error(self._win_id,
-                          "Error while creating FIFO: {}".format(e))
+            message.error("Error while creating FIFO: {}".format(e))
             return
 
         self._reader = _QtFIFOReader(self._filepath)
@@ -280,14 +276,7 @@ class _WindowsUserscriptRunner(_BaseUserscriptRunner):
 
     This also means the userscript *has* to use >> (append) rather than >
     (overwrite) to write to the file!
-
-    Attributes:
-        _oshandle: The oshandle of the temp file.
     """
-
-    def __init__(self, win_id, parent=None):
-        super().__init__(win_id, parent)
-        self._oshandle = None
 
     def _cleanup(self):
         """Clean up temporary files after the userscript finished."""
@@ -301,12 +290,7 @@ class _WindowsUserscriptRunner(_BaseUserscriptRunner):
         except OSError:
             log.procs.exception("Failed to read command file!")
 
-        try:
-            os.close(self._oshandle)
-        except OSError:
-            log.procs.exception("Failed to close file handle!")
         super()._cleanup()
-        self._oshandle = None
         self.finished.emit()
 
     @pyqtSlot()
@@ -323,10 +307,11 @@ class _WindowsUserscriptRunner(_BaseUserscriptRunner):
         self._kwargs = kwargs
 
         try:
-            self._oshandle, self._filepath = tempfile.mkstemp(text=True)
+            handle = tempfile.NamedTemporaryFile(delete=False)
+            handle.close()
+            self._filepath = handle.name
         except OSError as e:
-            message.error(self._win_id, "Error while creating tempfile: "
-                                        "{}".format(e))
+            message.error("Error while creating tempfile: {}".format(e))
             return
 
 
@@ -358,9 +343,9 @@ def run_async(tab, cmd, *args, win_id, env, verbose=False):
     commandrunner = runners.CommandRunner(win_id, parent=tabbed_browser)
 
     if os.name == 'posix':
-        runner = _POSIXUserscriptRunner(win_id, tabbed_browser)
+        runner = _POSIXUserscriptRunner(tabbed_browser)
     elif os.name == 'nt':  # pragma: no cover
-        runner = _WindowsUserscriptRunner(win_id, tabbed_browser)
+        runner = _WindowsUserscriptRunner(tabbed_browser)
     else:  # pragma: no cover
         raise UnsupportedError
 

@@ -525,6 +525,7 @@ Feature: Tab management
     Scenario: Cloning a tab with history and title
         When I open data/title.html
         And I run :tab-clone
+        And I wait until data/title.html is loaded
         Then the session should look like:
             windows:
             - tabs:
@@ -542,6 +543,7 @@ Feature: Tab management
         When I open data/hello.txt
         And I run :zoom 120
         And I run :tab-clone
+        And I wait until data/hello.txt is loaded
         Then the session should look like:
             windows:
             - tabs:
@@ -558,6 +560,7 @@ Feature: Tab management
     Scenario: Cloning to background tab
         When I open data/hello2.txt
         And I run :tab-clone -b
+        And I wait until data/hello2.txt is loaded
         Then the following tabs should be open:
             - data/hello2.txt (active)
             - data/hello2.txt
@@ -565,6 +568,7 @@ Feature: Tab management
     Scenario: Cloning to new window
         When I open data/title.html
         And I run :tab-clone -w
+        And I wait until data/title.html is loaded
         Then the session should look like:
             windows:
             - tabs:
@@ -584,6 +588,7 @@ Feature: Tab management
         When I open data/title.html
         And I set tabs -> tabs-are-windows to true
         And I run :tab-clone
+        And I wait until data/title.html is loaded
         Then the session should look like:
             windows:
             - tabs:
@@ -647,6 +652,7 @@ Feature: Tab management
                 - url: http://localhost:*/data/numbers/2.txt
                 - url: http://localhost:*/data/numbers/3.txt
 
+    @qtwebengine_flaky
     Scenario: Undo with auto-created last tab
         When I open data/hello.txt
         And I run :tab-only
@@ -658,6 +664,7 @@ Feature: Tab management
         Then the following tabs should be open:
             - data/hello.txt (active)
 
+    @qtwebengine_flaky
     Scenario: Undo with auto-created last tab, with history
         When I open data/hello.txt
         And I open data/hello2.txt
@@ -746,6 +753,7 @@ Feature: Tab management
         And I run :tab-close with count 1
         And I open data/numbers/3.txt in a new tab
         And I run :undo
+        And I wait until data/numbers/1.txt is loaded
         Then the following tabs should be open:
             - data/numbers/1.txt (active)
             - data/numbers/2.txt
@@ -753,6 +761,8 @@ Feature: Tab management
 
     # last-close
 
+    # FIXME:qtwebengine
+    @qtwebengine_skip: Waits for an earlier about:blank and fails
     Scenario: last-close = blank
         When I open data/hello.txt
         And I set tabs -> last-close to blank
@@ -794,8 +804,7 @@ Feature: Tab management
     Scenario: opening links with tabs->background-tabs true
         When I set tabs -> background-tabs to true
         And I open data/hints/html/simple.html
-        And I run :hint all tab
-        And I run :follow-hint a
+        And I hint with args "all tab" and follow a
         And I wait until data/hello.txt is loaded
         Then the following tabs should be open:
             - data/hints/html/simple.html (active)
@@ -878,7 +887,7 @@ Feature: Tab management
         And I open data/caret.html in a new window
         And I open data/paste_primary.html in a new tab
         And I run :buffer "Scrolling"
-        And I wait for "Focus object changed: <qutebrowser.browser.* tab_id=* url='http://localhost:*/data/scroll/simple.html'>" in the log
+        And I wait for "Focus object changed: *" in the log
         Then the session should look like:
             windows:
             - active: true
@@ -917,7 +926,7 @@ Feature: Tab management
         And I open data/paste_primary.html in a new tab
         And I wait until data/caret.html is loaded
         And I run :buffer "0/2"
-        And I wait for "Focus object changed: <qutebrowser.browser.* tab_id=* url='http://localhost:*/data/search.html'>" in the log
+        And I wait for "Focus object changed: *" in the log
         Then the session should look like:
             windows:
             - active: true

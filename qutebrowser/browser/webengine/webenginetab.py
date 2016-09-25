@@ -24,16 +24,51 @@
 
 import functools
 
-from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QPoint
+from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QPoint, QUrl, QTimer
 from PyQt5.QtGui import QKeyEvent, QIcon
-from PyQt5.QtWidgets import QApplication
 # pylint: disable=no-name-in-module,import-error,useless-suppression
-from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineScript
+from PyQt5.QtWidgets import QOpenGLWidget, QApplication
+from PyQt5.QtWebEngineWidgets import (QWebEnginePage, QWebEngineScript,
+                                      QWebEngineProfile)
 # pylint: enable=no-name-in-module,import-error,useless-suppression
 
 from qutebrowser.browser import browsertab, mouse
-from qutebrowser.browser.webengine import webview, webengineelem
-from qutebrowser.utils import usertypes, qtutils, log, javascript, utils
+from qutebrowser.browser.webengine import (webview, webengineelem, tabhistory,
+                                           interceptor, webenginequtescheme)
+from qutebrowser.utils import (usertypes, qtutils, log, javascript, utils,
+                               objreg)
+
+
+_qute_scheme_handler = None
+
+
+def init():
+    """Initialize QtWebEngine-specific modules."""
+    # For some reason we need to keep a reference, otherwise the scheme handler
+    # won't work...
+    # https://www.riverbankcomputing.com/pipermail/pyqt/2016-September/038075.html
+    global _qute_scheme_handler
+    app = QApplication.instance()
+    profile = QWebEngineProfile.defaultProfile()
+
+    log.init.debug("Initializing qute:* handler...")
+    _qute_scheme_handler = webenginequtescheme.QuteSchemeHandler(parent=app)
+    _qute_scheme_handler.install(profile)
+
+    log.init.debug("Initializing request interceptor...")
+    host_blocker = objreg.get('host-blocker')
+    req_interceptor = interceptor.RequestInterceptor(
+        host_blocker, parent=app)
+    req_interceptor.install(profile)
+
+
+# Mapping worlds from usertypes.JsWorld to QWebEngineScript world IDs.
+_JS_WORLD_MAP = {
+    usertypes.JsWorld.main: QWebEngineScript.MainWorld,
+    usertypes.JsWorld.application: QWebEngineScript.ApplicationWorld,
+    usertypes.JsWorld.user: QWebEngineScript.UserWorld,
+    usertypes.JsWorld.jseval: QWebEngineScript.UserWorld + 1,
+}
 
 
 class WebEnginePrinting(browsertab.AbstractPrinting):
@@ -171,7 +206,7 @@ class WebEngineCaret(browsertab.AbstractCaret):
 
     def selection(self, html=False):
         if html:
-            raise NotImplementedError
+            raise browsertab.UnsupportedOperationError
         return self._widget.selectedText()
 
     def follow_selected(self, *, tab=False):
@@ -182,10 +217,14 @@ class WebEngineScroller(browsertab.AbstractScroller):
 
     """QtWebEngine implementations related to scrolling."""
 
+    # FIXME:qtwebengine
+    # using stuff here with a big count/argument causes memory leaks and hangs
+
     def __init__(self, tab, parent=None):
         super().__init__(tab, parent)
         self._pos_perc = (0, 0)
         self._pos_px = QPoint()
+        self._at_bottom = False
 
     def _init_widget(self, widget):
         super()._init_widget(widget)
@@ -198,11 +237,12 @@ class WebEngineScroller(browsertab.AbstractScroller):
 
     def _key_press(self, key, count=1):
         # FIXME:qtwebengine Abort scrolling if the minimum/maximum was reached.
-        press_evt = QKeyEvent(QEvent.KeyPress, key, Qt.NoModifier, 0, 0, 0)
-        release_evt = QKeyEvent(QEvent.KeyRelease, key, Qt.NoModifier, 0, 0, 0)
         for _ in range(count):
-            self._tab.post_event(press_evt)
-            self._tab.post_event(release_evt)
+            press_evt = QKeyEvent(QEvent.KeyPress, key, Qt.NoModifier, 0, 0, 0)
+            release_evt = QKeyEvent(QEvent.KeyRelease, key, Qt.NoModifier,
+                                    0, 0, 0)
+            self._tab.send_event(press_evt)
+            self._tab.send_event(release_evt)
 
     @pyqtSlot()
     def _update_pos(self):
@@ -213,9 +253,18 @@ class WebEngineScroller(browsertab.AbstractScroller):
                 # This can happen when the callback would get called after
                 # shutting down a tab
                 return
+            log.webview.vdebug(jsret)
             assert isinstance(jsret, dict), jsret
-            self._pos_perc = (jsret['perc']['x'], jsret['perc']['y'])
             self._pos_px = QPoint(jsret['px']['x'], jsret['px']['y'])
+
+            dx = jsret['scroll']['width'] - jsret['inner']['width']
+            perc_x = 0 if dx == 0 else round(100 / dx * jsret['px']['x'])
+            dy = jsret['scroll']['height'] - jsret['inner']['height']
+            perc_y = 0 if dy == 0 else round(100 / dy * jsret['px']['y'])
+
+            self._at_bottom = dy == jsret['px']['y']
+            self._pos_perc = perc_x, perc_y
+
             self.perc_changed.emit(*self._pos_perc)
 
         js_code = javascript.assemble('scroll', 'pos')
@@ -270,7 +319,7 @@ class WebEngineScroller(browsertab.AbstractScroller):
         return self.pos_px().y() == 0
 
     def at_bottom(self):
-        log.stub()
+        return self._at_bottom
 
 
 class WebEngineHistory(browsertab.AbstractHistory):
@@ -299,7 +348,15 @@ class WebEngineHistory(browsertab.AbstractHistory):
         return qtutils.deserialize(data, self._history)
 
     def load_items(self, items):
-        log.stub()
+        stream, _data, cur_data = tabhistory.serialize(items)
+        qtutils.deserialize_stream(stream, self._history)
+        if cur_data is not None:
+            if 'zoom' in cur_data:
+                self._tab.zoom.set_factor(cur_data['zoom'])
+            if ('scroll-pos' in cur_data and
+                    self._tab.scroller.pos_px() == QPoint(0, 0)):
+                QTimer.singleShot(0, functools.partial(
+                    self._tab.scroller.to_point, cur_data['scroll-pos']))
 
 
 class WebEngineZoom(browsertab.AbstractZoom):
@@ -374,9 +431,12 @@ class WebEngineTab(browsertab.AbstractTab):
 
     """A QtWebEngine tab in the browser."""
 
+    WIDGET_CLASS = QOpenGLWidget
+
     def __init__(self, win_id, mode_manager, parent=None):
-        super().__init__(win_id)
-        widget = webview.WebEngineView(tabdata=self.data)
+        super().__init__(win_id=win_id, mode_manager=mode_manager,
+                         parent=parent)
+        widget = webview.WebEngineView(tabdata=self.data, win_id=win_id)
         self.history = WebEngineHistory(self)
         self.scroller = WebEngineScroller(self, parent=self)
         self.caret = WebEngineCaret(win_id=win_id, mode_manager=mode_manager,
@@ -401,9 +461,9 @@ class WebEngineTab(browsertab.AbstractTab):
         ])
         script = QWebEngineScript()
         script.setInjectionPoint(QWebEngineScript.DocumentCreation)
-        page = self._widget.page()
         script.setSourceCode(js_code)
 
+        page = self._widget.page()
         try:
             page.runJavaScript("", QWebEngineScript.ApplicationWorld)
         except TypeError:
@@ -439,19 +499,31 @@ class WebEngineTab(browsertab.AbstractTab):
         else:
             self._widget.page().toHtml(callback)
 
-    def run_js_async(self, code, callback=None):
-        world = QWebEngineScript.ApplicationWorld
+    def run_js_async(self, code, callback=None, *, world=None):
+        if world is None:
+            world_id = QWebEngineScript.ApplicationWorld
+        elif isinstance(world, int):
+            world_id = world
+        else:
+            world_id = _JS_WORLD_MAP[world]
+
         try:
             if callback is None:
-                self._widget.page().runJavaScript(code, world)
+                self._widget.page().runJavaScript(code, world_id)
             else:
-                self._widget.page().runJavaScript(code, world, callback)
+                self._widget.page().runJavaScript(code, world_id, callback)
         except TypeError:
+            if world is not None and world != usertypes.JsWorld.jseval:
+                log.webview.warning("Ignoring world ID on Qt < 5.7")
             # Qt < 5.7
             if callback is None:
                 self._widget.page().runJavaScript(code)
             else:
                 self._widget.page().runJavaScript(code, callback)
+
+    def has_js(self):
+        # QtWebEngine can run JS even if the page can't
+        return True
 
     def shutdown(self):
         log.stub()
@@ -487,6 +559,25 @@ class WebEngineTab(browsertab.AbstractTab):
     def clear_ssl_errors(self):
         log.stub()
 
+    @pyqtSlot()
+    def _on_history_trigger(self):
+        url = self.url()
+        requested_url = self.url(requested=True)
+
+        # Don't save the title if it's generated from the URL
+        title = self.title()
+        title_url = QUrl(url)
+        title_url.setScheme('')
+        if title == title_url.toDisplayString(QUrl.RemoveScheme).strip('/'):
+            title = ""
+
+        # Don't add history entry if the URL is invalid anyways
+        if not url.isValid():
+            log.misc.debug("Ignoring invalid URL being added to history")
+            return
+
+        self.add_history_item.emit(url, requested_url, title)
+
     def _connect_signals(self):
         view = self._widget
         page = view.page()
@@ -509,8 +600,5 @@ class WebEngineTab(browsertab.AbstractTab):
         except AttributeError:
             log.stub('contentsSizeChanged, on Qt < 5.7')
 
-    def post_event(self, evt):
-        # If we get a segfault here, we might want to try sendEvent
-        # instead.
-        recipient = self._widget.focusProxy()
-        QApplication.postEvent(recipient, evt)
+    def _event_target(self):
+        return self._widget.focusProxy()

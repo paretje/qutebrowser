@@ -29,8 +29,8 @@ from PyQt5.QtWebKitWidgets import QWebView, QWebPage, QWebFrame
 
 from qutebrowser.config import config
 from qutebrowser.keyinput import modeman
-from qutebrowser.utils import log, usertypes, utils, qtutils, objreg
-from qutebrowser.browser.webkit import webpage, webkitelem
+from qutebrowser.utils import log, usertypes, utils, qtutils, objreg, debug
+from qutebrowser.browser.webkit import webpage
 
 
 class WebView(QWebView):
@@ -70,23 +70,23 @@ class WebView(QWebView):
         self._set_bg_color()
         self._tab_id = tab_id
 
-        self._init_page(tab.data)
+        page = webpage.BrowserPage(self.win_id, self._tab_id, tab.data,
+                                   parent=self)
+
+        try:
+            page.setVisibilityState(
+                QWebPage.VisibilityStateVisible if self.isVisible()
+                else QWebPage.VisibilityStateHidden)
+        except AttributeError:
+            pass
+
+        self.setPage(page)
+
         mode_manager = objreg.get('mode-manager', scope='window',
                                   window=win_id)
         mode_manager.entered.connect(self.on_mode_entered)
         mode_manager.left.connect(self.on_mode_left)
         objreg.get('config').changed.connect(self._set_bg_color)
-
-    def _init_page(self, tabdata):
-        """Initialize the QWebPage used by this view.
-
-        Args:
-            tabdata: The TabData object for this tab.
-        """
-        page = webpage.BrowserPage(self.win_id, self._tab_id, tabdata,
-                                   parent=self)
-        self.setPage(page)
-        page.mainFrame().loadFinished.connect(self.on_load_finished)
 
     def __repr__(self):
         url = utils.elide(self.url().toDisplayString(QUrl.EncodeUnicode), 100)
@@ -107,7 +107,11 @@ class WebView(QWebView):
 
     @config.change_filter('colors', 'webpage.bg')
     def _set_bg_color(self):
-        """Set the webpage background color as configured."""
+        """Set the webpage background color as configured.
+
+        FIXME:qtwebengine
+        For QtWebEngine, doing the same has no effect, so we do it in here.
+        """
         col = config.get('colors', 'webpage.bg')
         palette = self.palette()
         if col is None:
@@ -205,40 +209,13 @@ class WebView(QWebView):
                 return
             self.zoom.set_factor(float(zoom_policy)/100)
 
-    @pyqtSlot()
-    def on_load_finished(self):
-        """Handle a finished page load.
-
-        We don't take loadFinished's ok argument here as it always seems to be
-        true when the QWebPage has an ErrorPageExtension implemented.
-        See https://github.com/The-Compiler/qutebrowser/issues/84
-        """
-        ok = not self.page().error_occurred
-        self._handle_auto_insert_mode(ok)
-
-    def _handle_auto_insert_mode(self, ok):
-        """Handle auto-insert-mode after loading finished."""
-        if not config.get('input', 'auto-insert-mode'):
-            return
-        mode_manager = objreg.get('mode-manager', scope='window',
-                                  window=self.win_id)
-        cur_mode = mode_manager.mode
-        if cur_mode == usertypes.KeyMode.insert or not ok:
-            return
-        frame = self.page().currentFrame()
-        try:
-            elem = webkitelem.focus_elem(frame)
-        except webkitelem.IsNullError:
-            log.webview.debug("Focused element is null!")
-            return
-        log.modes.debug("focus element: {}".format(repr(elem)))
-        if elem.is_editable():
-            modeman.enter(self.win_id, usertypes.KeyMode.insert,
-                          'load finished', only_if_normal=True)
-
     @pyqtSlot(usertypes.KeyMode)
     def on_mode_entered(self, mode):
-        """Ignore attempts to focus the widget if in any status-input mode."""
+        """Ignore attempts to focus the widget if in any status-input mode.
+
+        FIXME:qtwebengine
+        For QtWebEngine, doing the same has no effect, so we do it in here.
+        """
         if mode in [usertypes.KeyMode.command, usertypes.KeyMode.prompt,
                     usertypes.KeyMode.yesno]:
             log.webview.debug("Ignoring focus because mode {} was "
@@ -247,7 +224,11 @@ class WebView(QWebView):
 
     @pyqtSlot(usertypes.KeyMode)
     def on_mode_left(self, mode):
-        """Restore focus policy if status-input modes were left."""
+        """Restore focus policy if status-input modes were left.
+
+        FIXME:qtwebengine
+        For QtWebEngine, doing the same has no effect, so we do it in here.
+        """
         if mode in [usertypes.KeyMode.command, usertypes.KeyMode.prompt,
                     usertypes.KeyMode.yesno]:
             log.webview.debug("Restoring focus policy because mode {} was "
@@ -273,6 +254,8 @@ class WebView(QWebView):
         Return:
             The new QWebView object.
         """
+        debug_type = debug.qenum_key(QWebPage, wintype)
+        log.webview.debug("createWindow with type {}".format(debug_type))
         if wintype == QWebPage.WebModalDialog:
             log.webview.warning("WebModalDialog requested, but we don't "
                                 "support that!")
@@ -287,6 +270,9 @@ class WebView(QWebView):
         This is a bit of a hack: We listen to repaint requests here, in the
         hope a repaint will always be requested when scrolling, and if the
         scroll position actually changed, we emit a signal.
+
+        QtWebEngine has a scrollPositionChanged signal, so it's not needed
+        there.
 
         Args:
             e: The QPaintEvent.
@@ -309,8 +295,43 @@ class WebView(QWebView):
         super().paintEvent(e)
 
     def contextMenuEvent(self, e):
-        """Save a reference to the context menu so we can close it."""
+        """Save a reference to the context menu so we can close it.
+
+        This is not needed for QtWebEngine, so it's in here.
+        """
         menu = self.page().createStandardContextMenu()
         self.shutting_down.connect(menu.close)
         modeman.instance(self.win_id).entered.connect(menu.close)
         menu.exec_(e.globalPos())
+
+    def showEvent(self, e):
+        """Extend showEvent to set the page visibility state to visible.
+
+        Args:
+            e: The QShowEvent.
+
+        Return:
+            The superclass event return value.
+        """
+        try:
+            self.page().setVisibilityState(QWebPage.VisibilityStateVisible)
+        except AttributeError:
+            pass
+
+        super().showEvent(e)
+
+    def hideEvent(self, e):
+        """Extend hideEvent to set the page visibility state to hidden.
+
+        Args:
+            e: The QHideEvent.
+
+        Return:
+            The superclass event return value.
+        """
+        try:
+            self.page().setVisibilityState(QWebPage.VisibilityStateHidden)
+        except AttributeError:
+            pass
+
+        super().hideEvent(e)

@@ -10,6 +10,7 @@
 |Setting|Description
 |<<general-ignore-case,ignore-case>>|Whether to find text on a page case-insensitively.
 |<<general-startpage,startpage>>|The default page(s) to open at the start, separated by commas.
+|<<general-yank-ignored-url-parameters,yank-ignored-url-parameters>>|The URL parameters to strip with :yank url, separated by commas.
 |<<general-default-page,default-page>>|The page to open if :open -t/-b/-w is used without URL. Use `about:blank` for a blank page.
 |<<general-auto-search,auto-search>>|Whether to start a search when something else than a URL is entered.
 |<<general-auto-save-config,auto-save-config>>|Whether to save the config automatically on quit.
@@ -74,10 +75,9 @@
 [options="header",width="75%",cols="25%,75%"]
 |==============
 |Setting|Description
-|<<completion-auto-open,auto-open>>|Automatically open completion when typing.
+|<<completion-show,show>>|When to show the autocompletion window.
 |<<completion-download-path-suggestion,download-path-suggestion>>|What to display in the download filename input.
 |<<completion-timestamp-format,timestamp-format>>|How to format timestamps (e.g. for history)
-|<<completion-show,show>>|Whether to show the autocompletion window.
 |<<completion-height,height>>|The height of the completion, in px or as percentage of the window.
 |<<completion-cmd-history-max-items,cmd-history-max-items>>|How many commands to save in the command history.
 |<<completion-web-history-max-items,web-history-max-items>>|How many URLs to show in the web history.
@@ -158,7 +158,7 @@
 |<<content-hyperlink-auditing,hyperlink-auditing>>|Enable or disable hyperlink auditing (<a ping>).
 |<<content-geolocation,geolocation>>|Allow websites to request geolocations.
 |<<content-notifications,notifications>>|Allow websites to show notifications.
-|<<content-javascript-can-open-windows,javascript-can-open-windows>>|Whether JavaScript programs can open new windows.
+|<<content-javascript-can-open-windows-automatically,javascript-can-open-windows-automatically>>|Whether JavaScript programs can open new windows without user interaction.
 |<<content-javascript-can-close-windows,javascript-can-close-windows>>|Whether JavaScript programs can close windows.
 |<<content-javascript-can-access-clipboard,javascript-can-access-clipboard>>|Whether JavaScript programs can read or write to the clipboard.
 |<<content-ignore-javascript-prompt,ignore-javascript-prompt>>|Whether all javascript prompts should be ignored.
@@ -212,10 +212,6 @@
 |<<colors-completion.scrollbar.bg,completion.scrollbar.bg>>|Color of the scrollbar in completion view
 |<<colors-statusbar.fg,statusbar.fg>>|Foreground color of the statusbar.
 |<<colors-statusbar.bg,statusbar.bg>>|Background color of the statusbar.
-|<<colors-statusbar.fg.error,statusbar.fg.error>>|Foreground color of the statusbar if there was an error.
-|<<colors-statusbar.bg.error,statusbar.bg.error>>|Background color of the statusbar if there was an error.
-|<<colors-statusbar.fg.warning,statusbar.fg.warning>>|Foreground color of the statusbar if there is a warning.
-|<<colors-statusbar.bg.warning,statusbar.bg.warning>>|Background color of the statusbar if there is a warning.
 |<<colors-statusbar.fg.prompt,statusbar.fg.prompt>>|Foreground color of the statusbar if there is a prompt.
 |<<colors-statusbar.bg.prompt,statusbar.bg.prompt>>|Background color of the statusbar if there is a prompt.
 |<<colors-statusbar.fg.insert,statusbar.fg.insert>>|Foreground color of the statusbar in insert mode.
@@ -262,6 +258,15 @@
 |<<colors-keyhint.fg,keyhint.fg>>|Text color for the keyhint widget.
 |<<colors-keyhint.fg.suffix,keyhint.fg.suffix>>|Highlight color for keys to complete the current keychain
 |<<colors-keyhint.bg,keyhint.bg>>|Background color of the keyhint widget.
+|<<colors-messages.fg.error,messages.fg.error>>|Foreground color of an error message.
+|<<colors-messages.bg.error,messages.bg.error>>|Background color of an error message.
+|<<colors-messages.border.error,messages.border.error>>|Border color of an error message.
+|<<colors-messages.fg.warning,messages.fg.warning>>|Foreground color a warning message.
+|<<colors-messages.bg.warning,messages.bg.warning>>|Background color of a warning message.
+|<<colors-messages.border.warning,messages.border.warning>>|Border color of an error message.
+|<<colors-messages.fg.info,messages.fg.info>>|Foreground color an info message.
+|<<colors-messages.bg.info,messages.bg.info>>|Background color of an info message.
+|<<colors-messages.border.info,messages.border.info>>|Border color of an info message.
 |==============
 
 .Quick reference for section ``fonts''
@@ -287,6 +292,9 @@
 |<<fonts-web-size-default,web-size-default>>|The default font size for regular text.
 |<<fonts-web-size-default-fixed,web-size-default-fixed>>|The default font size for fixed-pitch text.
 |<<fonts-keyhint,keyhint>>|Font used in the keyhint widget.
+|<<fonts-messages.error,messages.error>>|Font used for error messages.
+|<<fonts-messages.warning,messages.warning>>|Font used for warning messages.
+|<<fonts-messages.info,messages.info>>|Font used for info messages.
 |==============
 
 == general
@@ -309,6 +317,12 @@ Default: +pass:[smart]+
 The default page(s) to open at the start, separated by commas.
 
 Default: +pass:[https://duckduckgo.com]+
+
+[[general-yank-ignored-url-parameters]]
+=== yank-ignored-url-parameters
+The URL parameters to strip with :yank url, separated by commas.
+
+Default: +pass:[ref,utm_source,utm_medium,utm_campaign,utm_term,utm_content]+
 
 [[general-default-page]]
 === default-page
@@ -705,15 +719,11 @@ Valid values:
 
 Default: +pass:[true]+
 
-This setting is only available with the QtWebKit backend.
-
 [[network-accept-language]]
 === accept-language
 Value to send in the `accept-language` header.
 
 Default: +pass:[en-US,en]+
-
-This setting is only available with the QtWebKit backend.
 
 [[network-referer-header]]
 === referer-header
@@ -798,21 +808,20 @@ Set custom headers for qutebrowser HTTP requests.
 
 Default: empty
 
-This setting is only available with the QtWebKit backend.
-
 == completion
 Options related to completion and command history.
 
-[[completion-auto-open]]
-=== auto-open
-Automatically open completion when typing.
+[[completion-show]]
+=== show
+When to show the autocompletion window.
 
 Valid values:
 
- * +true+
- * +false+
+ * +always+: Whenever a completion is available.
+ * +auto+: Whenever a completion is requested.
+ * +never+: Never.
 
-Default: +pass:[true]+
+Default: +pass:[always]+
 
 [[completion-download-path-suggestion]]
 === download-path-suggestion
@@ -831,17 +840,6 @@ Default: +pass:[path]+
 How to format timestamps (e.g. for history)
 
 Default: +pass:[%Y-%m-%d]+
-
-[[completion-show]]
-=== show
-Whether to show the autocompletion window.
-
-Valid values:
-
- * +true+
- * +false+
-
-Default: +pass:[true]+
 
 [[completion-height]]
 === height
@@ -1438,9 +1436,9 @@ Valid values:
 
 Default: +pass:[ask]+
 
-[[content-javascript-can-open-windows]]
-=== javascript-can-open-windows
-Whether JavaScript programs can open new windows.
+[[content-javascript-can-open-windows-automatically]]
+=== javascript-can-open-windows-automatically
+Whether JavaScript programs can open new windows without user interaction.
 
 Valid values:
 
@@ -1826,30 +1824,6 @@ Background color of the statusbar.
 
 Default: +pass:[black]+
 
-[[colors-statusbar.fg.error]]
-=== statusbar.fg.error
-Foreground color of the statusbar if there was an error.
-
-Default: +pass:[${statusbar.fg}]+
-
-[[colors-statusbar.bg.error]]
-=== statusbar.bg.error
-Background color of the statusbar if there was an error.
-
-Default: +pass:[red]+
-
-[[colors-statusbar.fg.warning]]
-=== statusbar.fg.warning
-Foreground color of the statusbar if there is a warning.
-
-Default: +pass:[${statusbar.fg}]+
-
-[[colors-statusbar.bg.warning]]
-=== statusbar.bg.warning
-Background color of the statusbar if there is a warning.
-
-Default: +pass:[darkorange]+
-
 [[colors-statusbar.fg.prompt]]
 === statusbar.fg.prompt
 Foreground color of the statusbar if there is a prompt.
@@ -2129,6 +2103,8 @@ Background color for webpages if unset (or empty to use the theme's color)
 
 Default: +pass:[white]+
 
+This setting is only available with the QtWebKit backend.
+
 [[colors-keyhint.fg]]
 === keyhint.fg
 Text color for the keyhint widget.
@@ -2146,6 +2122,60 @@ Default: +pass:[#FFFF00]+
 Background color of the keyhint widget.
 
 Default: +pass:[rgba(0, 0, 0, 80%)]+
+
+[[colors-messages.fg.error]]
+=== messages.fg.error
+Foreground color of an error message.
+
+Default: +pass:[white]+
+
+[[colors-messages.bg.error]]
+=== messages.bg.error
+Background color of an error message.
+
+Default: +pass:[red]+
+
+[[colors-messages.border.error]]
+=== messages.border.error
+Border color of an error message.
+
+Default: +pass:[#bb0000]+
+
+[[colors-messages.fg.warning]]
+=== messages.fg.warning
+Foreground color a warning message.
+
+Default: +pass:[white]+
+
+[[colors-messages.bg.warning]]
+=== messages.bg.warning
+Background color of a warning message.
+
+Default: +pass:[darkorange]+
+
+[[colors-messages.border.warning]]
+=== messages.border.warning
+Border color of an error message.
+
+Default: +pass:[#d47300]+
+
+[[colors-messages.fg.info]]
+=== messages.fg.info
+Foreground color an info message.
+
+Default: +pass:[white]+
+
+[[colors-messages.bg.info]]
+=== messages.bg.info
+Background color of an info message.
+
+Default: +pass:[black]+
+
+[[colors-messages.border.info]]
+=== messages.border.info
+Border color of an info message.
+
+Default: +pass:[#333333]+
 
 == fonts
 Fonts used for the UI, with optional style/weight/size.
@@ -2265,5 +2295,23 @@ Default: empty
 [[fonts-keyhint]]
 === keyhint
 Font used in the keyhint widget.
+
+Default: +pass:[8pt ${_monospace}]+
+
+[[fonts-messages.error]]
+=== messages.error
+Font used for error messages.
+
+Default: +pass:[8pt ${_monospace}]+
+
+[[fonts-messages.warning]]
+=== messages.warning
+Font used for warning messages.
+
+Default: +pass:[8pt ${_monospace}]+
+
+[[fonts-messages.info]]
+=== messages.info
+Font used for info messages.
 
 Default: +pass:[8pt ${_monospace}]+

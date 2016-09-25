@@ -66,17 +66,30 @@ class Request(testprocess.Line):
         path_to_statuses = {
             '/favicon.ico': [http.client.NOT_FOUND],
             '/does-not-exist': [http.client.NOT_FOUND],
-            '/custom/redirect-later': [http.client.FOUND],
+            '/does-not-exist-2': [http.client.NOT_FOUND],
             '/basic-auth/user/password':
                 [http.client.UNAUTHORIZED, http.client.OK],
+            '/custom/redirect-later': [http.client.FOUND],
+            '/custom/redirect-self': [http.client.FOUND],
             '/redirect-to': [http.client.FOUND],
             '/status/404': [http.client.NOT_FOUND],
             '/cookies/set': [http.client.FOUND],
         }
+        for i in range(15):
+            path_to_statuses['/redirect/{}'.format(i)] = [http.client.FOUND]
+            path_to_statuses['/relative-redirect/{}'.format(i)] = [
+                http.client.FOUND]
+            path_to_statuses['/absolute-redirect/{}'.format(i)] = [
+                http.client.FOUND]
+        default_statuses = [http.client.OK, http.client.NOT_MODIFIED]
 
         sanitized = QUrl('http://localhost' + self.path).path()  # Remove ?foo
-        expected_statuses = path_to_statuses.get(sanitized, [http.client.OK])
-        assert self.status in expected_statuses
+        expected_statuses = path_to_statuses.get(sanitized, default_statuses)
+        if self.status not in expected_statuses:
+            raise AssertionError(
+                "{} loaded with status {} but expected {}".format(
+                    sanitized, self.status,
+                    ' / '.join(repr(e) for e in expected_statuses)))
 
     def __eq__(self, other):
         return NotImplemented
@@ -166,7 +179,7 @@ class WebserverProcess(testprocess.Process):
         self.proc.waitForFinished()
 
 
-@pytest.yield_fixture(scope='session', autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def httpbin(qapp):
     """Fixture for an httpbin object which ensures clean setup/teardown."""
     httpbin = WebserverProcess('webserver_sub')
@@ -175,7 +188,7 @@ def httpbin(qapp):
     httpbin.cleanup()
 
 
-@pytest.yield_fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def httpbin_after_test(httpbin, request):
     """Fixture to clean httpbin request list after each test."""
     request.node._httpbin_log = httpbin.captured_log
@@ -183,7 +196,7 @@ def httpbin_after_test(httpbin, request):
     httpbin.after_test()
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def ssl_server(request, qapp):
     """Fixture for a webserver with a self-signed SSL certificate.
 

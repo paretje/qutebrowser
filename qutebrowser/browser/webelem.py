@@ -106,7 +106,7 @@ class AbstractWebElement(collections.abc.MutableMapping):
 
     def __repr__(self):
         try:
-            html = self.debug_text()
+            html = utils.compact_text(self.outer_xml(), 500)
         except Error:
             html = None
         return utils.get_repr(self, html=html)
@@ -158,9 +158,8 @@ class AbstractWebElement(collections.abc.MutableMapping):
         # FIXME:qtwebengine what to do about use_js with WebEngine?
         raise NotImplementedError
 
-    def run_js_async(self, code, callback=None):
-        """Run the given JS snippet async on the element."""
-        # FIXME:qtwebengine get rid of this?
+    def insert_text(self, text):
+        """Insert the given text into the element."""
         raise NotImplementedError
 
     def parent(self):
@@ -188,11 +187,6 @@ class AbstractWebElement(collections.abc.MutableMapping):
         """
         raise NotImplementedError
 
-    def is_visible(self, mainframe):
-        """Check if the given element is visible in the given frame."""
-        # FIXME:qtwebengine get rid of this?
-        raise NotImplementedError
-
     def is_writable(self):
         """Check whether an element is writable."""
         return not ('disabled' in self or 'readonly' in self)
@@ -215,14 +209,14 @@ class AbstractWebElement(collections.abc.MutableMapping):
     def _is_editable_object(self):
         """Check if an object-element is editable."""
         if 'type' not in self:
-            log.webview.debug("<object> without type clicked...")
+            log.webelem.debug("<object> without type clicked...")
             return False
         objtype = self['type'].lower()
         if objtype.startswith('application/') or 'classid' in self:
             # Let's hope flash/java stuff has an application/* mimetype OR
             # at least a classid attribute. Oh, and let's hope images/...
             # DON'T have a classid attribute. HTML sucks.
-            log.webview.debug("<object type='{}'> clicked.".format(objtype))
+            log.webelem.debug("<object type='{}'> clicked.".format(objtype))
             return config.get('input', 'insert-mode-on-plugins')
         else:
             # Image/Audio/...
@@ -271,7 +265,7 @@ class AbstractWebElement(collections.abc.MutableMapping):
             True if we should switch to insert mode, False otherwise.
         """
         roles = ('combobox', 'textbox')
-        log.misc.debug("Checking if element is editable: {}".format(
+        log.webelem.debug("Checking if element is editable: {}".format(
             repr(self)))
         tag = self.tag_name()
         if self.is_content_editable() and self.is_writable():
@@ -311,10 +305,6 @@ class AbstractWebElement(collections.abc.MutableMapping):
                 break
             elem = elem.parent()
 
-    def debug_text(self):
-        """Get a text based on an element suitable for debug output."""
-        return utils.compact_text(self.outer_xml(), 500)
-
     def resolve_url(self, baseurl):
         """Resolve the URL in the element's src/href attribute.
 
@@ -353,7 +343,10 @@ class AbstractWebElement(collections.abc.MutableMapping):
             rect.setWidth(rect.height())
         else:
             rect.setHeight(rect.width())
-        return rect.center()
+        pos = rect.center()
+        if pos.x() < 0 or pos.y() < 0:
+            raise Error("Element position is out of view!")
+        return pos
 
     def click(self, click_target):
         """Simulate a click on the element."""
@@ -363,9 +356,8 @@ class AbstractWebElement(collections.abc.MutableMapping):
 
         pos = self._mouse_pos()
 
-        log.hints.debug("Sending fake click to '{}' at position {} with "
-                        "target {}".format(self.debug_text(), pos,
-                                           click_target))
+        log.webelem.debug("Sending fake click to {!r} at position {} with "
+                          "target {}".format(self, pos, click_target))
 
         if click_target in [usertypes.ClickTarget.tab,
                             usertypes.ClickTarget.tab_bg,
@@ -384,7 +376,7 @@ class AbstractWebElement(collections.abc.MutableMapping):
         ]
 
         for evt in events:
-            self._tab.post_event(evt)
+            self._tab.send_event(evt)
 
         def after_click():
             """Move cursor to end and reset override_target after clicking."""
@@ -398,4 +390,4 @@ class AbstractWebElement(collections.abc.MutableMapping):
         pos = self._mouse_pos()
         event = QMouseEvent(QEvent.MouseMove, pos, Qt.NoButton, Qt.NoButton,
                             Qt.NoModifier)
-        self._tab.post_event(event)
+        self._tab.send_event(event)

@@ -28,15 +28,16 @@ try:
 except ImportError:
     hunter = None
 
-from qutebrowser.browser.webkit.network import qutescheme
+import sip
+from PyQt5.QtCore import QUrl
+# so it's available for :debug-pyeval
+from PyQt5.QtWidgets import QApplication  # pylint: disable=unused-import
+
+from qutebrowser.browser import qutescheme
 from qutebrowser.utils import log, objreg, usertypes, message, debug, utils
 from qutebrowser.commands import cmdutils, runners, cmdexc
 from qutebrowser.config import style
 from qutebrowser.misc import consolewidget
-
-from PyQt5.QtCore import QUrl
-# so it's available for :debug-pyeval
-from PyQt5.QtWidgets import QApplication  # pylint: disable=unused-import
 
 
 @cmdutils.register(maxsplit=1, no_cmd_split=True, no_replace_variables=True)
@@ -86,36 +87,33 @@ def repeat(times: int, command, win_id):
 
 
 @cmdutils.register(hide=True)
-@cmdutils.argument('win_id', win_id=True)
-def message_error(win_id, text):
+def message_error(text):
     """Show an error message in the statusbar.
 
     Args:
         text: The text to show.
     """
-    message.error(win_id, text)
+    message.error(text)
 
 
 @cmdutils.register(hide=True)
-@cmdutils.argument('win_id', win_id=True)
-def message_info(win_id, text):
+def message_info(text):
     """Show an info message in the statusbar.
 
     Args:
         text: The text to show.
     """
-    message.info(win_id, text)
+    message.info(text)
 
 
 @cmdutils.register(hide=True)
-@cmdutils.argument('win_id', win_id=True)
-def message_warning(win_id, text):
+def message_warning(text):
     """Show a warning message in the statusbar.
 
     Args:
         text: The text to show.
     """
-    message.warning(win_id, text)
+    message.warning(text)
 
 
 @cmdutils.register(debug=True)
@@ -249,10 +247,44 @@ def log_capacity(capacity: int):
         log.ram_handler.change_log_capacity(capacity)
 
 
+@cmdutils.register(debug=True)
+@cmdutils.argument('level', choices=sorted(
+    (level.lower() for level in log.LOG_LEVELS),
+    key=lambda e: log.LOG_LEVELS[e.upper()]))
+def debug_log_level(level: str):
+    """Change the log level for console logging.
+
+    Args:
+        level: The log level to set.
+    """
+    log.change_console_formatter(log.LOG_LEVELS[level.upper()])
+    log.console_handler.setLevel(log.LOG_LEVELS[level.upper()])
+
+
+@cmdutils.register(debug=True)
+def debug_log_filter(filters: str):
+    """Change the log filter for console logging.
+
+    Args:
+        filters: A comma separated list of logger names.
+    """
+    if set(filters.split(',')).issubset(log.LOGGER_NAMES):
+        log.console_filter.names = filters.split(',')
+    else:
+        raise cmdexc.CommandError("filters: Invalid value {} - expected one "
+                                  "of: {}".format(filters,
+                                                  ', '.join(log.LOGGER_NAMES)))
+
+
 @cmdutils.register()
 @cmdutils.argument('current_win_id', win_id=True)
 def window_only(current_win_id):
     """Close all windows except for the current one."""
     for win_id, window in objreg.window_registry.items():
+
+        # We could be in the middle of destroying a window here
+        if sip.isdeleted(window):
+            continue
+
         if win_id != current_win_id:
             window.close()
