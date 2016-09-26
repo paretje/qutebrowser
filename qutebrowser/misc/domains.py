@@ -143,20 +143,14 @@ class DomainManager(QObject):
             if old_policy == None:
                 old_policy = "<unset>"
             msg = "{} = {} for {}".format(option, old_policy, part)
-            if win_id is None:
-                log.domains.info(msg)
-            else:
-                message.info(win_id, msg, immediately=True)
+            message.info(msg)
             return
 
         if remove:
             if option in domain_settings:
                 del domain_settings[option]
                 msg = "set {} = {} for {}".format(option, "<unset>", part)
-                if win_id is None:
-                    log.domains.info(msg)
-                else:
-                    message.info(win_id, msg, immediately=True)
+                message.info(msg)
             if not domain_settings:
                 if part in self.data:
                     del self.data[part]
@@ -168,10 +162,7 @@ class DomainManager(QObject):
             domain_settings[option] = value
             self.data[part] = domain_settings
             msg = "set {} = {} for {}".format(option, value, part)
-            if win_id is None:
-                log.domains.info(msg)
-            else:
-                message.info(win_id, msg, immediately=True)
+            message.info(msg)
 
         self.domain_settings_changed.emit(part)
 
