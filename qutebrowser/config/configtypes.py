@@ -61,7 +61,7 @@ def _validate_regex(pattern, flags):
         except re.error as e:
             raise configexc.ValidationError(
                 pattern, "must be a valid regex - " + str(e))
-        except RuntimeError:
+        except RuntimeError:  # pragma: no cover
             raise configexc.ValidationError(
                 pattern, "must be a valid regex - recursion depth exceeded")
 
@@ -106,6 +106,10 @@ class ValidValues:
     def __repr__(self):
         return utils.get_repr(self, values=self.values,
                               descriptions=self.descriptions)
+
+    def __eq__(self, other):
+        return (self.values == other.values and
+                self.descriptions == other.descriptions)
 
 
 class BaseType:
