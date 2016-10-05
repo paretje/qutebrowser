@@ -91,7 +91,9 @@ def get_fatal_crash_dialog(debug, data):
                 "those crashes I disabled the crash reporter for this case, "
                 "but this will likely be resolved in the future with the new "
                 "QtWebEngine backend.")
-        return QMessageBox(QMessageBox.Critical, title, text, QMessageBox.Ok)
+        box = QMessageBox(QMessageBox.Critical, title, text, QMessageBox.Ok)
+        box.setAttribute(Qt.WA_DeleteOnClose)
+        return box
     else:
         return FatalCrashDialog(debug, data)
 

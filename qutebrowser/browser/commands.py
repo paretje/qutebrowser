@@ -682,7 +682,11 @@ class CommandDispatcher:
         else:
             flags |= QUrl.FullyEncoded
         url = QUrl(self._current_url())
-        url_query = QUrlQuery(url)
+        url_query = QUrlQuery()
+        url_query_str = url.query()
+        if '&' not in url_query_str and ';' in url_query_str:
+            url_query.setQueryDelimiters('=', ';')
+        url_query.setQuery(url_query_str)
         for key in dict(url_query.queryItems()):
             if key in config.get('general', 'yank-ignored-url-parameters'):
                 url_query.removeQueryItem(key)
@@ -956,7 +960,7 @@ class CommandDispatcher:
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
     @cmdutils.argument('index', choices=['last'])
-    @cmdutils.argument('count', count=True)
+    @cmdutils.argument('count', count=True, zero_count=True)
     def tab_focus(self, index: typing.Union[str, int]=None, count=None):
         """Select the tab given as argument/[count].
 
@@ -969,15 +973,19 @@ class CommandDispatcher:
                    Negative indices count from the end, such that -1 is the
                    last tab.
             count: The tab index to focus, starting with 1.
+                   The special value 0 focuses the rightmost tab.
         """
         if index == 'last':
             self._tab_focus_last()
             return
         index = count if count is not None else index
+
         if index is None:
             self.tab_next()
             return
-        if index < 0:
+        elif index == 0:
+            index = self._count()
+        elif index < 0:
             index = self._count() + index + 1
 
         if 1 <= index <= self._count():
@@ -1122,7 +1130,7 @@ class CommandDispatcher:
         try:
             userscripts.run_async(tab, cmd, *args, win_id=self._win_id,
                                   env=env, verbose=verbose)
-        except userscripts.UnsupportedError as e:
+        except userscripts.Error as e:
             raise cmdexc.CommandError(e)
 
     @cmdutils.register(instance='command-dispatcher', scope='window')

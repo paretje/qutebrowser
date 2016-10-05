@@ -51,7 +51,7 @@ from qutebrowser.browser.webkit.network import (webkitqutescheme, proxy,
                                                 networkmanager)
 from qutebrowser.mainwindow import mainwindow
 from qutebrowser.misc import (readline, ipc, savemanager, sessions,
-                              crashsignal, domains)
+                              crashsignal, earlyinit, domains)
 from qutebrowser.misc import utilcmds  # pylint: disable=unused-import
 from qutebrowser.utils import (log, version, message, utils, qtutils, urlutils,
                                objreg, usertypes, standarddir, error, debug)
@@ -199,6 +199,9 @@ def _process_args(args):
     process_pos_args(args.command)
     _open_startpage()
     _open_quickstart(args)
+
+    delta = datetime.datetime.now() - earlyinit.START_TIME
+    log.init.debug("Init finished after {}s".format(delta.total_seconds()))
 
 
 def _load_session(name):
