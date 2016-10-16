@@ -37,6 +37,7 @@ window._qutebrowser.webelem = (function() {
             "tag_name": elem.tagName,
             "outer_xml": elem.outerHTML,
             "class_name": elem.className,
+            "parent": serialize_elem(elem.parentElement),
             "rects": [],  // Gets filled up later
         };
 

@@ -118,9 +118,8 @@ class WebEngineElement(webelem.AbstractWebElement):
 
     def parent(self):
         """Get the parent element of this element."""
-        # FIXME:qtwebengine get rid of this?
-        log.stub()
-        return None
+        elem = self._js_dict['parent']
+        return WebEngineElement(elem, self._tab)
 
     def rect_on_view(self, *, elem_geometry=None, no_js=False):
         """Get the geometry of the element relative to the webview.
