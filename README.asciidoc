@@ -159,10 +159,10 @@ Contributors, sorted by the number of commits in descending order:
 * Joel Torstensson
 * Patric Schmitz
 * Tarcisio Fedrizzi
+* Kevin Velghe
 * Claude
 * Corentin Julé
 * meles5
-* Kevin Velghe
 * Philipp Hansch
 * Daniel Karbach
 * Panagiotis Ktistakis
