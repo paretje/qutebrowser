@@ -156,10 +156,10 @@ Contributors, sorted by the number of commits in descending order:
 * Felix Van der Jeugt
 * Martin Tournoij
 * Raphael Pierzina
+* Kevin Velghe
 * Joel Torstensson
 * Patric Schmitz
 * Tarcisio Fedrizzi
-* Kevin Velghe
 * Claude
 * Corentin Julé
 * meles5
@@ -171,12 +171,12 @@ Contributors, sorted by the number of commits in descending order:
 * Thorsten Wißmann
 * Austin Anderson
 * Jimmy
+* Spreadyy
 * Niklas Haas
 * Alexey "Averrin" Nabrodov
 * nanjekyejoannah
 * avk
 * ZDarian
-* Spreadyy
 * Milan Svoboda
 * John ShaggyTwoDope Jenkins
 * Clayton Craft
@@ -189,11 +189,11 @@ Contributors, sorted by the number of commits in descending order:
 * error800
 * Michael Hoang
 * Liam BEGUIN
+* Julie Engel
 * skinnay
 * Zach-Button
 * Tomasz Kramkowski
 * Peter Rice
-* Julie Engel
 * Ismail S
 * Halfwit
 * David Vogt
