@@ -61,8 +61,8 @@ class TabbedBrowser(tabwidget.TabWidget):
         _filter: A SignalFilter instance.
         _now_focused: The tab which is focused now.
         _tab_insert_idx_left: Where to insert a new tab with
-                         tabbar -> new-tab-position set to 'left'.
-        _tab_insert_idx_right: Same as above, for 'right'.
+                         tabbar -> new-tab-position set to 'prev'.
+        _tab_insert_idx_right: Same as above, for 'next'.
         _undo_stack: List of UndoEntry namedtuples of closed tabs.
         shutting_down: Whether we're currently shutting down.
         _local_marks: Jump markers local to each page
@@ -410,14 +410,14 @@ class TabbedBrowser(tabwidget.TabWidget):
             pos = config.get('tabs', 'new-tab-position-explicit')
         else:
             pos = config.get('tabs', 'new-tab-position')
-        if pos == 'left':
+        if pos == 'prev':
             idx = self._tab_insert_idx_left
             # On first sight, we'd think we have to decrement
             # self._tab_insert_idx_left here, as we want the next tab to be
             # *before* the one we just opened. However, since we opened a tab
-            # *to the left* of the currently focused tab, indices will shift by
+            # *before* the currently focused tab, indices will shift by
             # 1 automatically.
-        elif pos == 'right':
+        elif pos == 'next':
             idx = self._tab_insert_idx_right
             self._tab_insert_idx_right += 1
         elif pos == 'first':
@@ -473,10 +473,10 @@ class TabbedBrowser(tabwidget.TabWidget):
     @pyqtSlot()
     def on_cur_load_started(self):
         """Leave insert/hint mode when loading started."""
-        modeman.maybe_leave(self._win_id, usertypes.KeyMode.insert,
-                            'load started')
-        modeman.maybe_leave(self._win_id, usertypes.KeyMode.hint,
-                            'load started')
+        modeman.leave(self._win_id, usertypes.KeyMode.insert, 'load started',
+                      maybe=True)
+        modeman.leave(self._win_id, usertypes.KeyMode.hint, 'load started',
+                      maybe=True)
 
     @pyqtSlot(browsertab.AbstractTab, str)
     def on_title_changed(self, tab, text):
@@ -558,11 +558,16 @@ class TabbedBrowser(tabwidget.TabWidget):
             # closing the last tab (before quitting) or shutting down
             return
         tab = self.widget(idx)
+        if tab is None:
+            log.webview.debug("on_current_changed got called with invalid "
+                              "index {}".format(idx))
+            return
+
         log.modes.debug("Current tab changed, focusing {!r}".format(tab))
         tab.setFocus()
         for mode in [usertypes.KeyMode.hint, usertypes.KeyMode.insert,
                      usertypes.KeyMode.caret, usertypes.KeyMode.passthrough]:
-            modeman.maybe_leave(self._win_id, mode, 'tab changed')
+            modeman.leave(self._win_id, mode, 'tab changed', maybe=True)
         if self._now_focused is not None:
             objreg.register('last-focused-tab', self._now_focused, update=True,
                             scope='window', window=self._win_id)

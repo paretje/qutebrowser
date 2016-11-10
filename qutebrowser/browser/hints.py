@@ -50,7 +50,8 @@ class HintingError(Exception):
 def on_mode_entered(mode, win_id):
     """Stop hinting when insert mode was entered."""
     if mode == usertypes.KeyMode.insert:
-        modeman.maybe_leave(win_id, usertypes.KeyMode.hint, 'insert mode')
+        modeman.leave(win_id, usertypes.KeyMode.hint, 'insert mode',
+                      maybe=True)
 
 
 class HintLabel(QLabel):
@@ -283,14 +284,10 @@ class HintActions:
         else:
             prompt = None
 
-        # FIXME:qtwebengine get a proper API for this
-        # pylint: disable=protected-access
-        qnam = elem._elem.webFrame().page().networkAccessManager()
-        # pylint: enable=protected-access
-
-        download_manager = objreg.get('download-manager', scope='window',
-                                      window=self._win_id)
-        download_manager.get(url, qnam=qnam, prompt_download_directory=prompt)
+        # FIXME:qtwebengine do this with QtWebEngine downloads?
+        download_manager = objreg.get('qtnetwork-download-manager',
+                                      scope='window', window=self._win_id)
+        download_manager.get(url, prompt_download_directory=prompt)
 
     def call_userscript(self, elem, context):
         """Call a userscript from a hint.
@@ -662,11 +659,6 @@ class HintManager(QObject):
         tab = tabbed_browser.currentWidget()
         if tab is None:
             raise cmdexc.CommandError("No WebView available yet!")
-        if (tab.backend == usertypes.Backend.QtWebEngine and
-                target == Target.download):
-            message.error("The download target is not available yet with "
-                          "QtWebEngine.")
-            return
 
         mode_manager = objreg.get('mode-manager', scope='window',
                                   window=self._win_id)
@@ -868,8 +860,8 @@ class HintManager(QObject):
             raise ValueError("No suitable handler found!")
 
         if not self._context.rapid:
-            modeman.maybe_leave(self._win_id, usertypes.KeyMode.hint,
-                                'followed')
+            modeman.leave(self._win_id, usertypes.KeyMode.hint, 'followed',
+                          maybe=True)
         else:
             # Reset filtering
             self.filter_hints(None)

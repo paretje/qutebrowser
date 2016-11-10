@@ -34,7 +34,8 @@ from PyQt5.QtWebEngineWidgets import (QWebEnginePage, QWebEngineScript,
 
 from qutebrowser.browser import browsertab, mouse
 from qutebrowser.browser.webengine import (webview, webengineelem, tabhistory,
-                                           interceptor, webenginequtescheme)
+                                           interceptor, webenginequtescheme,
+                                           webenginedownloads)
 from qutebrowser.utils import (usertypes, qtutils, log, javascript, utils,
                                objreg)
 
@@ -60,6 +61,11 @@ def init():
     req_interceptor = interceptor.RequestInterceptor(
         host_blocker, parent=app)
     req_interceptor.install(profile)
+
+    log.init.debug("Initializing QtWebEngine downloads...")
+    download_manager = webenginedownloads.DownloadManager(parent=app)
+    download_manager.install(profile)
+    objreg.register('webengine-download-manager', download_manager)
 
 
 # Mapping worlds from usertypes.JsWorld to QWebEngineScript world IDs.
@@ -402,7 +408,10 @@ class WebEngineElements(browsertab.AbstractElements):
                       Called with a WebEngineElement or None.
             js_elem: The element serialized from javascript.
         """
-        log.webview.debug("Got element from JS: {!r}".format(js_elem))
+        debug_str = ('None' if js_elem is None
+                     else utils.elide(repr(js_elem), 100))
+        log.webview.debug("Got element from JS: {}".format(debug_str))
+
         if js_elem is None:
             callback(None)
         else:

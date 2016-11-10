@@ -348,6 +348,16 @@ class TestKeyConfigParser:
 
             ('prompt-yes', 'prompt-accept yes'),
             ('prompt-no', 'prompt-accept no'),
+
+            ('tab-close -l', 'tab-close --prev'),
+            ('tab-close --left', 'tab-close --prev'),
+            ('tab-close -r', 'tab-close --next'),
+            ('tab-close --right', 'tab-close --next'),
+
+            ('tab-only -l', 'tab-only --prev'),
+            ('tab-only --left', 'tab-only --prev'),
+            ('tab-only -r', 'tab-only --next'),
+            ('tab-only --right', 'tab-only --next'),
         ]
     )
     def test_migrations(self, old, new_expected):
@@ -396,7 +406,7 @@ class TestDefaultConfig:
         If it did change, place a new qutebrowser-vx.y.z.conf in old_configs
         and then increment the version.
         """
-        assert qutebrowser.__version__ == '0.8.3'
+        assert qutebrowser.__version__ == '0.8.4'
 
     @pytest.mark.parametrize('filename',
         os.listdir(os.path.join(os.path.dirname(__file__), 'old_configs')),
