@@ -34,7 +34,7 @@ Feature: Page history
         Then the history file should contain:
             http://localhost:(port)/data/%C3%A4%C3%B6%C3%BC.html Chäschüechli
             
-    @flaky_once @qtwebengine_todo: Error page message is not implemented
+    @flaky @qtwebengine_todo: Error page message is not implemented
     Scenario: History with an error
         When I run :open file:///does/not/exist
         And I wait for "Error while loading file:///does/not/exist: Error opening /does/not/exist: *" in the log
@@ -48,7 +48,6 @@ Feature: Page history
         Then the history file should contain:
             http://localhost:(port)/status/404 Error loading page: http://localhost:(port)/status/404
 
-    @qtwebengine_createWindow
     Scenario: History with invalid URL
         When I open data/javascript/window_open.html
         And I run :click-element id open-invalid
@@ -58,6 +57,13 @@ Feature: Page history
         When I open data/title.html
         And I run :history-clear
         Then the history file should be empty
+
+    Scenario: History with yanked URL and 'add to history' flag
+        When I open data/hints/html/simple.html
+        And I hint with args "--add-history links yank" and follow a
+        Then the history file should contain:
+            http://localhost:(port)/data/hints/html/simple.html Simple link
+            http://localhost:(port)/data/hello.txt
 
     ## Bugs
 

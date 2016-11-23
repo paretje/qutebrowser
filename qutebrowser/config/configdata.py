@@ -184,10 +184,12 @@ def data(readonly=False):
              "icons."),
 
             ('developer-extras',
-             SettingValue(typ.Bool(), 'false'),
+             SettingValue(typ.Bool(), 'false',
+                          backends=[usertypes.Backend.QtWebKit]),
              "Enable extra tools for Web developers.\n\n"
              "This needs to be enabled for `:inspector` to work and also adds "
-             "an _Inspect_ entry to the context menu."),
+             "an _Inspect_ entry to the context menu. For QtWebEngine, see "
+             "'qutebrowser --help' instead."),
 
             ('print-element-backgrounds',
              SettingValue(typ.Bool(), 'true',
@@ -323,13 +325,13 @@ def data(readonly=False):
              "page."),
 
             ('user-stylesheet',
-             SettingValue(typ.UserStyleSheet(none_ok=True),
-                          'html > ::-webkit-scrollbar { width: 0px; '
-                          'height: 0px; }',
-                          backends=[usertypes.Backend.QtWebKit]),
-             "User stylesheet to use (absolute filename, filename relative to "
-             "the config directory or CSS string). Will expand environment "
-             "variables."),
+             SettingValue(typ.File(none_ok=True), ''),
+             "User stylesheet to use (absolute filename or filename relative "
+             "to the config directory). Will expand environment variables."),
+
+            ('hide-scrollbar',
+             SettingValue(typ.Bool(), 'true'),
+             "Hide the main scrollbar."),
 
             ('css-media-type',
              SettingValue(typ.String(none_ok=True), '',
@@ -356,7 +358,8 @@ def data(readonly=False):
             ('window-title-format',
              SettingValue(typ.FormatString(fields=['perc', 'perc_raw', 'title',
                                                    'title_sep', 'id',
-                                                   'scroll_pos', 'host']),
+                                                   'scroll_pos', 'host',
+                                                   'backend']),
                           '{perc}{title}{title_sep}qutebrowser'),
              "The format to use for the window title. The following "
              "placeholders are defined:\n\n"
@@ -367,7 +370,8 @@ def data(readonly=False):
              "otherwise.\n"
              "* `{id}`: The internal window ID of this window.\n"
              "* `{scroll_pos}`: The page scroll position.\n"
-             "* `{host}`: The host of the current web page."),
+             "* `{host}`: The host of the current web page.\n"
+             "* `{backend}`: Either 'webkit' or 'webengine'"),
 
             ('modal-js-dialog',
              SettingValue(typ.Bool(), 'false'),
@@ -413,8 +417,7 @@ def data(readonly=False):
              "Send the Referer header"),
 
             ('user-agent',
-             SettingValue(typ.UserAgent(none_ok=True), '',
-                          backends=[usertypes.Backend.QtWebKit]),
+             SettingValue(typ.UserAgent(none_ok=True), ''),
              "User agent to send. Empty to send the default."),
 
             ('proxy',
@@ -430,8 +433,7 @@ def data(readonly=False):
              "Whether to send DNS requests over the configured proxy."),
 
             ('ssl-strict',
-             SettingValue(typ.BoolAsk(), 'ask',
-                          backends=[usertypes.Backend.QtWebKit]),
+             SettingValue(typ.BoolAsk(), 'ask'),
              "Whether to validate SSL handshakes."),
 
             ('dns-prefetch',
@@ -677,7 +679,8 @@ def data(readonly=False):
              "* `{index}`: The index of this tab.\n"
              "* `{id}`: The internal tab ID of this tab.\n"
              "* `{scroll_pos}`: The page scroll position.\n"
-             "* `{host}`: The host of the current web page."),
+             "* `{host}`: The host of the current web page.\n"
+             "* `{backend}`: Either 'webkit' or 'webengine'"),
 
             ('title-alignment',
              SettingValue(typ.TextAlignment(), 'left'),
@@ -821,6 +824,11 @@ def data(readonly=False):
             ('notifications',
              SettingValue(typ.BoolAsk(), 'ask'),
              "Allow websites to show notifications."),
+
+            ('media-capture',
+             SettingValue(typ.BoolAsk(), 'ask',
+                          backends=[usertypes.Backend.QtWebEngine]),
+             "Allow websites to record audio/video."),
 
             ('javascript-can-open-windows-automatically',
              SettingValue(typ.Bool(), 'false'),

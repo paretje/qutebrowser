@@ -75,9 +75,8 @@ Feature: Downloading things from a website.
         And I run :leave-mode
         Then no crash should happen
 
-    @qtwebengine_todo: ssl-strict is not implemented yet
     Scenario: Downloading with SSL errors (issue 1413)
-        When I run :debug-clear-ssl-errors
+        When I clear SSL errors
         And I set network -> ssl-strict to ask
         And I download an SSL page
         And I wait for "Entering mode KeyMode.* (reason: question asked)" in the log
@@ -100,6 +99,19 @@ Feature: Downloading things from a website.
         And I wait until the download is finished
         And I run :close
         Then qutebrowser should quit
+
+    # https://github.com/The-Compiler/qutebrowser/issues/2134
+    @qtwebengine_skip
+    Scenario: Downloading, then closing a tab
+        When I set storage -> prompt-download-directory to false
+        And I open about:blank
+        And I open data/downloads/issue2134.html in a new tab
+        # This needs to be a download connected to the tabs QNAM
+        And I hint with args "links normal" and follow a
+        And I wait for "fetch: * -> drip" in the log
+        And I run :tab-close
+        And I wait for "Download drip finished" in the log
+        Then the downloaded file drip should contain 128 bytes
 
     ## :download-retry
 

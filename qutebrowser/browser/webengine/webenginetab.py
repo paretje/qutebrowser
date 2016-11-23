@@ -32,7 +32,7 @@ from PyQt5.QtWebEngineWidgets import (QWebEnginePage, QWebEngineScript,
                                       QWebEngineProfile)
 # pylint: enable=no-name-in-module,import-error,useless-suppression
 
-from qutebrowser.browser import browsertab, mouse
+from qutebrowser.browser import browsertab, mouse, shared
 from qutebrowser.browser.webengine import (webview, webengineelem, tabhistory,
                                            interceptor, webenginequtescheme,
                                            webenginedownloads)
@@ -150,11 +150,11 @@ class WebEngineCaret(browsertab.AbstractCaret):
 
     @pyqtSlot(usertypes.KeyMode)
     def _on_mode_entered(self, mode):
-        log.stub()
+        pass
 
     @pyqtSlot(usertypes.KeyMode)
     def _on_mode_left(self):
-        log.stub()
+        pass
 
     def move_to_next_line(self, count=1):
         log.stub()
@@ -392,8 +392,13 @@ class WebEngineElements(browsertab.AbstractElements):
 
         Args:
             callback: The callback to call with the found elements.
+                      Called with None if there was an error.
             js_elems: The elements serialized from javascript.
         """
+        if js_elems is None:
+            callback(None)
+            return
+
         elems = []
         for js_elem in js_elems:
             elem = webengineelem.WebEngineElement(js_elem, tab=self._tab)
@@ -464,9 +469,9 @@ class WebEngineTab(browsertab.AbstractTab):
         self._set_widget(widget)
         self._connect_signals()
         self.backend = usertypes.Backend.QtWebEngine
-        # init js stuff
         self._init_js()
         self._child_event_filter = None
+        self.needs_qtbug54419_workaround = False
 
     def _init_js(self):
         js_code = '\n'.join([
@@ -538,7 +543,8 @@ class WebEngineTab(browsertab.AbstractTab):
                 self._widget.page().runJavaScript(code, callback)
 
     def shutdown(self):
-        log.stub()
+        self.shutting_down.emit()
+        self._widget.shutdown()
 
     def reload(self, *, force=False):
         if force:
@@ -568,8 +574,11 @@ class WebEngineTab(browsertab.AbstractTab):
         # percent encoded content is 2 megabytes minus 30 bytes.
         self._widget.setHtml(html, base_url)
 
+    def networkaccessmanager(self):
+        return None
+
     def clear_ssl_errors(self):
-        log.stub()
+        raise browsertab.UnsupportedOperationError
 
     @pyqtSlot()
     def _on_history_trigger(self):
@@ -590,6 +599,13 @@ class WebEngineTab(browsertab.AbstractTab):
 
         self.add_history_item.emit(url, requested_url, title)
 
+    @pyqtSlot(QUrl, 'QAuthenticator*')
+    def _on_authentication_required(self, url, authenticator):
+        # FIXME:qtwebengine support .netrc
+        shared.authentication_required(url, authenticator,
+                                       abort_on=[self.shutting_down,
+                                                 self.load_started])
+
     def _connect_signals(self):
         view = self._widget
         page = view.page()
@@ -602,7 +618,7 @@ class WebEngineTab(browsertab.AbstractTab):
         view.urlChanged.connect(self._on_url_changed)
         page.loadFinished.connect(self._on_load_finished)
         page.certificate_error.connect(self._on_ssl_errors)
-        page.link_clicked.connect(self._on_link_clicked)
+        page.authenticationRequired.connect(self._on_authentication_required)
         try:
             view.iconChanged.connect(self.icon_changed)
         except AttributeError:

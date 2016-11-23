@@ -47,14 +47,7 @@ def get_argparser():
     """Get the argparse parser."""
     parser = argparse.ArgumentParser(prog='qutebrowser',
                                      description=qutebrowser.__description__)
-    parser.add_argument('-c', '--confdir', help="Set config directory (empty "
-                        "for no config storage).")
-    parser.add_argument('--datadir', help="Set data directory (empty for "
-                        "no data storage).")
-    parser.add_argument('--cachedir', help="Set cache directory (empty for "
-                        "no cache storage).")
-    parser.add_argument('--basedir', help="Base directory for all storage. "
-                        "Other --*dir arguments are ignored if this is given.")
+    parser.add_argument('--basedir', help="Base directory for all storage.")
     parser.add_argument('-V', '--version', help="Show version and quit.",
                         action='store_true')
     parser.add_argument('-s', '--set', help="Set a temporary setting for "
@@ -73,6 +66,12 @@ def get_argparser():
     parser.add_argument('--backend', choices=['webkit', 'webengine'],
                         help="Which backend to use (webengine backend is "
                              "EXPERIMENTAL!).", default='webkit')
+    parser.add_argument('--enable-webengine-inspector', action='store_true',
+                        help="Enable the web inspector for QtWebEngine. Note "
+                        "that this is a SECURITY RISK and you should not "
+                        "visit untrusted websites with the inspector turned "
+                        "on. See https://bugreports.qt.io/browse/QTBUG-50725 "
+                        "for more details.")
 
     parser.add_argument('--json-args', help=argparse.SUPPRESS)
     parser.add_argument('--temp-basedir-restarted', help=argparse.SUPPRESS)
@@ -112,8 +111,10 @@ def get_argparser():
                        "temporary basedir.")
     debug.add_argument('--no-err-windows', action='store_true', help="Don't "
                        "show any error windows (used for tests/smoke.py).")
-    debug.add_argument('--qt-arg', help="Pass an argument with a value to Qt.",
-                       nargs=2)
+    debug.add_argument('--qt-arg', help="Pass an argument with a value to Qt. "
+                       "For example, you can do "
+                       "`--qt-arg geometry 650x555+200+300` to set the window "
+                       "geometry.", nargs=2, metavar=('NAME', 'VALUE'))
     debug.add_argument('--qt-flag', help="Pass an argument to Qt as flag.",
                        nargs=1)
     parser.add_argument('command', nargs='*', help="Commands to execute on "
@@ -122,6 +123,11 @@ def get_argparser():
     parser.add_argument('url', nargs='*', help="URLs to open on startup "
                         "(empty as a window separator).")
     return parser
+
+
+def directory(arg):
+    if not arg:
+        raise argparse.ArgumentTypeError("Invalid empty value")
 
 
 def logfilter_error(logfilter: str):

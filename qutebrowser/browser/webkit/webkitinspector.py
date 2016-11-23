@@ -24,6 +24,7 @@ from PyQt5.QtWebKitWidgets import QWebInspector
 from PyQt5.QtWebKit import QWebSettings
 
 from qutebrowser.browser import inspector
+from qutebrowser.config import config
 
 
 class WebKitInspector(inspector.AbstractWebInspector):
@@ -44,6 +45,9 @@ class WebKitInspector(inspector.AbstractWebInspector):
         super().closeEvent(e)
 
     def inspect(self, page):
-        self._check_developer_extras()
+        if not config.get('general', 'developer-extras'):
+            raise inspector.WebInspectorError(
+                "Please enable developer-extras before using the "
+                "webinspector!")
         self._widget.setPage(page)
         self.show()

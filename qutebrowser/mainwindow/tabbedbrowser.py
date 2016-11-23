@@ -369,7 +369,10 @@ class TabbedBrowser(tabwidget.TabWidget):
         """
         if url is not None:
             qtutils.ensure_valid(url)
-        log.webview.debug("Creating new tab with URL {}".format(url))
+        log.webview.debug("Creating new tab with URL {}, background {}, "
+                          "explicit {}, idx {}".format(
+                              url, background, explicit, idx))
+
         if config.get('tabs', 'tabs-are-windows') and self.count() > 0:
             from qutebrowser.mainwindow import mainwindow
             window = mainwindow.MainWindow()
@@ -515,8 +518,25 @@ class TabbedBrowser(tabwidget.TabWidget):
         except TabDeletedError:
             # We can get signals for tabs we already deleted...
             return
+
         if not self.page_title(idx):
             self.set_page_title(idx, url.toDisplayString())
+
+        # If needed, re-open the tab as a workaround for QTBUG-54419.
+        # See https://bugreports.qt.io/browse/QTBUG-54419
+        background = self.currentIndex() != idx
+
+        if (tab.backend == usertypes.Backend.QtWebEngine and
+                tab.needs_qtbug54419_workaround):
+            log.misc.debug("Doing QTBUG-54419 workaround for {}, "
+                           "url {}".format(tab, url))
+            self.setUpdatesEnabled(False)
+            try:
+                self.tabopen(url, background=background, idx=idx)
+                self.close_tab(tab, add_undo=False)
+            finally:
+                self.setUpdatesEnabled(True)
+            tab.needs_qtbug54419_workaround = False
 
     @pyqtSlot(browsertab.AbstractTab, QIcon)
     def on_icon_changed(self, tab, icon):

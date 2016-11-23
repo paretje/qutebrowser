@@ -130,10 +130,16 @@ Feature: Various utility commands.
 
     # :inspect
 
+    @qtwebengine_skip
     Scenario: Inspector without developer extras
         When I set general -> developer-extras to false
         And I run :inspector
         Then the error "Please enable developer-extras before using the webinspector!" should be shown
+
+    @qtwebkit_skip
+    Scenario: Inspector without --enable-webengine-inspector
+        When I run :inspector
+        Then the error "Debugging is not enabled. See 'qutebrowser --help' for details." should be shown
 
     @no_xvfb @posix @qtwebengine_skip
     Scenario: Inspector smoke test
@@ -145,6 +151,7 @@ Feature: Various utility commands.
         Then no crash should happen
 
     # Different code path as an inspector got created now
+    @qtwebengine_skip
     Scenario: Inspector without developer extras (after smoke)
         When I set general -> developer-extras to false
         And I run :inspector
@@ -382,7 +389,7 @@ Feature: Various utility commands.
         And I press the key "<Ctrl-C>"
         Then no crash should happen
 
-    @pyqt>=5.3.1 @qtwebengine_skip: JS prompt is not implemented yet
+    @js_prompt
     Scenario: Focusing download widget via Tab (original issue)
         When I open data/prompt/jsprompt.html
         And I run :click-element id button
@@ -414,6 +421,16 @@ Feature: Various utility commands.
         When I set network -> accept-language to en,de
         And I open headers
         Then the header Accept-Language should be set to en,de
+
+    Scenario: Setting a custom user-agent header
+        When I set network -> user-agent to toaster
+        And I open headers
+        Then the header User-Agent should be set to toaster
+
+    Scenario: Setting the default user-agent header
+        When I set network -> user-agent to <empty>
+        And I open headers
+        Then the header User-Agent should be set to Mozilla/5.0 *
 
     ## :messages
 
@@ -512,10 +529,6 @@ Feature: Various utility commands.
         And I set general -> private-browsing to false
         Then the page should contain the plaintext "Local storage status: not working"
 
-    Scenario: Using 0 as count
-        When I run :scroll down with count 0
-        Then the error "scroll: A zero count is not allowed for this command!" should be shown
-
     @no_xvfb
     Scenario: :window-only
         Given I run :tab-only
@@ -556,7 +569,7 @@ Feature: Various utility commands.
     Scenario: Clicking an element with unknown ID
         When I open data/click_element.html
         And I run :click-element id blah
-        Then the error "No element found!" should be shown
+        Then the error "No element found with id blah!" should be shown
 
     Scenario: Clicking an element by ID
         When I open data/click_element.html

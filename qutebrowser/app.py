@@ -321,8 +321,8 @@ def _open_quickstart(args):
     Args:
         args: The argparse namespace.
     """
-    if args.datadir is not None or args.basedir is not None:
-        # With --datadir or --basedir given, don't open quickstart.
+    if args.basedir is not None:
+        # With --basedir given, don't open quickstart.
         return
     state_config = objreg.get('state-config')
     try:
@@ -406,7 +406,7 @@ def _init_modules(args, crash_handler):
     sessions.init(qApp)
 
     log.init.debug("Initializing websettings...")
-    websettings.init()
+    websettings.init(args)
 
     log.init.debug("Initializing adblock...")
     host_blocker = adblock.HostBlocker()

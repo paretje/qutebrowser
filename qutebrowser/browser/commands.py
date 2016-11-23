@@ -959,7 +959,7 @@ class CommandDispatcher:
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
     @cmdutils.argument('index', choices=['last'])
-    @cmdutils.argument('count', count=True, zero_count=True)
+    @cmdutils.argument('count', count=True)
     def tab_focus(self, index: typing.Union[str, int]=None, count=None):
         """Select the tab given as argument/[count].
 
@@ -972,7 +972,6 @@ class CommandDispatcher:
                    Negative indices count from the end, such that -1 is the
                    last tab.
             count: The tab index to focus, starting with 1.
-                   The special value 0 focuses the rightmost tab.
         """
         if index == 'last':
             self._tab_focus_last()
@@ -982,9 +981,8 @@ class CommandDispatcher:
         if index is None:
             self.tab_next()
             return
-        elif index == 0:
-            index = self._count()
-        elif index < 0:
+
+        if index < 0:
             index = self._count() + index + 1
 
         if 1 <= index <= self._count():
@@ -1041,8 +1039,7 @@ class CommandDispatcher:
         cmdutils.check_overflow(new_idx, 'int')
         self._tabbed_browser.setUpdatesEnabled(False)
         try:
-            color = self._tabbed_browser.tabBar().tab_data(
-                cur_idx, 'indicator-color')
+            color = self._tabbed_browser.tab_indicator_color(cur_idx)
             self._tabbed_browser.removeTab(cur_idx)
             self._tabbed_browser.insertTab(new_idx, tab, icon, label)
             self._set_current_index(new_idx)
@@ -1333,11 +1330,13 @@ class CommandDispatcher:
         elif mhtml_:
             self._download_mhtml(dest)
         else:
+            qnam = self._current_widget().networkaccessmanager()
+
             if dest is None:
                 target = None
             else:
                 target = downloads.FileDownloadTarget(dest)
-            download_manager.get(self._current_url(), target=target)
+            download_manager.get(self._current_url(), qnam=qnam, target=target)
 
     def _download_mhtml(self, dest=None):
         """Download the current page as an MHTML file, including all assets.
@@ -1487,7 +1486,7 @@ class CommandDispatcher:
             message.error("Focused element is not editable!")
             return
 
-        text = elem.text(use_js=True)
+        text = elem.value()
         ed = editor.ExternalEditor(self._tabbed_browser)
         ed.editing_finished.connect(functools.partial(
             self.on_editing_finished, elem))
@@ -1514,7 +1513,7 @@ class CommandDispatcher:
             text: The new text to insert.
         """
         try:
-            elem.set_text(text, use_js=True)
+            elem.set_value(text)
         except webelem.Error as e:
             raise cmdexc.CommandError(str(e))
 
@@ -1573,7 +1572,7 @@ class CommandDispatcher:
         def single_cb(elem):
             """Click a single element."""
             if elem is None:
-                message.error("No element found!")
+                message.error("No element found with id {}!".format(value))
                 return
             try:
                 elem.click(target)
@@ -1992,7 +1991,7 @@ class CommandDispatcher:
                 tab.send_event(release_event)
 
     @cmdutils.register(instance='command-dispatcher', scope='window',
-                       debug=True)
+                       debug=True, backend=usertypes.Backend.QtWebKit)
     def debug_clear_ssl_errors(self):
         """Clear remembered SSL error answers."""
         self._current_widget().clear_ssl_errors()
