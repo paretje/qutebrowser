@@ -149,6 +149,8 @@ Changed
 - `ui -> window-title-format` now has a new `{backend} ` replacement
 - `:hint` has a new `--add-history` argument to add the URL to the history for
   yank/spawn targets.
+- `:set` now cycles through values if more than one argument is given.
+- `:open` now opens `default-page` without an URL even without `-t`/`-b`/`-w` given.
 
 Deprecated
 ~~~~~~~~~~
@@ -186,6 +188,8 @@ Fixed
 - `:tab-detach` now fails correctly when there's only one tab open.
 - Various small issues with the command completion
 - Fixed hang when using multiple spaces in a row with the URL completion
+- qutebrowser now still starts with an incorrectly configured
+  `$XDG_RUNTIME_DIR`.
 
 v0.8.3
 ------
