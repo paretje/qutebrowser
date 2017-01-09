@@ -94,7 +94,7 @@ LOGGER_NAMES = [
     'commands', 'signals', 'downloads',
     'js', 'qt', 'rfc6266', 'ipc', 'shlexer',
     'save', 'message', 'config', 'sessions',
-    'webelem', 'prompt'
+    'webelem', 'prompt', 'network'
 ]
 
 
@@ -140,6 +140,7 @@ config = logging.getLogger('config')
 sessions = logging.getLogger('sessions')
 webelem = logging.getLogger('webelem')
 prompt = logging.getLogger('prompt')
+network = logging.getLogger('network')
 domains = logging.getLogger('domains')
 
 
@@ -200,6 +201,22 @@ def _init_py_warnings():
     """Initialize Python warning handling."""
     warnings.simplefilter('default')
     warnings.filterwarnings('ignore', module='pdb', category=ResourceWarning)
+    # https://github.com/pallets/jinja/pull/628
+    warnings.filterwarnings('ignore', module=r'jinja2\.filters',
+                            category=DeprecationWarning,
+                            message='Flags not at the start of the expression')
+    # https://bitbucket.org/birkenfeld/pygments-main/issues/1314/
+    warnings.filterwarnings('ignore', module=r'pygments\.util',
+                            category=DeprecationWarning,
+                            message='Flags not at the start of the expression')
+    # https://github.com/pallets/jinja/issues/646
+    warnings.filterwarnings('ignore', module='jinja2\..*',
+                            category=DeprecationWarning,
+                            message='invalid escape sequence')
+    # https://bitbucket.org/fdik/pypeg/commits/dd15ca462b532019c0a3be1d39b8ee2f3fa32f4e
+    warnings.filterwarnings('ignore', module='pypeg2',
+                            category=DeprecationWarning,
+                            message='invalid escape sequence')
 
 
 @contextlib.contextmanager

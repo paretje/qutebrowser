@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -17,19 +17,21 @@
 # You should have received a copy of the GNU General Public License
 # along with qutebrowser.  If not, see <http://www.gnu.org/licenses/>.
 
-# pylint: disable=line-too-long
-
-"""A keyboard-driven, vim-like browser based on PyQt5 and QtWebKit."""
-
 import os.path
 
-__author__ = "Florian Bruhin"
-__copyright__ = "Copyright 2014-2016 Florian Bruhin (The Compiler)"
-__license__ = "GPL"
-__maintainer__ = __author__
-__email__ = "mail@qutebrowser.org"
-__version_info__ = (0, 9, 0)
-__version__ = '.'.join(str(e) for e in __version_info__)
-__description__ = "A keyboard-driven, vim-like browser based on PyQt5 and QtWebKit."
+import pytest
 
-basedir = os.path.dirname(os.path.realpath(__file__))
+pytest.importorskip('PyQt5.QtWebEngineWidgets')
+
+from qutebrowser.browser.webengine import webenginedownloads
+
+
+@pytest.mark.parametrize('path, expected', [
+    (os.path.join('subfolder', 'foo'), 'foo'),
+    ('foo(1)', 'foo'),
+    ('foo(a)', 'foo(a)'),
+    ('foo1', 'foo1'),
+    ('foo%20bar', 'foo bar'),
+])
+def test_get_suggested_filename(path, expected):
+    assert webenginedownloads._get_suggested_filename(path) == expected

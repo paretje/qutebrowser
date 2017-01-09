@@ -215,6 +215,9 @@ class AbstractZoom(QObject):
         self.set_factor(float(level) / 100, fuzzyval=False)
         return level
 
+    def _set_factor_internal(self, factor):
+        raise NotImplementedError
+
     def set_factor(self, factor, *, fuzzyval=True):
         """Zoom to a given zoom factor.
 
@@ -570,7 +573,9 @@ class AbstractTab(QWidget):
         self.search._widget = widget
         self.printing._widget = widget
         self.elements._widget = widget
+
         self._install_event_filter()
+        self.zoom.set_default()
 
     def _install_event_filter(self):
         raise NotImplementedError

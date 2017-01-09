@@ -170,8 +170,10 @@ Contributors, sorted by the number of commits in descending order:
 * Nathan Isom
 * Thorsten Wißmann
 * Austin Anderson
+* Fritz Reichwald
 * Jimmy
 * Niklas Haas
+* Maciej Wołczyk
 * Spreadyy
 * Alexey "Averrin" Nabrodov
 * nanjekyejoannah
@@ -188,13 +190,14 @@ Contributors, sorted by the number of commits in descending order:
 * Jonas Schürmann
 * error800
 * Michael Hoang
-* Maciej Wołczyk
 * Liam BEGUIN
 * Julie Engel
 * skinnay
 * Zach-Button
 * Tomasz Kramkowski
+* Samuel Walladge
 * Peter Rice
+* Nikolay Amiantov
 * Ismail S
 * Halfwit
 * David Vogt
@@ -207,7 +210,6 @@ Contributors, sorted by the number of commits in descending order:
 * Michael Ilsaas
 * Martin Zimmermann
 * Jussi Timperi
-* Fritz Reichwald
 * Brian Jackson
 * thuck
 * sbinix
@@ -233,7 +235,6 @@ Contributors, sorted by the number of commits in descending order:
 * Marcelo Santos
 * Joel Bradshaw
 * Jean-Louis Fuchs
-* Fritz V155 Reichwald
 * Franz Fellner
 * Eric Drechsel
 * zwarag
@@ -260,6 +261,7 @@ Contributors, sorted by the number of commits in descending order:
 * Matthias Lisin
 * Marcel Schilling
 * Lazlow Carmichael
+* Kevin Wang
 * Ján Kobezda
 * Johannes Martinsson
 * Jean-Christophe Petkovich

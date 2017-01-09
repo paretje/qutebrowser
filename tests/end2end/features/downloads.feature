@@ -113,6 +113,11 @@ Feature: Downloading things from a website.
         And I wait for "Download drip finished" in the log
         Then the downloaded file drip should contain 128 bytes
 
+    Scenario: Downloading a file with spaces
+        When I open data/downloads/download with spaces.bin without waiting
+        And I wait until the download is finished
+        Then the downloaded file download with spaces.bin should exist
+
     ## :download-retry
 
     Scenario: Retrying a failed download
@@ -332,6 +337,20 @@ Feature: Downloading things from a website.
         And I open the download with a placeholder
         Then "Opening *download.bin* with [*python*]" should be logged
 
+    Scenario: Opening a download with default-open-dispatcher set
+        When I set a test python default-open-dispatcher
+        And I open data/downloads/download.bin without waiting
+        And I wait until the download is finished
+        And I run :download-open
+        Then "Opening *download.bin* with [*python*]" should be logged
+
+    Scenario: Opening a download with default-open-dispatcher set and override
+        When I set general -> default-open-dispatcher to cat
+        And I open data/downloads/download.bin without waiting
+        And I wait until the download is finished
+        And I open the download
+        Then "Opening *download.bin* with [*python*]" should be logged
+
     Scenario: Opening a download which does not exist
         When I run :download-open with count 42
         Then the error "There's no download 42!" should be shown
@@ -418,6 +437,21 @@ Feature: Downloading things from a website.
         And I run :prompt-accept (tmpdir)(dirsep)subdir
         And I open data/downloads/download2.bin without waiting
         Then the download prompt should be shown with "(tmpdir)/download2.bin"
+
+    # https://github.com/The-Compiler/qutebrowser/issues/2173
+
+    Scenario: Remembering the temporary download directory (issue 2173)
+        When I set storage -> prompt-download-directory to true
+        And I set completion -> download-path-suggestion to both
+        And I set storage -> remember-download-directory to true
+        And I open data/downloads/download.bin without waiting
+        And I wait for the download prompt for "*"
+        And I run :prompt-accept (tmpdir)
+        And I open data/downloads/download.bin without waiting
+        And I wait for the download prompt for "*"
+        And I directly open the download
+        And I open data/downloads/download.bin without waiting
+        Then the download prompt should be shown with "(tmpdir)/download.bin"
 
     # Overwriting files
 

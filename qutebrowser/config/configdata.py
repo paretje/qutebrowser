@@ -147,6 +147,13 @@ def data(readonly=False):
             "The URL parameters to strip with :yank url, separated by "
             "commas."),
 
+            ('default-open-dispatcher',
+             SettingValue(typ.String(none_ok=True), ''),
+            "The default program used to open downloads. Set to an empty "
+            "string to use the default internal handler.\n\n"
+            "Any {} in the string will be expanded to the filename, else "
+            "the filename will be appended."),
+
             ('default-page',
              SettingValue(typ.FuzzyUrl(), '${startpage}'),
              "The page to open if :open -t/-b/-w is used without URL. Use "
@@ -391,6 +398,10 @@ def data(readonly=False):
             ('prompt-radius',
              SettingValue(typ.Int(minval=0), '8'),
              "The rounding radius for the edges of prompts."),
+
+            ('prompt-filebrowser',
+             SettingValue(typ.Bool(), 'true'),
+             "Show a filebrowser in upload/download prompts."),
 
             readonly=readonly
         )),
@@ -1532,7 +1543,7 @@ KEY_DATA = collections.OrderedDict([
     ])),
 
     ('normal', collections.OrderedDict([
-        ('clear-keychain ;; search', ['<Escape>']),
+        ('clear-keychain ;; search', ['<Escape>', '<Ctrl-[>']),
         ('set-cmd-text -s :open', ['o']),
         ('set-cmd-text :open {url:pretty}', ['go']),
         ('set-cmd-text -s :open -t', ['O']),
@@ -1558,10 +1569,10 @@ KEY_DATA = collections.OrderedDict([
         ('tab-clone', ['gC']),
         ('reload', ['r', '<F5>']),
         ('reload -f', ['R', '<Ctrl-F5>']),
-        ('back', ['H']),
+        ('back', ['H', '<back>']),
         ('back -t', ['th']),
         ('back -w', ['wh']),
-        ('forward', ['L']),
+        ('forward', ['L', '<forward>']),
         ('forward -t', ['tl']),
         ('forward -w', ['wl']),
         ('fullscreen', ['<F11>']),

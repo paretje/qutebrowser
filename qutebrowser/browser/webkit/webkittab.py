@@ -32,8 +32,9 @@ from PyQt5.QtWebKit import QWebSettings
 from PyQt5.QtPrintSupport import QPrinter
 
 from qutebrowser.browser import browsertab
+from qutebrowser.browser.network import proxy
 from qutebrowser.browser.webkit import webview, tabhistory, webkitelem
-from qutebrowser.browser.webkit.network import proxy, webkitqutescheme
+from qutebrowser.browser.webkit.network import webkitqutescheme
 from qutebrowser.utils import qtutils, objreg, usertypes, utils, log
 
 
@@ -605,7 +606,6 @@ class WebKitTab(browsertab.AbstractTab):
         self.elements = WebKitElements(self)
         self._set_widget(widget)
         self._connect_signals()
-        self.zoom.set_default()
         self.backend = usertypes.Backend.QtWebKit
 
     @pyqtSlot(QUrl)

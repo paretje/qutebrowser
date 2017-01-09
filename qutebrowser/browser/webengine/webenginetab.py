@@ -37,7 +37,7 @@ from qutebrowser.browser.webengine import (webview, webengineelem, tabhistory,
                                            interceptor, webenginequtescheme,
                                            webenginedownloads)
 from qutebrowser.utils import (usertypes, qtutils, log, javascript, utils,
-                               objreg)
+                               objreg, jinja)
 
 
 _qute_scheme_handler = None
@@ -414,7 +414,7 @@ class WebEngineElements(browsertab.AbstractElements):
             js_elem: The element serialized from javascript.
         """
         debug_str = ('None' if js_elem is None
-                     else utils.elide(repr(js_elem), 100))
+                     else utils.elide(repr(js_elem), 1000))
         log.webview.debug("Got element from JS: {}".format(debug_str))
 
         if js_elem is None:
@@ -472,6 +472,7 @@ class WebEngineTab(browsertab.AbstractTab):
         self._init_js()
         self._child_event_filter = None
         self.needs_qtbug54419_workaround = False
+        self._saved_zoom = None
 
     def _init_js(self):
         js_code = '\n'.join([
@@ -503,7 +504,15 @@ class WebEngineTab(browsertab.AbstractTab):
             parent=self)
         self._widget.installEventFilter(self._child_event_filter)
 
+    @pyqtSlot()
+    def _restore_zoom(self):
+        if self._saved_zoom is None:
+            return
+        self.zoom.set_factor(self._saved_zoom)
+        self._saved_zoom = None
+
     def openurl(self, url):
+        self._saved_zoom = self.zoom.factor()
         self._openurl_prepare(url)
         self._widget.load(url)
 
@@ -566,12 +575,14 @@ class WebEngineTab(browsertab.AbstractTab):
             log.stub('on Qt < 5.7')
             return QIcon()
 
-    def set_html(self, html, base_url):
+    def set_html(self, html, base_url=None):
         # FIXME:qtwebengine
         # check this and raise an exception if too big:
         # Warning: The content will be percent encoded before being sent to the
         # renderer via IPC. This may increase its size. The maximum size of the
         # percent encoded content is 2 megabytes minus 30 bytes.
+        if base_url is None:
+            base_url = QUrl()
         self._widget.setHtml(html, base_url)
 
     def networkaccessmanager(self):
@@ -602,23 +613,35 @@ class WebEngineTab(browsertab.AbstractTab):
     @pyqtSlot(QUrl, 'QAuthenticator*')
     def _on_authentication_required(self, url, authenticator):
         # FIXME:qtwebengine support .netrc
-        shared.authentication_required(url, authenticator,
-                                       abort_on=[self.shutting_down,
-                                                 self.load_started])
+        answer = shared.authentication_required(
+            url, authenticator, abort_on=[self.shutting_down,
+                                          self.load_started])
+        if answer is None:
+            # WORKAROUND for
+            # https://www.riverbankcomputing.com/pipermail/pyqt/2016-December/038400.html
+            url_string = url.toDisplayString()
+            error_page = jinja.render(
+                'error.html',
+                title="Error loading page: {}".format(url_string),
+                url=url_string, error="Authentication required", icon='')
+            self.set_html(error_page)
 
     def _connect_signals(self):
         view = self._widget
         page = view.page()
+
         page.windowCloseRequested.connect(self.window_close_requested)
         page.linkHovered.connect(self.link_hovered)
         page.loadProgress.connect(self._on_load_progress)
         page.loadStarted.connect(self._on_load_started)
         page.loadFinished.connect(self._on_history_trigger)
-        view.titleChanged.connect(self.title_changed)
-        view.urlChanged.connect(self._on_url_changed)
+        page.loadFinished.connect(self._restore_zoom)
         page.loadFinished.connect(self._on_load_finished)
         page.certificate_error.connect(self._on_ssl_errors)
         page.authenticationRequired.connect(self._on_authentication_required)
+
+        view.titleChanged.connect(self.title_changed)
+        view.urlChanged.connect(self._on_url_changed)
         try:
             view.iconChanged.connect(self.icon_changed)
         except AttributeError:

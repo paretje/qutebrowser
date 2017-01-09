@@ -19,7 +19,9 @@
 
 """QtWebEngine specific code for downloads."""
 
+import re
 import os.path
+import urllib
 import functools
 
 from PyQt5.QtCore import pyqtSlot, Qt
@@ -94,7 +96,8 @@ class DownloadItem(downloads.AbstractDownloadItem):
         raise downloads.UnsupportedOperationError
 
     def _set_tempfile(self, fileobj):
-        self._set_filename(fileobj.name, force_overwrite=True)
+        self._set_filename(fileobj.name, force_overwrite=True,
+                           remember_directory=False)
 
     def _ensure_can_set_filename(self, filename):
         state = self._qt_item.state()
@@ -122,6 +125,22 @@ class DownloadItem(downloads.AbstractDownloadItem):
         self._qt_item.accept()
 
 
+def _get_suggested_filename(path):
+    """Convert a path we got from chromium to a suggested filename.
+
+    Chromium thinks we want to download stuff to ~/Download, so even if we
+    don't, we get downloads with a suffix like (1) for files existing there.
+
+    We simply strip the suffix off via regex.
+
+    See https://bugreports.qt.io/browse/QTBUG-56978
+    """
+    filename = os.path.basename(path)
+    filename = re.sub(r'\([0-9]+\)$', '', filename)
+    filename = urllib.parse.unquote(filename)
+    return filename
+
+
 class DownloadManager(downloads.AbstractDownloadManager):
 
     """Manager for currently running downloads."""
@@ -134,7 +153,7 @@ class DownloadManager(downloads.AbstractDownloadManager):
     @pyqtSlot(QWebEngineDownloadItem)
     def handle_download(self, qt_item):
         """Start a download coming from a QWebEngineProfile."""
-        suggested_filename = os.path.basename(qt_item.path())
+        suggested_filename = _get_suggested_filename(qt_item.path())
 
         download = DownloadItem(qt_item)
         self._init_item(download, auto_remove=False,

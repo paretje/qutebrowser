@@ -14,12 +14,23 @@ This project adheres to http://semver.org/[Semantic Versioning].
 // `Fixed` for any bug fixes.
 // `Security` to invite users to upgrade in case of vulnerabilities.
 
-v0.9.0 (unreleased)
--------------------
+v0.10.0
+-------
+
+Changed
+~~~~~~~
+
+- Scrolling with the scrollwheel while holding shift now scrolls sideways
+
+
+v0.9.0
+------
 
 Added
 ~~~~~
 
+- *New dependency:* qutebrowser now depends on the Qt QML module, which is
+   packaged separately in some distributions (as Qt Declarative/QML/Quick).
 - New `:rl-backward-kill-word` command which does what `:rl-unix-word-rubout`
   did before v0.8.0.
 - New `:rl-unix-filename-rubout` command which is similar to readline's
@@ -52,6 +63,9 @@ Added
 - New `:record-macro` (`q`) and `:run-macro` (`@`) commands for keyboard macros.
 - New `ui -> hide-scrollbar` setting to hide the scrollbar independently of the
   `user-stylesheet` setting.
+- New `general -> default-open-dispatcher` setting to configure what to open
+  downloads with (instead of e.g. `xdg-open` on Linux).
+- Support for PAC (proxy autoconfig) with QtWebKit
 
 Changed
 ~~~~~~~
@@ -190,6 +204,8 @@ Fixed
 - Fixed hang when using multiple spaces in a row with the URL completion
 - qutebrowser now still starts with an incorrectly configured
   `$XDG_RUNTIME_DIR`.
+- Fixed crash when a userscript writes invalid unicode data to the FIFO
+- Fixed crash when a included HTML was not found
 
 v0.8.3
 ------

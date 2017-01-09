@@ -11,6 +11,7 @@
 |<<general-ignore-case,ignore-case>>|Whether to find text on a page case-insensitively.
 |<<general-startpage,startpage>>|The default page(s) to open at the start, separated by commas.
 |<<general-yank-ignored-url-parameters,yank-ignored-url-parameters>>|The URL parameters to strip with :yank url, separated by commas.
+|<<general-default-open-dispatcher,default-open-dispatcher>>|The default program used to open downloads. Set to an empty string to use the default internal handler.
 |<<general-default-page,default-page>>|The page to open if :open -t/-b/-w is used without URL. Use `about:blank` for a blank page.
 |<<general-auto-search,auto-search>>|Whether to start a search when something else than a URL is entered.
 |<<general-auto-save-config,auto-save-config>>|Whether to save the config automatically on quit.
@@ -56,6 +57,7 @@
 |<<ui-hide-wayland-decoration,hide-wayland-decoration>>|Hide the window decoration when using wayland (requires restart)
 |<<ui-keyhint-blacklist,keyhint-blacklist>>|Keychains that shouldn't be shown in the keyhint dialog
 |<<ui-prompt-radius,prompt-radius>>|The rounding radius for the edges of prompts.
+|<<ui-prompt-filebrowser,prompt-filebrowser>>|Show a filebrowser in upload/download prompts.
 |==============
 
 .Quick reference for section ``network''
@@ -329,6 +331,14 @@ Default: +pass:[https://start.duckduckgo.com]+
 The URL parameters to strip with :yank url, separated by commas.
 
 Default: +pass:[ref,utm_source,utm_medium,utm_campaign,utm_term,utm_content]+
+
+[[general-default-open-dispatcher]]
+=== default-open-dispatcher
+The default program used to open downloads. Set to an empty string to use the default internal handler.
+
+Any {} in the string will be expanded to the filename, else the filename will be appended.
+
+Default: empty
 
 [[general-default-page]]
 === default-page
@@ -728,6 +738,17 @@ Default: empty
 The rounding radius for the edges of prompts.
 
 Default: +pass:[8]+
+
+[[ui-prompt-filebrowser]]
+=== prompt-filebrowser
+Show a filebrowser in upload/download prompts.
+
+Valid values:
+
+ * +true+
+ * +false+
+
+Default: +pass:[true]+
 
 == network
 Settings related to the network.
