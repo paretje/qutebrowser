@@ -27,7 +27,7 @@ import functools
 from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QPoint, QUrl, QTimer
 from PyQt5.QtGui import QKeyEvent, QIcon
 # pylint: disable=no-name-in-module,import-error,useless-suppression
-from PyQt5.QtWidgets import QOpenGLWidget, QApplication
+from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWebEngineWidgets import (QWebEnginePage, QWebEngineScript,
                                       QWebEngineProfile)
 # pylint: enable=no-name-in-module,import-error,useless-suppression
@@ -452,8 +452,6 @@ class WebEngineTab(browsertab.AbstractTab):
 
     """A QtWebEngine tab in the browser."""
 
-    WIDGET_CLASS = QOpenGLWidget
-
     def __init__(self, win_id, mode_manager, parent=None):
         super().__init__(win_id=win_id, mode_manager=mode_manager,
                          parent=parent)
@@ -553,6 +551,9 @@ class WebEngineTab(browsertab.AbstractTab):
 
     def shutdown(self):
         self.shutting_down.emit()
+        # WORKAROUND for
+        # https://bugreports.qt.io/browse/QTBUG-58563
+        self.search.clear()
         self._widget.shutdown()
 
     def reload(self, *, force=False):
@@ -651,5 +652,5 @@ class WebEngineTab(browsertab.AbstractTab):
         except AttributeError:
             log.stub('contentsSizeChanged, on Qt < 5.7')
 
-    def _event_target(self):
+    def event_target(self):
         return self._widget.focusProxy()

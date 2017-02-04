@@ -304,7 +304,7 @@ Feature: Various utility commands.
 
     # pdfjs support
 
-    @qtwebengine_todo: pdfjs is not implemented yet
+    @qtwebengine_skip: pdfjs is not implemented yet
     Scenario: pdfjs is used for pdf files
         Given pdfjs is available
         When I set content -> enable-pdfjs to true
@@ -318,7 +318,7 @@ Feature: Various utility commands.
         And I open data/misc/test.pdf
         Then "Download test.pdf finished" should be logged
 
-    @qtwebengine_todo: pdfjs is not implemented yet
+    @qtwebengine_skip: pdfjs is not implemented yet
     Scenario: Downloading a pdf via pdf.js button (issue 1214)
         Given pdfjs is available
         # WORKAROUND to prevent the "Painter ended with 2 saved states" warning
@@ -396,6 +396,7 @@ Feature: Various utility commands.
         And I wait for "Entering mode KeyMode.prompt *" in the log
         And I press the key "<Tab>"
         And I press the key "<Ctrl-C>"
+        And I run :leave-mode
         Then no crash should happen
 
     ## Custom headers
@@ -574,7 +575,7 @@ Feature: Various utility commands.
     Scenario: Clicking an element by ID
         When I open data/click_element.html
         And I run :click-element id qute-input
-        Then "Clicked editable element!" should be logged
+        Then "Entering mode KeyMode.insert (reason: clicking input)" should be logged
 
     Scenario: Clicking an element with tab target
         When I open data/click_element.html
@@ -584,14 +585,6 @@ Feature: Various utility commands.
         And the following tabs should be open:
             - data/click_element.html
             - data/hello.txt (active)
-
-    @qtwebengine_flaky
-    Scenario: Clicking an element which is out of view
-        When I open data/scroll/simple.html
-        And I run :scroll-page 0 1
-        And I wait until the scroll position changed
-        And I run :click-element id link
-        Then the error "Element position is out of view!" should be shown
 
     ## :command-history-{prev,next}
 
