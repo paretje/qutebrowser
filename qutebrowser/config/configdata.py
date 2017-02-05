@@ -35,7 +35,7 @@ from qutebrowser.config import configtypes as typ
 from qutebrowser.config import sections as sect
 from qutebrowser.config.value import SettingValue
 from qutebrowser.utils.qtutils import MAXVALS
-from qutebrowser.utils import usertypes
+from qutebrowser.utils import usertypes, qtutils
 
 
 FIRST_COMMENT = r"""
@@ -433,10 +433,13 @@ def data(readonly=False):
 
             ('proxy',
              SettingValue(typ.Proxy(), 'system',
-                          backends=[usertypes.Backend.QtWebKit]),
+                          backends=(None if qtutils.version_check('5.8')
+                                    else [usertypes.Backend.QtWebKit])),
              "The proxy to use.\n\n"
              "In addition to the listed values, you can use a `socks://...` "
-             "or `http://...` URL."),
+             "or `http://...` URL.\n\n"
+             "This setting only works with Qt 5.8 or newer when using the "
+             "QtWebEngine backend."),
 
             ('proxy-dns-requests',
              SettingValue(typ.Bool(), 'true',
@@ -936,7 +939,9 @@ def data(readonly=False):
             ('mode',
              SettingValue(typ.String(
                  valid_values=typ.ValidValues(
-                     ('number', "Use numeric hints."),
+                     ('number', "Use numeric hints. (In this mode you can "
+                      "also type letters form the hinted element to filter "
+                      "and reduce the number of elements that are hinted.)"),
                      ('letter', "Use the chars in the hints -> "
                       "chars setting."),
                      ('word', "Use hints words based on the html "

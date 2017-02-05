@@ -29,9 +29,10 @@ import functools
 import contextlib
 import itertools
 import socket
+import shlex
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QKeySequence, QColor, QClipboard
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QKeySequence, QColor, QClipboard, QDesktopServices
 from PyQt5.QtWidgets import QApplication
 import pkg_resources
 
@@ -399,7 +400,7 @@ def keyevent_to_string(e):
     if sys.platform == 'darwin':
         # Qt swaps Ctrl/Meta on OS X, so we switch it back here so the user can
         # use it in the config as expected. See:
-        # https://github.com/The-Compiler/qutebrowser/issues/110
+        # https://github.com/qutebrowser/qutebrowser/issues/110
         # http://doc.qt.io/qt-5.4/osx-issues.html#special-keys
         modmask2str = collections.OrderedDict([
             (Qt.MetaModifier, 'Ctrl'),
@@ -825,3 +826,48 @@ def random_port():
     port = sock.getsockname()[1]
     sock.close()
     return port
+
+
+def open_file(filename, cmdline=None):
+    """Open the given file.
+
+    If cmdline is not given, general->default-open-dispatcher is used.
+    If default-open-dispatcher is unset, the system's default application is
+    used.
+
+    Args:
+        filename: The filename to open.
+        cmdline: The command to use as string. A `{}` is expanded to the
+                 filename. None means to use the system's default application
+                 or `default-open-dispatcher` if set. If no `{}` is found, the
+                 filename is appended to the cmdline.
+    """
+    # Import late to avoid circular imports:
+    # utils -> config -> configdata -> configtypes -> cmdutils -> command ->
+    # utils
+    from qutebrowser.misc import guiprocess
+    from qutebrowser.config import config
+    # the default program to open downloads with - will be empty string
+    # if we want to use the default
+    override = config.get('general', 'default-open-dispatcher')
+
+    # precedence order: cmdline > default-open-dispatcher > openUrl
+
+    if cmdline is None and not override:
+        log.misc.debug("Opening {} with the system application"
+                       .format(filename))
+        url = QUrl.fromLocalFile(filename)
+        QDesktopServices.openUrl(url)
+        return
+
+    if cmdline is None and override:
+        cmdline = override
+
+    cmd, *args = shlex.split(cmdline)
+    args = [arg.replace('{}', filename) for arg in args]
+    if '{}' not in cmdline:
+        args.append(filename)
+    log.misc.debug("Opening {} with {}"
+                   .format(filename, [cmd] + args))
+    proc = guiprocess.GUIProcess(what='open-file')
+    proc.start_detached(cmd, args)

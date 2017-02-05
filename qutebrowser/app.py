@@ -47,6 +47,7 @@ from qutebrowser.commands import cmdutils, runners, cmdexc
 from qutebrowser.config import style, config, websettings, configexc
 from qutebrowser.browser import (urlmarks, adblock, history, browsertab,
                                  downloads)
+from qutebrowser.browser.network import proxy
 from qutebrowser.browser.webkit import cookies, cache
 from qutebrowser.browser.webkit.network import networkmanager
 from qutebrowser.keyinput import macros
@@ -376,6 +377,7 @@ def _init_modules(args, crash_handler):
         args: The argparse namespace.
         crash_handler: The CrashHandler instance.
     """
+    # pylint: disable=too-many-statements
     log.init.debug("Initializing prompts...")
     prompt.init()
 
@@ -386,6 +388,11 @@ def _init_modules(args, crash_handler):
 
     log.init.debug("Initializing network...")
     networkmanager.init()
+
+    if qtutils.version_check('5.8'):
+        # Otherwise we can only initialize it for QtWebKit because of crashes
+        log.init.debug("Initializing proxy...")
+        proxy.init()
 
     log.init.debug("Initializing readline-bridge...")
     readline_bridge = readline.ReadlineBridge()
@@ -440,7 +447,7 @@ def _init_modules(args, crash_handler):
     else:
         os.environ.pop('QT_WAYLAND_DISABLE_WINDOWDECORATION', None)
     # Init backend-specific stuff
-    browsertab.init(args)
+    browsertab.init()
 
 
 def _init_late_modules(args):
@@ -528,7 +535,7 @@ class Quitter:
             if not os.path.isdir(cwd):
                 # Probably running from a python egg. Let's fallback to
                 # cwd=None and see if that works out.
-                # See https://github.com/The-Compiler/qutebrowser/issues/323
+                # See https://github.com/qutebrowser/qutebrowser/issues/323
                 cwd = None
 
         # Add all open pages so they get reopened.

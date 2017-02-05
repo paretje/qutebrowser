@@ -114,7 +114,7 @@ class MouseEventFilter(QObject):
             e: The QWheelEvent.
         """
         if self._ignore_wheel_event:
-            # See https://github.com/The-Compiler/qutebrowser/issues/395
+            # See https://github.com/qutebrowser/qutebrowser/issues/395
             self._ignore_wheel_event = False
             return True
 
@@ -124,7 +124,7 @@ class MouseEventFilter(QObject):
             if factor < 0:
                 return False
             perc = int(100 * factor)
-            message.info("Zoom level: {}%".format(perc))
+            message.info("Zoom level: {}%".format(perc), replace=True)
             self._tab.zoom.set_factor(factor)
         elif e.modifiers() & Qt.ShiftModifier:
             if e.angleDelta().y() > 0:
@@ -208,7 +208,7 @@ class MouseEventFilter(QObject):
         if evtype not in self._handlers:
             return False
         if obj is not self._tab.event_target():
-            log.mouse.debug("Ignoring {} to {}".format(event.__class__.__name__,
-                                                       obj))
+            log.mouse.debug("Ignoring {} to {}".format(
+                event.__class__.__name__, obj))
             return False
         return self._handlers[evtype](event)

@@ -28,7 +28,7 @@ from qutebrowser.commands import cmdutils
 from qutebrowser.utils import (utils, objreg, standarddir, log, qtutils,
                                usertypes)
 from qutebrowser.config import config
-from qutebrowser.misc import lineparser
+from qutebrowser.misc import lineparser, objects
 
 
 class Entry:
@@ -88,7 +88,7 @@ class Entry:
         if not url.isValid():
             raise ValueError("Invalid URL: {}".format(url.errorString()))
 
-        # https://github.com/The-Compiler/qutebrowser/issues/670
+        # https://github.com/qutebrowser/qutebrowser/issues/670
         atime = atime.lstrip('\0')
 
         if '-' in atime:
@@ -293,7 +293,6 @@ def init(parent=None):
                          parent=parent)
     objreg.register('web-history', history)
 
-    used_backend = usertypes.arg2backend[objreg.get('args').backend]
-    if used_backend == usertypes.Backend.QtWebKit:
+    if objects.backend == usertypes.Backend.QtWebKit:
         from qutebrowser.browser.webkit import webkithistory
         webkithistory.init(history)

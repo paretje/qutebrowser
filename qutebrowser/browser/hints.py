@@ -101,7 +101,7 @@ class HintLabel(QLabel):
             unmatched: The part of the text which was not typed yet.
         """
         if (config.get('hints', 'uppercase') and
-                self._context.hint_mode == 'letter'):
+                self._context.hint_mode in ['letter', 'word']):
             matched = html.escape(matched.upper())
             unmatched = html.escape(unmatched.upper())
         else:
@@ -235,7 +235,10 @@ class HintActions:
         sel = (context.target == Target.yank_primary and
                utils.supports_selection())
 
-        urlstr = url.toString(QUrl.FullyEncoded | QUrl.RemovePassword)
+        flags = QUrl.FullyEncoded | QUrl.RemovePassword
+        if url.scheme() == 'mailto':
+            flags |= QUrl.RemoveScheme
+        urlstr = url.toString(flags)
         utils.set_clipboard(urlstr, selection=sel)
 
         msg = "Yanked URL to {}: {}".format(

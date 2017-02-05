@@ -24,8 +24,10 @@
 
 import functools
 
+import sip
 from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QPoint, QUrl, QTimer
 from PyQt5.QtGui import QKeyEvent, QIcon
+from PyQt5.QtNetwork import QAuthenticator
 # pylint: disable=no-name-in-module,import-error,useless-suppression
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWebEngineWidgets import (QWebEnginePage, QWebEngineScript,
@@ -442,6 +444,7 @@ class WebEngineElements(browsertab.AbstractElements):
     def find_at_pos(self, pos, callback):
         assert pos.x() >= 0
         assert pos.y() >= 0
+        pos /= self._tab.zoom.factor()
         js_code = javascript.assemble('webelem', 'element_at_pos',
                                       pos.x(), pos.y())
         js_cb = functools.partial(self._js_cb_single, callback)
@@ -618,14 +621,18 @@ class WebEngineTab(browsertab.AbstractTab):
             url, authenticator, abort_on=[self.shutting_down,
                                           self.load_started])
         if answer is None:
-            # WORKAROUND for
-            # https://www.riverbankcomputing.com/pipermail/pyqt/2016-December/038400.html
-            url_string = url.toDisplayString()
-            error_page = jinja.render(
-                'error.html',
-                title="Error loading page: {}".format(url_string),
-                url=url_string, error="Authentication required", icon='')
-            self.set_html(error_page)
+            try:
+                # pylint: disable=no-member
+                sip.assign(authenticator, QAuthenticator())
+            except NameError:
+                # WORKAROUND for
+                # https://www.riverbankcomputing.com/pipermail/pyqt/2016-December/038400.html
+                url_string = url.toDisplayString()
+                error_page = jinja.render(
+                    'error.html',
+                    title="Error loading page: {}".format(url_string),
+                    url=url_string, error="Authentication required", icon='')
+                self.set_html(error_page)
 
     def _connect_signals(self):
         view = self._widget

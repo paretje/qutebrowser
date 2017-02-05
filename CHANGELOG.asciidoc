@@ -17,11 +17,20 @@ This project adheres to http://semver.org/[Semantic Versioning].
 v0.10.0 (unreleased)
 --------------------
 
+Added
+-----
+
+- Userscripts now have a new `$QUTE_COMMANDLINE_TEXT` environment variable, containing the current commandline contents.
+- New `ripbang` userscript to create a searchengine from a duckduckgo bang
+
 Changed
 ~~~~~~~
 
 - Scrolling with the scrollwheel while holding shift now scrolls sideways
 - New way of clicking hints with which solves various small issues
+- When yanking a mailto: link via hints, the mailto: prefix is now stripped
+- Zoom level messages are now not stacked on top of each other anymore.
+- qutebrowser now automatically uses QtWebEngine if QtWebKit is unavailable
 
 Fixed
 -----
@@ -30,6 +39,14 @@ Fixed
 - Worked around a segfault with Qt 5.8 when closing a tab with a search active
 - Fixed various mouse actions (like automatically entering insert mode) not working with Qt 5.8
 - Fixed hints sometimes not working with Qt 5.8
+- `:enter-mode` now refuses to enter modes which can't be entered manually (which caused crashes).
+- `:record-macro` (`q`) now doesn't try to record macros for special keys without a text.
+- Fixed PAC (proxy autoconfig) not working with QtWebKit
+- `:download --mhtml` now uses the new file dialog
+- Insert mode now gets entered correctly with a non-100% zoom
+- Word hints are now upper-cased correctly when hints -> uppercase is true
+- Font validation is now more permissive in the config, allowing e.g. "Terminus
+  (TTF)" as font name.
 
 v0.9.1
 ------
@@ -831,7 +848,7 @@ Fixed
 - Fixed horrible completion performance when the `shrink` option was set.
 - Sessions now store zoom/scroll-position correctly.
 
-https://github.com/The-Compiler/qutebrowser/releases/tag/v0.2.1[v0.2.1]
+https://github.com/qutebrowser/qutebrowser/releases/tag/v0.2.1[v0.2.1]
 -----------------------------------------------------------------------
 
 Fixed
@@ -839,7 +856,7 @@ Fixed
 
 - Added missing manpage (doc/qutebrowser.1.asciidoc) to archive.
 
-https://github.com/The-Compiler/qutebrowser/releases/tag/v0.2.0[v0.2.0]
+https://github.com/qutebrowser/qutebrowser/releases/tag/v0.2.0[v0.2.0]
 -----------------------------------------------------------------------
 
 Added
@@ -982,7 +999,7 @@ Fixed
 - Add a timeout to pastebin HTTP replies.
 - Various other fixes for small/rare bugs.
 
-https://github.com/The-Compiler/qutebrowser/releases/tag/v0.1.4[v0.1.4]
+https://github.com/qutebrowser/qutebrowser/releases/tag/v0.1.4[v0.1.4]
 -----------------------------------------------------------------------
 
 Changed
@@ -1026,7 +1043,7 @@ Security
 * Stop the icon database from being created when private-browsing is set to true.
 * Disable insecure SSL ciphers.
 
-https://github.com/The-Compiler/qutebrowser/releases/tag/v0.1.3[v0.1.3]
+https://github.com/qutebrowser/qutebrowser/releases/tag/v0.1.3[v0.1.3]
 -----------------------------------------------------------------------
 
 Changed
@@ -1060,7 +1077,7 @@ Security
 
 * Fix for HTTP passwords accidentally being written to debug log.
 
-https://github.com/The-Compiler/qutebrowser/releases/tag/v0.1.2[v0.1.2]
+https://github.com/qutebrowser/qutebrowser/releases/tag/v0.1.2[v0.1.2]
 -----------------------------------------------------------------------
 
 Changed
@@ -1092,7 +1109,7 @@ Fixed
 * Fix user-stylesheet setting with an empty value.
 
 
-https://github.com/The-Compiler/qutebrowser/releases/tag/v0.1.1[v0.1.1]
+https://github.com/qutebrowser/qutebrowser/releases/tag/v0.1.1[v0.1.1]
 -----------------------------------------------------------------------
 
 Added
@@ -1150,7 +1167,7 @@ Fixed
 * Ensure the docs get included in `freeze.py`.
 * Fix crash with `:zoom`.
 
-https://github.com/The-Compiler/qutebrowser/releases/tag/v0.1[v0.1]
+https://github.com/qutebrowser/qutebrowser/releases/tag/v0.1[v0.1]
 -------------------------------------------------------------------
 
 Initial release.

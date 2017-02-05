@@ -99,6 +99,12 @@ Feature: Using hints
         And I hint with args "links yank-primary" and follow a
         Then the clipboard should contain "http://localhost:(port)/data/hello.txt"
 
+    Scenario: Yanking email address to clipboard
+        When I run :debug-set-fake-clipboard
+        And I open data/email_address.html
+        And I hint with args "links yank" and follow a
+        Then the clipboard should contain "nobody"
+
     Scenario: Rapid hinting
         When I open data/hints/rapid.html in a new tab
         And I run :tab-only
@@ -153,7 +159,7 @@ Feature: Using hints
         # The actual check is already done above
         Then no crash should happen
 
-    # https://github.com/The-Compiler/qutebrowser/issues/1613
+    # https://github.com/qutebrowser/qutebrowser/issues/1613
     Scenario: Hinting inputs with padding
         When I open data/hints/input.html
         And I hint with args "inputs" and follow s
@@ -178,7 +184,7 @@ Feature: Using hints
         And I hint with args "links normal" and follow a
         Then "navigation request: url http://localhost:*/data/hello.txt, type NavigationTypeLinkClicked, *" should be logged
 
-    ### FIXME currenly skipped, see https://github.com/The-Compiler/qutebrowser/issues/1525
+    ### FIXME currenly skipped, see https://github.com/qutebrowser/qutebrowser/issues/1525
     @xfail_norun
     Scenario: Using :follow-hint inside a scrolled iframe
         When I open data/hints/iframe_scroll.html
@@ -256,7 +262,7 @@ Feature: Using hints
 
     ### Number hint mode
 
-    # https://github.com/The-Compiler/qutebrowser/issues/308
+    # https://github.com/qutebrowser/qutebrowser/issues/308
     Scenario: Renumbering hints when filtering
         When I open data/hints/number.html
         And I set hints -> mode to number
@@ -265,7 +271,7 @@ Feature: Using hints
         And I run :follow-hint 1
         Then data/numbers/7.txt should be loaded
 
-    # https://github.com/The-Compiler/qutebrowser/issues/576
+    # https://github.com/qutebrowser/qutebrowser/issues/576
     @qtwebengine_flaky
     Scenario: Keeping hint filter in rapid mode
         When I open data/hints/number.html
@@ -277,7 +283,7 @@ Feature: Using hints
         Then data/numbers/2.txt should be loaded
         And data/numbers/3.txt should be loaded
 
-    # https://github.com/The-Compiler/qutebrowser/issues/1186
+    # https://github.com/qutebrowser/qutebrowser/issues/1186
     Scenario: Keeping hints filter when using backspace
         When I open data/hints/issue1186.html
         And I set hints -> mode to number
@@ -288,7 +294,7 @@ Feature: Using hints
         And I run :follow-hint 11
         Then the error "No hint 11!" should be shown
 
-    # https://github.com/The-Compiler/qutebrowser/issues/674#issuecomment-165096744
+    # https://github.com/qutebrowser/qutebrowser/issues/674#issuecomment-165096744
     Scenario: Multi-word matching
         When I open data/hints/number.html
         And I set hints -> mode to number
@@ -305,7 +311,7 @@ Feature: Using hints
         And I hint with args "all" and follow 00
         Then data/numbers/1.txt should be loaded
 
-    # https://github.com/The-Compiler/qutebrowser/issues/1559
+    # https://github.com/qutebrowser/qutebrowser/issues/1559
     Scenario: Filtering all hints in number mode
         When I open data/hints/number.html
         And I set hints -> mode to number
@@ -314,7 +320,7 @@ Feature: Using hints
         And I wait for "Leaving mode KeyMode.hint (reason: all filtered)" in the log
         Then no crash should happen
 
-    # https://github.com/The-Compiler/qutebrowser/issues/1657
+    # https://github.com/qutebrowser/qutebrowser/issues/1657
     Scenario: Using rapid number hinting twice
         When I open data/hints/number.html
         And I set hints -> mode to number

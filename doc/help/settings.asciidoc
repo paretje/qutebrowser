@@ -796,14 +796,14 @@ The proxy to use.
 
 In addition to the listed values, you can use a `socks://...` or `http://...` URL.
 
+This setting only works with Qt 5.8 or newer when using the QtWebEngine backend.
+
 Valid values:
 
  * +system+: Use the system wide proxy.
  * +none+: Don't use any proxy
 
 Default: +pass:[system]+
-
-This setting is only available with the QtWebKit backend.
 
 [[network-proxy-dns-requests]]
 === proxy-dns-requests
@@ -1666,7 +1666,7 @@ Mode to use for hints.
 
 Valid values:
 
- * +number+: Use numeric hints.
+ * +number+: Use numeric hints. (In this mode you can also type letters form the hinted element to filter and reduce the number of elements that are hinted.)
  * +letter+: Use the chars in the hints -> chars setting.
  * +word+: Use hints words based on the html elements and the extra words.
 

@@ -58,10 +58,18 @@ def is_ignored_lowlevel_message(message):
     if 'Running without the SUID sandbox!' in message:
         return True
     elif message.startswith('Xlib: sequence lost'):
-        # https://travis-ci.org/The-Compiler/qutebrowser/jobs/157941720
+        # https://travis-ci.org/qutebrowser/qutebrowser/jobs/157941720
         # ???
         return True
     elif 'CERT_PKIXVerifyCert for localhost failed' in message:
+        return True
+    elif 'Invalid node channel message' in message:
+        # Started appearing in sessions.feature with Qt 5.8...
+        return True
+    elif ("_dl_allocate_tls_init: Assertion `listp->slotinfo[cnt].gen <= "
+          "GL(dl_tls_generation)' failed!" in message):
+        # Started appearing with Qt 5.8...
+        # http://patchwork.sourceware.org/patch/10255/
         return True
     return False
 

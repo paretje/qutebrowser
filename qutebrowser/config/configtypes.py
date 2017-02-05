@@ -741,15 +741,15 @@ class Font(BaseType):
                 ) |
                 # size (<float>pt | <int>px)
                 (?P<size>[0-9]+((\.[0-9]+)?[pP][tT]|[pP][xX]))
-            )\                         # size/weight/style are space-separated
-        )*                             # 0-inf size/weight/style tags
-        (?P<family>[A-Za-z0-9, "-]*)$  # mandatory font family""", re.VERBOSE)
+            )\           # size/weight/style are space-separated
+        )*               # 0-inf size/weight/style tags
+        (?P<family>.+)$  # mandatory font family""", re.VERBOSE)
 
     def validate(self, value):
         self._basic_validation(value)
         if not value:
             return
-        elif not self.font_regex.match(value):
+        elif not self.font_regex.match(value):  # pragma: no cover
             raise configexc.ValidationError(value, "must be a valid font")
 
 
@@ -762,7 +762,7 @@ class FontFamily(Font):
         if not value:
             return
         match = self.font_regex.match(value)
-        if not match:
+        if not match:  # pragma: no cover
             raise configexc.ValidationError(value, "must be a valid font")
         for group in 'style', 'weight', 'namedweight', 'size':
             if match.group(group):
