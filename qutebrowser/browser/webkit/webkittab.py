@@ -52,6 +52,14 @@ def init():
     objreg.register('js-bridge', js_bridge)
 
 
+class WebKitAction(browsertab.AbstractAction):
+
+    """QtWebKit implementations related to web actions."""
+
+    def exit_fullscreen(self):
+        raise browsertab.UnsupportedOperationError
+
+
 class WebKitPrinting(browsertab.AbstractPrinting):
 
     """QtWebKit implementations related to printing."""
@@ -68,13 +76,19 @@ class WebKitPrinting(browsertab.AbstractPrinting):
     def check_printer_support(self):
         self._do_check()
 
+    def check_preview_support(self):
+        self._do_check()
+
     def to_pdf(self, filename):
         printer = QPrinter()
         printer.setOutputFileName(filename)
         self.to_printer(printer)
 
-    def to_printer(self, printer):
+    def to_printer(self, printer, callback=None):
         self._widget.print(printer)
+        # Can't find out whether there was an error...
+        if callback is not None:
+            callback(True)
 
 
 class WebKitSearch(browsertab.AbstractSearch):
@@ -604,6 +618,7 @@ class WebKitTab(browsertab.AbstractTab):
         self.search = WebKitSearch(parent=self)
         self.printing = WebKitPrinting()
         self.elements = WebKitElements(self)
+        self.action = WebKitAction()
         self._set_widget(widget)
         self._connect_signals()
         self.backend = usertypes.Backend.QtWebKit

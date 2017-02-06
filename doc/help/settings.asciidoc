@@ -22,7 +22,7 @@
 |<<general-developer-extras,developer-extras>>|Enable extra tools for Web developers.
 |<<general-print-element-backgrounds,print-element-backgrounds>>|Whether the background color and images are also drawn when the page is printed.
 |<<general-xss-auditing,xss-auditing>>|Whether load requests should be monitored for cross-site scripting attempts.
-|<<general-site-specific-quirks,site-specific-quirks>>|Enable workarounds for broken sites.
+|<<general-site-specific-quirks,site-specific-quirks>>|Enable QtWebKit workarounds for broken sites.
 |<<general-default-encoding,default-encoding>>|Default encoding to use for websites.
 |<<general-new-instance-open-target,new-instance-open-target>>|How to open links in an existing instance if a new one is launched.
 |<<general-new-instance-open-target.window,new-instance-open-target.window>>|Which window to choose when opening links as new tabs.
@@ -148,7 +148,7 @@
 |<<storage-offline-storage-database,offline-storage-database>>|Whether support for the HTML 5 offline storage feature is enabled.
 |<<storage-offline-web-application-storage,offline-web-application-storage>>|Whether support for the HTML 5 web application cache feature is enabled.
 |<<storage-local-storage,local-storage>>|Whether support for the HTML 5 local storage feature is enabled.
-|<<storage-cache-size,cache-size>>|Size of the HTTP network cache.
+|<<storage-cache-size,cache-size>>|Size of the HTTP network cache. Empty to use the default value.
 |==============
 
 .Quick reference for section ``content''
@@ -172,7 +172,7 @@
 |<<content-local-content-can-access-remote-urls,local-content-can-access-remote-urls>>|Whether locally loaded documents are allowed to access remote urls.
 |<<content-local-content-can-access-file-urls,local-content-can-access-file-urls>>|Whether locally loaded documents are allowed to access other local urls.
 |<<content-cookies-accept,cookies-accept>>|Control which cookies to accept.
-|<<content-cookies-store,cookies-store>>|Whether to store cookies.
+|<<content-cookies-store,cookies-store>>|Whether to store cookies. Note this option needs a restart with QtWebEngine.
 |<<content-host-block-lists,host-block-lists>>|List of URLs of lists which contain hosts to block.
 |<<content-host-blocking-enabled,host-blocking-enabled>>|Whether host blocking is enabled.
 |<<content-host-blocking-whitelist,host-blocking-whitelist>>|List of domains that should always be loaded, despite being ad-blocked.
@@ -446,7 +446,7 @@ Default: +pass:[false]+
 
 [[general-site-specific-quirks]]
 === site-specific-quirks
-Enable workarounds for broken sites.
+Enable QtWebKit workarounds for broken sites.
 
 Valid values:
 
@@ -1383,9 +1383,9 @@ Default: +pass:[true]+
 
 [[storage-cache-size]]
 === cache-size
-Size of the HTTP network cache.
+Size of the HTTP network cache. Empty to use the default value.
 
-Default: +pass:[52428800]+
+Default: empty
 
 == content
 Loaded plugins/scripts and allowed actions.
@@ -1594,7 +1594,7 @@ This setting is only available with the QtWebKit backend.
 
 [[content-cookies-store]]
 === cookies-store
-Whether to store cookies.
+Whether to store cookies. Note this option needs a restart with QtWebEngine.
 
 Valid values:
 
@@ -1602,8 +1602,6 @@ Valid values:
  * +false+
 
 Default: +pass:[true]+
-
-This setting is only available with the QtWebKit backend.
 
 [[content-host-block-lists]]
 === host-block-lists
@@ -2152,8 +2150,6 @@ Default: +pass:[red]+
 Background color for webpages if unset (or empty to use the theme's color)
 
 Default: +pass:[white]+
-
-This setting is only available with the QtWebKit backend.
 
 [[colors-keyhint.fg]]
 === keyhint.fg

@@ -349,6 +349,43 @@ class CommandDispatcher:
         if tab is not None:
             tab.stop()
 
+    def _print_preview(self, tab):
+        """Show a print preview."""
+        def print_callback(ok):
+            if not ok:
+                message.error("Printing failed!")
+
+        tab.printing.check_preview_support()
+        diag = QPrintPreviewDialog()
+        diag.setAttribute(Qt.WA_DeleteOnClose)
+        diag.setWindowFlags(diag.windowFlags() | Qt.WindowMaximizeButtonHint |
+                            Qt.WindowMinimizeButtonHint)
+        diag.paintRequested.connect(functools.partial(
+            tab.printing.to_printer, callback=print_callback))
+        diag.exec_()
+
+    def _print_pdf(self, tab, filename):
+        """Print to the given PDF file."""
+        tab.printing.check_pdf_support()
+        filename = os.path.expanduser(filename)
+        directory = os.path.dirname(filename)
+        if directory and not os.path.exists(directory):
+            os.mkdir(directory)
+        tab.printing.to_pdf(filename)
+        log.misc.debug("Print to file: {}".format(filename))
+
+    def _print(self, tab):
+        """Print with a QPrintDialog."""
+        def print_callback(ok):
+            """Called when printing finished."""
+            if not ok:
+                message.error("Printing failed!")
+            diag.deleteLater()
+
+        diag = QPrintDialog()
+        diag.open(lambda: tab.printing.to_printer(diag.printer(),
+                                                  print_callback))
+
     @cmdutils.register(instance='command-dispatcher', name='print',
                        scope='window')
     @cmdutils.argument('count', count=True)
@@ -370,28 +407,17 @@ class CommandDispatcher:
                 tab.printing.check_pdf_support()
             else:
                 tab.printing.check_printer_support()
+            if preview:
+                tab.printing.check_preview_support()
         except browsertab.WebTabError as e:
             raise cmdexc.CommandError(e)
 
         if preview:
-            diag = QPrintPreviewDialog()
-            diag.setAttribute(Qt.WA_DeleteOnClose)
-            diag.setWindowFlags(diag.windowFlags() |
-                                Qt.WindowMaximizeButtonHint |
-                                Qt.WindowMinimizeButtonHint)
-            diag.paintRequested.connect(tab.printing.to_printer)
-            diag.exec_()
+            self._print_preview(tab)
         elif pdf:
-            pdf = os.path.expanduser(pdf)
-            directory = os.path.dirname(pdf)
-            if directory and not os.path.exists(directory):
-                os.mkdir(directory)
-            tab.printing.to_pdf(pdf)
-            log.misc.debug("Print to file: {}".format(pdf))
+            self._print_pdf(tab, pdf)
         else:
-            diag = QPrintDialog()
-            diag.setAttribute(Qt.WA_DeleteOnClose)
-            diag.open(lambda: tab.printing.to_printer(diag.printer()))
+            self._print(tab)
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
     def tab_clone(self, bg=False, window=False):
@@ -2043,3 +2069,24 @@ class CommandDispatcher:
         """
         if bg or tab or window or url != old_url:
             self.openurl(url=url, bg=bg, tab=tab, window=window)
+
+    @cmdutils.register(instance='command-dispatcher', scope='window')
+    def fullscreen(self, leave=False):
+        """Toggle fullscreen mode.
+
+        Args:
+            leave: Only leave fullscreen if it was entered by the page.
+        """
+        if leave:
+            tab = self._current_widget()
+            try:
+                tab.action.exit_fullscreen()
+            except browsertab.UnsupportedOperationError:
+                pass
+            return
+
+        window = self._tabbed_browser.window()
+        if window.isFullScreen():
+            window.showNormal()
+        else:
+            window.showFullScreen()

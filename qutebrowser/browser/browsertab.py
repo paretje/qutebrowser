@@ -94,6 +94,18 @@ class TabData:
         self.override_target = None
 
 
+class AbstractAction:
+
+    """Attribute of AbstractTab for Qt WebActions."""
+
+    def __init__(self):
+        self._widget = None
+
+    def exit_fullscreen(self):
+        """Exit the fullscreen mode."""
+        raise NotImplementedError
+
+
 class AbstractPrinting:
 
     """Attribute of AbstractTab for printing the page."""
@@ -107,10 +119,20 @@ class AbstractPrinting:
     def check_printer_support(self):
         raise NotImplementedError
 
+    def check_preview_support(self):
+        raise NotImplementedError
+
     def to_pdf(self, filename):
         raise NotImplementedError
 
-    def to_printer(self, printer):
+    def to_printer(self, printer, callback=None):
+        """Print the tab.
+
+        Args:
+            printer: The QPrinter to print to.
+            callback: Called with a boolean
+                      (True if printing succeeded, False otherwise)
+        """
         raise NotImplementedError
 
 
@@ -503,6 +525,9 @@ class AbstractTab(QWidget):
         new_tab_requested: Emitted when a new tab should be opened with the
                            given URL.
         load_status_changed: The loading status changed
+        fullscreen_requested: Fullscreen display was requested by the page.
+                              arg: True if fullscreen should be turned on,
+                                   False if it should be turned off.
     """
 
     window_close_requested = pyqtSignal()
@@ -518,6 +543,7 @@ class AbstractTab(QWidget):
     shutting_down = pyqtSignal()
     contents_size_changed = pyqtSignal(QSizeF)
     add_history_item = pyqtSignal(QUrl, QUrl, str)  # url, requested url, title
+    fullscreen_requested = pyqtSignal(bool)
 
     def __init__(self, win_id, mode_manager, parent=None):
         self.win_id = win_id
@@ -538,6 +564,7 @@ class AbstractTab(QWidget):
         # self.search = AbstractSearch(parent=self)
         # self.printing = AbstractPrinting()
         # self.elements = AbstractElements(self)
+        # self.action = AbstractAction()
 
         self.data = TabData()
         self._layout = miscwidgets.WrapperLayout(self)
@@ -566,6 +593,7 @@ class AbstractTab(QWidget):
         self.zoom._widget = widget
         self.search._widget = widget
         self.printing._widget = widget
+        self.action._widget = widget
         self.elements._widget = widget
 
         self._install_event_filter()

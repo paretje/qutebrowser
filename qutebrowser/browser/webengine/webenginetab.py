@@ -38,8 +38,9 @@ from qutebrowser.browser import browsertab, mouse, shared
 from qutebrowser.browser.webengine import (webview, webengineelem, tabhistory,
                                            interceptor, webenginequtescheme,
                                            webenginedownloads)
+from qutebrowser.misc import miscwidgets
 from qutebrowser.utils import (usertypes, qtutils, log, javascript, utils,
-                               objreg, jinja)
+                               objreg, jinja, message)
 
 
 _qute_scheme_handler = None
@@ -79,6 +80,17 @@ _JS_WORLD_MAP = {
 }
 
 
+class WebEngineAction(browsertab.AbstractAction):
+
+    """QtWebKit implementations related to web actions."""
+
+    def _action(self, action):
+        self._widget.triggerPageAction(action)
+
+    def exit_fullscreen(self):
+        self._action(QWebEnginePage.ExitFullScreen)
+
+
 class WebEnginePrinting(browsertab.AbstractPrinting):
 
     """QtWebEngine implementations related to printing."""
@@ -89,15 +101,21 @@ class WebEnginePrinting(browsertab.AbstractPrinting):
                 "Printing to PDF is unsupported with QtWebEngine on Qt < 5.7")
 
     def check_printer_support(self):
+        if not hasattr(self._widget.page(), 'print'):
+            raise browsertab.WebTabError(
+                "Printing is unsupported with QtWebEngine on Qt < 5.8")
+
+    def check_preview_support(self):
         raise browsertab.WebTabError(
-            "Printing is unsupported with QtWebEngine")
+            "Print previews are unsupported with QtWebEngine")
 
     def to_pdf(self, filename):
         self._widget.page().printToPdf(filename)
 
-    def to_printer(self, printer):
-        # Should never be called
-        assert False
+    def to_printer(self, printer, callback=None):
+        if callback is None:
+            callback = lambda _ok: None
+        self._widget.page().print(printer, callback)
 
 
 class WebEngineSearch(browsertab.AbstractSearch):
@@ -467,6 +485,7 @@ class WebEngineTab(browsertab.AbstractTab):
         self.search = WebEngineSearch(parent=self)
         self.printing = WebEnginePrinting()
         self.elements = WebEngineElements(self)
+        self.action = WebEngineAction()
         self._set_widget(widget)
         self._connect_signals()
         self.backend = usertypes.Backend.QtWebEngine
@@ -634,6 +653,31 @@ class WebEngineTab(browsertab.AbstractTab):
                     url=url_string, error="Authentication required", icon='')
                 self.set_html(error_page)
 
+    @pyqtSlot('QWebEngineFullScreenRequest')
+    def _on_fullscreen_requested(self, request):
+        request.accept()
+        on = request.toggleOn()
+        self.fullscreen_requested.emit(on)
+        if on:
+            notification = miscwidgets.FullscreenNotification(self)
+            notification.show()
+            notification.set_timeout(3000)
+
+    @pyqtSlot(QWebEnginePage.RenderProcessTerminationStatus, int)
+    def _on_render_process_terminated(self, status, exitcode):
+        """Show an error when the renderer process terminated."""
+        if status == QWebEnginePage.NormalTerminationStatus:
+            pass
+        elif status == QWebEnginePage.AbnormalTerminationStatus:
+            message.error("Renderer process exited with status {}".format(
+                exitcode))
+        elif status == QWebEnginePage.CrashedTerminationStatus:
+            message.error("Renderer process crashed")
+        elif status == QWebEnginePage.KilledTerminationStatus:
+            message.error("Renderer process was killed")
+        else:
+            raise ValueError("Invalid status {}".format(status))
+
     def _connect_signals(self):
         view = self._widget
         page = view.page()
@@ -647,17 +691,20 @@ class WebEngineTab(browsertab.AbstractTab):
         page.loadFinished.connect(self._on_load_finished)
         page.certificate_error.connect(self._on_ssl_errors)
         page.authenticationRequired.connect(self._on_authentication_required)
-
-        view.titleChanged.connect(self.title_changed)
-        view.urlChanged.connect(self._on_url_changed)
-        try:
-            view.iconChanged.connect(self.icon_changed)
-        except AttributeError:
-            log.stub('iconChanged, on Qt < 5.7')
+        page.fullScreenRequested.connect(self._on_fullscreen_requested)
         try:
             page.contentsSizeChanged.connect(self.contents_size_changed)
         except AttributeError:
             log.stub('contentsSizeChanged, on Qt < 5.7')
+
+        view.titleChanged.connect(self.title_changed)
+        view.urlChanged.connect(self._on_url_changed)
+        view.renderProcessTerminated.connect(
+             self._on_render_process_terminated)
+        try:
+            view.iconChanged.connect(self.icon_changed)
+        except AttributeError:
+            log.stub('iconChanged, on Qt < 5.7')
 
     def event_target(self):
         return self._widget.focusProxy()

@@ -55,8 +55,6 @@ PERFECT_FILES = [
         'qutebrowser/browser/history.py'),
     ('tests/unit/browser/webkit/test_history.py',
         'qutebrowser/browser/webkit/webkithistory.py'),
-    ('tests/unit/browser/webkit/test_tabhistory.py',
-        'qutebrowser/browser/webkit/tabhistory.py'),
     ('tests/unit/browser/webkit/http/test_http.py',
         'qutebrowser/browser/webkit/http.py'),
     ('tests/unit/browser/webkit/http/test_content_disposition.py',
@@ -104,6 +102,8 @@ PERFECT_FILES = [
         'qutebrowser/misc/keyhintwidget.py'),
     ('tests/unit/misc/test_pastebin.py',
         'qutebrowser/misc/pastebin.py'),
+    (None,
+        'qutebrowser/misc/objects.py'),
 
     (None,
         'qutebrowser/mainwindow/statusbar/keystring.py'),

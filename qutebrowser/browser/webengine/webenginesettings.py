@@ -26,13 +26,14 @@ Module attributes:
 
 import os
 
+from PyQt5.QtNetwork import QNetworkCookie
 # pylint: disable=no-name-in-module,import-error,useless-suppression
 from PyQt5.QtWebEngineWidgets import (QWebEngineSettings, QWebEngineProfile,
                                       QWebEngineScript)
 # pylint: enable=no-name-in-module,import-error,useless-suppression
 
 from qutebrowser.browser import shared
-from qutebrowser.config import websettings
+from qutebrowser.config import config, websettings
 from qutebrowser.utils import objreg, utils, standarddir, javascript
 
 
@@ -63,6 +64,45 @@ class StaticSetter(websettings.StaticSetter):
     """A setting set via static QWebEngineSettings getter/setter methods."""
 
     GLOBAL_SETTINGS = QWebEngineSettings.globalSettings
+
+
+class ProfileSetter(websettings.Base):
+
+    """A setting set on the QWebEngineProfile."""
+
+    def __init__(self, getter, setter):
+        super().__init__()
+        profile = QWebEngineProfile.defaultProfile()
+        self._getter = getattr(profile, getter)
+        self._setter = getattr(profile, setter)
+
+    def get(self, settings=None):
+        utils.unused(settings)
+        return self._getter()
+
+    def _set(self, value, settings=None):
+        utils.unused(settings)
+        self._setter(value)
+
+
+class PersistentCookiePolicy(ProfileSetter):
+
+    """The cookies -> store setting is different from other settings."""
+
+    def __init__(self):
+        super().__init__(getter='persistentCookiesPolicy',
+                         setter='setPersistentCookiesPolicy')
+
+    def get(self, settings=None):
+        utils.unused(settings)
+        return config.get('content', 'cookies-store')
+
+    def _set(self, value, settings=None):
+        utils.unused(settings)
+        self._setter(
+            QWebEngineProfile.AllowPersistentCookies if value else
+            QWebEngineProfile.NoPersistentCookies
+        )
 
 
 def _init_stylesheet(profile):
@@ -98,6 +138,13 @@ def _init_stylesheet(profile):
     profile.scripts().insert(script)
 
 
+def _init_profile(profile):
+    """Initialize settings set on the QWebEngineProfile."""
+    profile.setCachePath(os.path.join(standarddir.cache(), 'webengine'))
+    profile.setPersistentStoragePath(
+        os.path.join(standarddir.data(), 'webengine'))
+
+
 def update_settings(section, option):
     """Update global settings when qwebsettings changed."""
     websettings.update_mappings(MAPPINGS, section, option)
@@ -112,39 +159,38 @@ def init(args):
         os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = str(utils.random_port())
 
     profile = QWebEngineProfile.defaultProfile()
-    profile.setCachePath(os.path.join(standarddir.cache(), 'webengine'))
-    profile.setPersistentStoragePath(
-        os.path.join(standarddir.data(), 'webengine'))
+    _init_profile(profile)
     _init_stylesheet(profile)
+    # We need to do this here as a WORKAROUND for
+    # https://bugreports.qt.io/browse/QTBUG-58650
+    PersistentCookiePolicy().set(config.get('content', 'cookies-store'))
+
+    Attribute(QWebEngineSettings.FullScreenSupportEnabled).set(True)
 
     websettings.init_mappings(MAPPINGS)
     objreg.get('config').changed.connect(update_settings)
 
 
 def shutdown():
-    # FIXME:qtwebengine do we need to do something for a clean shutdown here?
-    pass
+    # WORKAROUND for https://bugreports.qt.io/browse/QTBUG-58675
+    # This forces Chromium to flush its cookie store but doesn't actually
+    # delete anything.
+    cookie = QNetworkCookie()
+    QWebEngineProfile.defaultProfile().cookieStore().deleteCookie(cookie)
 
 
 # Missing QtWebEngine attributes:
-# - ErrorPageEnabled (should not be exposed, but set)
-# - FullScreenSupportEnabled
-# - ScreenCaptureEnabled
-# - Accelerated2dCanvasEnabled
-# - AutoLoadIconsForPage
-# - TouchIconsEnabled
+# - ScreenCaptureEnabled (5.7)
+# - Accelerated2dCanvasEnabled (5.7)
+# - AutoLoadIconsForPage (5.7)
+# - TouchIconsEnabled (5.7)
+# - FocusOnNavigationEnabled (5.8)
+# - AllowRunningInsecureContent (5.8)
 #
 # Missing QtWebEngine fonts:
 # - FantasyFont
-# - PictographFont
-#
-# TODO settings on profile:
-# - httpCacheMaximumSize
-# - persistentCookiesPolicy
-# - offTheRecord
-#
-# TODO settings elsewhere:
-# - proxy
+# - PictographFont (5.7)
+
 
 MAPPINGS = {
     'content': {
@@ -164,6 +210,9 @@ MAPPINGS = {
             Attribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls),
         'local-content-can-access-file-urls':
             Attribute(QWebEngineSettings.LocalContentCanAccessFileUrls),
+        # https://bugreports.qt.io/browse/QTBUG-58650
+        # 'cookies-store':
+        #     PersistentCookiePolicy(),
     },
     'input': {
         'spatial-navigation':
@@ -220,6 +269,9 @@ MAPPINGS = {
     'storage': {
         'local-storage':
             Attribute(QWebEngineSettings.LocalStorageEnabled),
+        'cache-size':
+            ProfileSetter(getter='httpCacheMaximumSize',
+                          setter='setHttpCacheMaximumSize')
     },
     'general': {
         'xss-auditing':
@@ -234,4 +286,11 @@ try:
     MAPPINGS['content']['webgl'] = Attribute(QWebEngineSettings.WebGLEnabled)
 except AttributeError:
     # Added in Qt 5.7
+    pass
+
+try:
+    MAPPINGS['general']['print-element-backgrounds'] = Attribute(
+        QWebEngineSettings.PrintElementBackgrounds)
+except AttributeError:
+    # Added in Qt 5.8
     pass

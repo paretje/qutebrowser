@@ -200,9 +200,12 @@ def data(readonly=False):
 
             ('print-element-backgrounds',
              SettingValue(typ.Bool(), 'true',
-                          backends=[usertypes.Backend.QtWebKit]),
+                          backends=(None if qtutils.version_check('5.8')
+                                    else [usertypes.Backend.QtWebKit])),
              "Whether the background color and images are also drawn when the "
-             "page is printed."),
+             "page is printed.\n"
+             "This setting only works with Qt 5.8 or newer when using the "
+             "QtWebEngine backend."),
 
             ('xss-auditing',
              SettingValue(typ.Bool(), 'false'),
@@ -215,7 +218,7 @@ def data(readonly=False):
             ('site-specific-quirks',
              SettingValue(typ.Bool(), 'true',
                           backends=[usertypes.Backend.QtWebKit]),
-             "Enable workarounds for broken sites."),
+             "Enable QtWebKit workarounds for broken sites."),
 
             ('default-encoding',
              SettingValue(typ.String(none_ok=True), ''),
@@ -795,9 +798,10 @@ def data(readonly=False):
              "enabled."),
 
             ('cache-size',
-             SettingValue(typ.Int(minval=0, maxval=MAXVALS['int64']),
-                          '52428800'),
-             "Size of the HTTP network cache."),
+             SettingValue(typ.Int(none_ok=True, minval=0,
+                                  maxval=MAXVALS['int64']), ''),
+             "Size of the HTTP network cache. Empty to use the default "
+             "value."),
 
             readonly=readonly
         )),
@@ -891,9 +895,9 @@ def data(readonly=False):
              "Control which cookies to accept."),
 
             ('cookies-store',
-             SettingValue(typ.Bool(), 'true',
-                          backends=[usertypes.Backend.QtWebKit]),
-             "Whether to store cookies."),
+             SettingValue(typ.Bool(), 'true'),
+             "Whether to store cookies. Note this option needs a restart with "
+             "QtWebEngine."),
 
             ('host-block-lists',
              SettingValue(
@@ -1273,8 +1277,7 @@ def data(readonly=False):
              "Background color for downloads with errors."),
 
             ('webpage.bg',
-             SettingValue(typ.QtColor(none_ok=True), 'white',
-                          backends=[usertypes.Backend.QtWebKit]),
+             SettingValue(typ.QtColor(none_ok=True), 'white'),
              "Background color for webpages if unset (or empty to use the "
              "theme's color)"),
 
@@ -1548,7 +1551,8 @@ KEY_DATA = collections.OrderedDict([
     ])),
 
     ('normal', collections.OrderedDict([
-        ('clear-keychain ;; search', ['<Escape>', '<Ctrl-[>']),
+        ('clear-keychain ;; search ;; fullscreen --leave',
+            ['<Escape>', '<Ctrl-[>']),
         ('set-cmd-text -s :open', ['o']),
         ('set-cmd-text :open {url:pretty}', ['go']),
         ('set-cmd-text -s :open -t', ['O']),
@@ -1775,8 +1779,12 @@ CHANGED_KEY_COMMANDS = [
     (re.compile(r'^download-page$'), r'download'),
     (re.compile(r'^cancel-download$'), r'download-cancel'),
 
-    (re.compile(r"""^search (''|"")$"""), r'clear-keychain ;; search'),
-    (re.compile(r'^search$'), r'clear-keychain ;; search'),
+    (re.compile(r"""^search (''|"")$"""),
+        r'clear-keychain ;; search ;; fullscreen --leave'),
+    (re.compile(r'^search$'),
+        r'clear-keychain ;; search ;; fullscreen --leave'),
+    (re.compile(r'^clear-keychain ;; search$'),
+        r'clear-keychain ;; search ;; fullscreen --leave'),
 
     (re.compile(r"""^set-cmd-text ['"](.*) ['"]$"""), r'set-cmd-text -s \1'),
     (re.compile(r"""^set-cmd-text ['"](.*)['"]$"""), r'set-cmd-text \1'),
@@ -1790,7 +1798,8 @@ CHANGED_KEY_COMMANDS = [
     (re.compile(r'^scroll 50 0$'), r'scroll right'),
     (re.compile(r'^scroll ([-\d]+ [-\d]+)$'), r'scroll-px \1'),
 
-    (re.compile(r'^search *;; *clear-keychain$'), r'clear-keychain ;; search'),
+    (re.compile(r'^search *;; *clear-keychain$'),
+        r'clear-keychain ;; search ;; fullscreen --leave'),
     (re.compile(r'^clear-keychain *;; *leave-mode$'), r'leave-mode'),
 
     (re.compile(r'^download-remove --all$'), r'download-clear'),
