@@ -88,11 +88,18 @@ def download_should_exist(filename, tmpdir):
     assert path.check()
 
 
-@bdd.then(bdd.parsers.parse("The downloaded file {filename} should contain "
-                            "{size} bytes"))
+@bdd.then(bdd.parsers.parse("The downloaded file {filename} should be "
+                            "{size} bytes big"))
 def download_size(filename, size, tmpdir):
     path = tmpdir / 'downloads' / filename
     assert path.size() == int(size)
+
+
+@bdd.then(bdd.parsers.parse("The downloaded file {filename} should contain "
+                            "{text}"))
+def download_contents(filename, text, tmpdir):
+    path = tmpdir / 'downloads' / filename
+    assert text in path.read()
 
 
 @bdd.then(bdd.parsers.parse('The download prompt should be shown with '

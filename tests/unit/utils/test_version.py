@@ -646,6 +646,7 @@ class FakeQSslSocket:
     (True, True, False, True, True),  # no style
     (True, False, True, False, True),  # different Qt
     (True, False, True, True, False),  # no webkit
+    (True, False, True, True, 'ng'),  # QtWebKit-NG
 ])
 def test_version_output(git_commit, frozen, style, equal_qt, with_webkit,
                         stubs, monkeypatch):
@@ -673,6 +674,9 @@ def test_version_output(git_commit, frozen, style, equal_qt, with_webkit,
                          stubs.FakeQApplication(instance=None)),
         'objects.backend': (usertypes.Backend.QtWebKit if with_webkit
                             else usertypes.Backend.QtWebEngine),
+        'qtutils.is_qtwebkit_ng': (lambda v:
+                                   True if with_webkit == 'ng' else False),
+        'QLibraryInfo.location': (lambda _loc: 'QT PATH')
     }
 
     for attr, val in patches.items():
@@ -700,6 +704,7 @@ def test_version_output(git_commit, frozen, style, equal_qt, with_webkit,
         Platform: PLATFORM, ARCHITECTURE
         Frozen: {frozen}
         Imported from {import_path}
+        Qt library executable path: QT PATH, data path: QT PATH
         OS INFO 1
         OS INFO 2
 
@@ -715,8 +720,13 @@ def test_version_output(git_commit, frozen, style, equal_qt, with_webkit,
         'frozen': str(frozen),
         'import_path': import_path,
         'webkit': 'WEBKIT VERSION' if with_webkit else 'no',
-        'backend': 'QtWebKit' if with_webkit else 'QtWebEngine',
     }
+    backends = {
+        True: 'QtWebKit',
+        False: 'QtWebEngine',
+        'ng': 'QtWebKit-NG',
+    }
+    substitutions['backend'] = backends[with_webkit]
 
     expected = template.rstrip('\n').format(**substitutions)
     assert version.version() == expected

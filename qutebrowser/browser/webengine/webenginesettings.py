@@ -26,7 +26,6 @@ Module attributes:
 
 import os
 
-from PyQt5.QtNetwork import QNetworkCookie
 # pylint: disable=no-name-in-module,import-error,useless-suppression
 from PyQt5.QtWebEngineWidgets import (QWebEngineSettings, QWebEngineProfile,
                                       QWebEngineScript)
@@ -172,24 +171,21 @@ def init(args):
 
 
 def shutdown():
-    # WORKAROUND for https://bugreports.qt.io/browse/QTBUG-58675
-    # This forces Chromium to flush its cookie store but doesn't actually
-    # delete anything.
-    cookie = QNetworkCookie()
-    QWebEngineProfile.defaultProfile().cookieStore().deleteCookie(cookie)
+    # FIXME:qtwebengine do we need to do something for a clean shutdown here?
+    pass
 
 
 # Missing QtWebEngine attributes:
-# - ScreenCaptureEnabled (5.7)
-# - Accelerated2dCanvasEnabled (5.7)
-# - AutoLoadIconsForPage (5.7)
-# - TouchIconsEnabled (5.7)
+# - ScreenCaptureEnabled
+# - Accelerated2dCanvasEnabled
+# - AutoLoadIconsForPage
+# - TouchIconsEnabled
 # - FocusOnNavigationEnabled (5.8)
 # - AllowRunningInsecureContent (5.8)
 #
 # Missing QtWebEngine fonts:
 # - FantasyFont
-# - PictographFont (5.7)
+# - PictographFont
 
 
 MAPPINGS = {
@@ -213,6 +209,8 @@ MAPPINGS = {
         # https://bugreports.qt.io/browse/QTBUG-58650
         # 'cookies-store':
         #     PersistentCookiePolicy(),
+        'webgl':
+            Attribute(QWebEngineSettings.WebGLEnabled),
     },
     'input': {
         'spatial-navigation':
@@ -281,12 +279,6 @@ MAPPINGS = {
                    setter=QWebEngineSettings.setDefaultTextEncoding),
     }
 }
-
-try:
-    MAPPINGS['content']['webgl'] = Attribute(QWebEngineSettings.WebGLEnabled)
-except AttributeError:
-    # Added in Qt 5.7
-    pass
 
 try:
     MAPPINGS['general']['print-element-backgrounds'] = Attribute(

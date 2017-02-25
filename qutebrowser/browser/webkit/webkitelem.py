@@ -20,7 +20,7 @@
 """QtWebKit specific part of the web element API."""
 
 from PyQt5.QtCore import QRect
-from PyQt5.QtWebKit import QWebElement
+from PyQt5.QtWebKit import QWebElement, QWebSettings
 
 from qutebrowser.config import config
 from qutebrowser.utils import log, utils, javascript
@@ -248,10 +248,13 @@ class WebKitElement(webelem.AbstractWebElement):
         hidden_attributes = {
             'visibility': 'hidden',
             'display': 'none',
+            'opacity': '0',
         }
         for k, v in hidden_attributes.items():
-            if self._elem.styleProperty(k, QWebElement.ComputedStyle) == v:
+            if (self._elem.styleProperty(k, QWebElement.ComputedStyle) == v and
+                    'ace_text-input' not in self.classes()):
                 return False
+
         elem_geometry = self._elem.geometry()
         if not elem_geometry.isValid() and elem_geometry.x() == 0:
             # Most likely an invisible link
@@ -297,15 +300,22 @@ class WebKitElement(webelem.AbstractWebElement):
                 break
             elem = elem._parent()  # pylint: disable=protected-access
 
-    def _click_editable(self):
-        self._elem.evaluateJavaScript('this.focus();')
+    def _click_editable(self, click_target):
+        ok = self._elem.evaluateJavaScript('this.focus(); true;')
+        if not ok:
+            log.webelem.debug("Failed to focus via JS, falling back to event")
+            self._click_fake_event(click_target)
 
     def _click_js(self, click_target):
-        if self.get('target') == '_blank':
-            # QtWebKit does nothing in this case for some reason...
+        settings = QWebSettings.globalSettings()
+        attribute = QWebSettings.JavascriptCanOpenWindows
+        could_open_windows = settings.testAttribute(attribute)
+        settings.setAttribute(attribute, True)
+        ok = self._elem.evaluateJavaScript('this.click(); true;')
+        settings.setAttribute(attribute, could_open_windows)
+        if not ok:
+            log.webelem.debug("Failed to click via JS, falling back to event")
             self._click_fake_event(click_target)
-        else:
-            self._elem.evaluateJavaScript('this.click();')
 
     def _click_fake_event(self, click_target):
         self._tab.data.override_target = click_target

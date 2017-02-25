@@ -26,7 +26,7 @@ import functools
 
 import sip
 from PyQt5.QtCore import pyqtSlot, Qt, QEvent, QPoint, QUrl, QTimer
-from PyQt5.QtGui import QKeyEvent, QIcon
+from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtNetwork import QAuthenticator
 # pylint: disable=no-name-in-module,import-error,useless-suppression
 from PyQt5.QtWidgets import QApplication
@@ -40,7 +40,7 @@ from qutebrowser.browser.webengine import (webview, webengineelem, tabhistory,
                                            webenginedownloads)
 from qutebrowser.misc import miscwidgets
 from qutebrowser.utils import (usertypes, qtutils, log, javascript, utils,
-                               objreg, jinja, message)
+                               objreg, jinja)
 
 
 _qute_scheme_handler = None
@@ -90,15 +90,17 @@ class WebEngineAction(browsertab.AbstractAction):
     def exit_fullscreen(self):
         self._action(QWebEnginePage.ExitFullScreen)
 
+    def save_page(self):
+        """Save the current page."""
+        self._action(QWebEnginePage.SavePage)
+
 
 class WebEnginePrinting(browsertab.AbstractPrinting):
 
     """QtWebEngine implementations related to printing."""
 
     def check_pdf_support(self):
-        if not hasattr(self._widget.page(), 'printToPdf'):
-            raise browsertab.WebTabError(
-                "Printing to PDF is unsupported with QtWebEngine on Qt < 5.7")
+        return True
 
     def check_printer_support(self):
         if not hasattr(self._widget.page(), 'print'):
@@ -243,9 +245,6 @@ class WebEngineScroller(browsertab.AbstractScroller):
 
     """QtWebEngine implementations related to scrolling."""
 
-    # FIXME:qtwebengine
-    # using stuff here with a big count/argument causes memory leaks and hangs
-
     def __init__(self, tab, parent=None):
         super().__init__(tab, parent)
         self._pos_perc = (0, 0)
@@ -255,15 +254,10 @@ class WebEngineScroller(browsertab.AbstractScroller):
     def _init_widget(self, widget):
         super()._init_widget(widget)
         page = widget.page()
-        try:
-            page.scrollPositionChanged.connect(self._update_pos)
-        except AttributeError:
-            log.stub('scrollPositionChanged, on Qt < 5.7')
-            self._pos_perc = (None, None)
+        page.scrollPositionChanged.connect(self._update_pos)
 
     def _key_press(self, key, count=1):
-        # FIXME:qtwebengine Abort scrolling if the minimum/maximum was reached.
-        for _ in range(count):
+        for _ in range(min(count, 5000)):
             press_evt = QKeyEvent(QEvent.KeyPress, key, Qt.NoModifier, 0, 0, 0)
             release_evt = QKeyEvent(QEvent.KeyRelease, key, Qt.NoModifier,
                                     0, 0, 0)
@@ -375,6 +369,11 @@ class WebEngineHistory(browsertab.AbstractHistory):
         return self._history.canGoForward()
 
     def serialize(self):
+        # WORKAROUND for https://github.com/qutebrowser/qutebrowser/issues/2289
+        # FIXME:qtwebengine can we get rid of this with Qt 5.8.1?
+        scheme = self._history.currentItem().url().scheme()
+        if scheme in ['view-source', 'chrome']:
+            raise browsertab.WebTabError("Can't serialize special URL!")
         return qtutils.serialize(self._history)
 
     def deserialize(self, data):
@@ -491,7 +490,6 @@ class WebEngineTab(browsertab.AbstractTab):
         self.backend = usertypes.Backend.QtWebEngine
         self._init_js()
         self._child_event_filter = None
-        self.needs_qtbug54419_workaround = False
         self._saved_zoom = None
 
     def _init_js(self):
@@ -506,13 +504,7 @@ class WebEngineTab(browsertab.AbstractTab):
         script.setSourceCode(js_code)
 
         page = self._widget.page()
-        try:
-            page.runJavaScript("", QWebEngineScript.ApplicationWorld)
-        except TypeError:
-            # We're unable to pass a world to runJavaScript
-            script.setWorldId(QWebEngineScript.MainWorld)
-        else:
-            script.setWorldId(QWebEngineScript.ApplicationWorld)
+        script.setWorldId(QWebEngineScript.ApplicationWorld)
 
         # FIXME:qtwebengine  what about runsOnSubFrames?
         page.scripts().insert(script)
@@ -557,19 +549,10 @@ class WebEngineTab(browsertab.AbstractTab):
         else:
             world_id = _JS_WORLD_MAP[world]
 
-        try:
-            if callback is None:
-                self._widget.page().runJavaScript(code, world_id)
-            else:
-                self._widget.page().runJavaScript(code, world_id, callback)
-        except TypeError:
-            if world is not None and world != usertypes.JsWorld.jseval:
-                log.webview.warning("Ignoring world ID on Qt < 5.7")
-            # Qt < 5.7
-            if callback is None:
-                self._widget.page().runJavaScript(code)
-            else:
-                self._widget.page().runJavaScript(code, callback)
+        if callback is None:
+            self._widget.page().runJavaScript(code, world_id)
+        else:
+            self._widget.page().runJavaScript(code, world_id, callback)
 
     def shutdown(self):
         self.shutting_down.emit()
@@ -592,11 +575,7 @@ class WebEngineTab(browsertab.AbstractTab):
         return self._widget.title()
 
     def icon(self):
-        try:
-            return self._widget.icon()
-        except AttributeError:
-            log.stub('on Qt < 5.7')
-            return QIcon()
+        return self._widget.icon()
 
     def set_html(self, html, base_url=None):
         # FIXME:qtwebengine
@@ -609,6 +588,9 @@ class WebEngineTab(browsertab.AbstractTab):
         self._widget.setHtml(html, base_url)
 
     def networkaccessmanager(self):
+        return None
+
+    def user_agent(self):
         return None
 
     def clear_ssl_errors(self):
@@ -641,9 +623,9 @@ class WebEngineTab(browsertab.AbstractTab):
                                           self.load_started])
         if answer is None:
             try:
-                # pylint: disable=no-member
+                # pylint: disable=no-member, useless-suppression
                 sip.assign(authenticator, QAuthenticator())
-            except NameError:
+            except AttributeError:
                 # WORKAROUND for
                 # https://www.riverbankcomputing.com/pipermail/pyqt/2016-December/038400.html
                 url_string = url.toDisplayString()
@@ -666,17 +648,24 @@ class WebEngineTab(browsertab.AbstractTab):
     @pyqtSlot(QWebEnginePage.RenderProcessTerminationStatus, int)
     def _on_render_process_terminated(self, status, exitcode):
         """Show an error when the renderer process terminated."""
-        if status == QWebEnginePage.NormalTerminationStatus:
-            pass
-        elif status == QWebEnginePage.AbnormalTerminationStatus:
-            message.error("Renderer process exited with status {}".format(
-                exitcode))
-        elif status == QWebEnginePage.CrashedTerminationStatus:
-            message.error("Renderer process crashed")
-        elif status == QWebEnginePage.KilledTerminationStatus:
-            message.error("Renderer process was killed")
-        else:
-            raise ValueError("Invalid status {}".format(status))
+        if (status == QWebEnginePage.AbnormalTerminationStatus and
+                exitcode == 256):
+            # WORKAROUND for https://bugreports.qt.io/browse/QTBUG-58697
+            status = QWebEnginePage.CrashedTerminationStatus
+
+        status_map = {
+            QWebEnginePage.NormalTerminationStatus:
+                browsertab.TerminationStatus.normal,
+            QWebEnginePage.AbnormalTerminationStatus:
+                browsertab.TerminationStatus.abnormal,
+            QWebEnginePage.CrashedTerminationStatus:
+                browsertab.TerminationStatus.crashed,
+            QWebEnginePage.KilledTerminationStatus:
+                browsertab.TerminationStatus.killed,
+            -1:
+                browsertab.TerminationStatus.unknown,
+        }
+        self.renderer_process_terminated.emit(status_map[status], exitcode)
 
     def _connect_signals(self):
         view = self._widget
@@ -692,19 +681,13 @@ class WebEngineTab(browsertab.AbstractTab):
         page.certificate_error.connect(self._on_ssl_errors)
         page.authenticationRequired.connect(self._on_authentication_required)
         page.fullScreenRequested.connect(self._on_fullscreen_requested)
-        try:
-            page.contentsSizeChanged.connect(self.contents_size_changed)
-        except AttributeError:
-            log.stub('contentsSizeChanged, on Qt < 5.7')
+        page.contentsSizeChanged.connect(self.contents_size_changed)
 
         view.titleChanged.connect(self.title_changed)
         view.urlChanged.connect(self._on_url_changed)
         view.renderProcessTerminated.connect(
-             self._on_render_process_terminated)
-        try:
-            view.iconChanged.connect(self.icon_changed)
-        except AttributeError:
-            log.stub('iconChanged, on Qt < 5.7')
+            self._on_render_process_terminated)
+        view.iconChanged.connect(self.icon_changed)
 
     def event_target(self):
         return self._widget.focusProxy()

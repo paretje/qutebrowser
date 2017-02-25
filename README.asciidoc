@@ -7,7 +7,7 @@ qutebrowser
 ===========
 
 // QUTE_WEB_HIDE
-image:icons/qutebrowser-64x64.png[qutebrowser logo] *A keyboard-driven, vim-like browser based on PyQt5 and QtWebKit.*
+image:icons/qutebrowser-64x64.png[qutebrowser logo] *A keyboard-driven, vim-like browser based on PyQt5 and Qt.*
 
 image:https://img.shields.io/pypi/l/qutebrowser.svg?style=flat["license badge",link="https://github.com/qutebrowser/qutebrowser/blob/master/COPYING"]
 image:https://img.shields.io/pypi/v/qutebrowser.svg?style=flat["version badge",link="https://pypi.python.org/pypi/qutebrowser/"]
@@ -20,7 +20,7 @@ link:https://www.qutebrowser.org[website] | link:https://blog.qutebrowser.org[bl
 // QUTE_WEB_HIDE_END
 
 qutebrowser is a keyboard-focused browser with a minimal GUI. It's based
-on Python, PyQt5 and QtWebKit and free software, licensed under the GPL.
+on Python and PyQt5 and free software, licensed under the GPL.
 
 It was inspired by other browsers/addons like dwb and Vimperator/Pentadactyl.
 
@@ -99,7 +99,7 @@ The following software and libraries are required to run qutebrowser:
 
 * http://www.python.org/[Python] 3.4 or newer
 * http://qt.io/[Qt] 5.2.0 or newer (5.5.1 recommended)
-* QtWebKit
+* QtWebKit (old or link:https://github.com/annulen/webkit/wiki[reloaded]/NG) or QtWebEngine
 * http://www.riverbankcomputing.com/software/pyqt/intro[PyQt] 5.2.0 or newer
 (5.5.1 recommended) for Python 3
 * https://pypi.python.org/pypi/setuptools/[pkg_resources/setuptools]
@@ -165,6 +165,7 @@ Contributors, sorted by the number of commits in descending order:
 * Corentin Julé
 * meles5
 * Philipp Hansch
+* Imran Sobir
 * Panagiotis Ktistakis
 * Artur Shaik
 * Nathan Isom
@@ -186,16 +187,17 @@ Contributors, sorted by the number of commits in descending order:
 * knaggita
 * Oliver Caldwell
 * Julian Weigt
+* Tomasz Kramkowski
 * Sebastian Frysztak
 * Nikolay Amiantov
+* Julie Engel
 * Jonas Schürmann
 * error800
 * Michael Hoang
 * Liam BEGUIN
-* Julie Engel
+* Daniel Fiser
 * skinnay
 * Zach-Button
-* Tomasz Kramkowski
 * Samuel Walladge
 * Peter Rice
 * Ismail S
@@ -210,6 +212,7 @@ Contributors, sorted by the number of commits in descending order:
 * Michael Ilsaas
 * Martin Zimmermann
 * Jussi Timperi
+* Cosmin Popescu
 * Brian Jackson
 * thuck
 * sbinix
@@ -224,11 +227,13 @@ Contributors, sorted by the number of commits in descending order:
 * Lucas Hoffmann
 * Link
 * Larry Hynes
+* Kirill A. Shutemov
 * Johannes Altmanninger
 * Jeremy Kaplan
 * Ismail
 * Edgar Hipp
 * Daryl Finlay
+* pkill9
 * arza
 * adam
 * Samir Benmendil
@@ -242,7 +247,6 @@ Contributors, sorted by the number of commits in descending order:
 * zwarag
 * xd1le
 * rmortens
-* pkill9
 * oniondreams
 * issue
 * haxwithaxe

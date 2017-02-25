@@ -589,7 +589,7 @@ def data(readonly=False):
              "disables the context menu."),
 
             ('mouse-zoom-divider',
-             SettingValue(typ.Int(minval=1), '512'),
+             SettingValue(typ.Int(minval=0), '512'),
              "How much to divide the mouse wheel movements to translate them "
              "into zoom increments."),
 
@@ -823,8 +823,7 @@ def data(readonly=False):
 
             ('webgl',
              SettingValue(typ.Bool(), 'true'),
-             "Enables or disables WebGL. For QtWebEngine, Qt/PyQt >= 5.7 is "
-             "required for this setting."),
+             "Enables or disables WebGL."),
 
             ('css-regions',
              SettingValue(typ.Bool(), 'true',

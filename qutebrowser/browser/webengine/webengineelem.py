@@ -22,8 +22,12 @@
 
 """QtWebEngine specific part of the web element API."""
 
-from PyQt5.QtCore import QRect, Qt, QPoint
+from PyQt5.QtCore import QRect, Qt, QPoint, QEventLoop
 from PyQt5.QtGui import QMouseEvent
+from PyQt5.QtWidgets import QApplication
+# pylint: disable=no-name-in-module,import-error,useless-suppression
+from PyQt5.QtWebEngineWidgets import QWebEngineSettings
+# pylint: enable=no-name-in-module,import-error,useless-suppression
 
 from qutebrowser.utils import log, javascript
 from qutebrowser.browser import webelem
@@ -147,11 +151,13 @@ class WebEngineElement(webelem.AbstractWebElement):
         return QRect()
 
     def remove_blank_target(self):
+        if self._js_dict['attributes'].get('target') == '_blank':
+            self._js_dict['attributes']['target'] = '_top'
         js_code = javascript.assemble('webelem', 'remove_blank_target',
             self._id)
         self._tab.run_js_async(js_code)
 
-    def _click_editable(self):
+    def _click_editable(self, click_target):
         # WORKAROUND for https://bugreports.qt.io/browse/QTBUG-58515
         # pylint doesn't know about Qt.MouseEventSynthesizedBySystem
         # because it was added in Qt 5.6, but we can be sure we use that with
@@ -167,5 +173,21 @@ class WebEngineElement(webelem.AbstractWebElement):
         self._tab.run_js_async(js_code)
 
     def _click_js(self, _click_target):
+        settings = QWebEngineSettings.globalSettings()
+        attribute = QWebEngineSettings.JavascriptCanOpenWindows
+        could_open_windows = settings.testAttribute(attribute)
+        settings.setAttribute(attribute, True)
+
+        # Get QtWebEngine do apply the settings
+        # (it does so with a 0ms QTimer...)
+        # This is also used in Qt's tests:
+        # https://github.com/qt/qtwebengine/commit/5e572e88efa7ba7c2b9138ec19e606d3e345ac90
+        qapp = QApplication.instance()
+        qapp.processEvents(QEventLoop.ExcludeSocketNotifiers |
+                           QEventLoop.ExcludeUserInputEvents)
+
+        def reset_setting(_arg):
+            settings.setAttribute(attribute, could_open_windows)
+
         js_code = javascript.assemble('webelem', 'click', self._id)
-        self._tab.run_js_async(js_code)
+        self._tab.run_js_async(js_code, reset_setting)

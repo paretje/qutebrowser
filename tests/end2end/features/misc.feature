@@ -80,7 +80,7 @@ Feature: Various utility commands.
         And I wait for the javascript message "Hello from JS!"
         Then "Ignoring world ID 1" should be logged
 
-    @qtwebkit_skip @pyqt>=5.7.0
+    @qtwebkit_skip
     Scenario: :jseval uses separate world without --world
         When I set general -> log-javascript-console to info
         And I open data/misc/jseval.html
@@ -88,19 +88,30 @@ Feature: Various utility commands.
         Then the javascript message "Hello from the page!" should not be logged
         And the javascript message "Uncaught ReferenceError: do_log is not defined" should be logged
 
-    @qtwebkit_skip @pyqt>=5.7.0
+    @qtwebkit_skip
     Scenario: :jseval using the main world
         When I set general -> log-javascript-console to info
         And I open data/misc/jseval.html
         And I run :jseval --world 0 do_log()
         Then the javascript message "Hello from the page!" should be logged
 
-    @qtwebkit_skip @pyqt>=5.7.0
+    @qtwebkit_skip
     Scenario: :jseval using the main world as name
         When I set general -> log-javascript-console to info
         And I open data/misc/jseval.html
         And I run :jseval --world main do_log()
         Then the javascript message "Hello from the page!" should be logged
+
+    Scenario: :jseval --file using a file that exists as js-code
+        When I set general -> log-javascript-console to info
+        And I run :jseval --file (testdata)/misc/jseval_file.js
+        Then the javascript message "Hello from JS!" should be logged
+        And the javascript message "Hello again from JS!" should be logged
+
+    Scenario: :jseval --file using a file that doesn't exist as js-code
+        When I run :jseval --file nonexistentfile
+        Then the error "[Errno 2] No such file or directory: 'nonexistentfile'" should be shown
+        And "No output or error" should not be logged
 
     # :debug-webaction
 
@@ -289,6 +300,24 @@ Feature: Various utility commands.
         Then the following tabs should be open:
             - about:blank
             - qute://help/index.html (active)
+
+    # :history
+
+    Scenario: :history without arguments
+        When I run :tab-only
+        And I run :history
+        And I wait until qute://history/ is loaded
+        Then the following tabs should be open:
+            - qute://history/ (active)
+
+    Scenario: :history with -t
+        When I open about:blank
+        And I run :tab-only
+        And I run :history -t
+        And I wait until qute://history/ is loaded
+        Then the following tabs should be open:
+            - about:blank
+            - qute://history/ (active)
 
     # :home
 
@@ -512,7 +541,7 @@ Feature: Various utility commands.
 
     ## https://github.com/qutebrowser/qutebrowser/issues/1219
 
-    @qtwebengine_todo: private browsing is not implemented yet
+    @qtwebengine_todo: private browsing is not implemented yet @qtwebkit_ng_skip: private browsing is not implemented yet
     Scenario: Sharing cookies with private browsing
         When I set general -> private-browsing to true
         And I open cookies/set?qute-test=42 without waiting
@@ -622,7 +651,7 @@ Feature: Various utility commands.
         And I run :command-accept
         Then the error "No command given" should be shown
 
-    @qtwebengine_todo: private browsing is not implemented yet
+    @qtwebengine_todo: private browsing is not implemented yet @qtwebkit_ng_skip: private browsing is not implemented yet
     Scenario: Calling previous command with private-browsing mode
         When I run :set-cmd-text :message-info blah
         And I run :command-accept
@@ -641,3 +670,28 @@ Feature: Various utility commands.
     Scenario: Trying to enter command mode with :enter-mode
         When I run :enter-mode command
         Then the error "Mode command can't be entered manually!" should be shown
+
+    ## Renderer crashes
+
+    @qtwebkit_skip @no_invalid_lines
+    Scenario: Renderer crash
+        When I run :open -t chrome://crash
+        Then the error "Renderer process crashed" should be shown
+
+    @qtwebkit_skip @no_invalid_lines
+    Scenario: Renderer kill
+        When I run :open -t chrome://kill
+        Then the error "Renderer process was killed" should be shown
+
+    # https://github.com/qutebrowser/qutebrowser/issues/2290
+    @qtwebkit_skip @no_invalid_lines
+    Scenario: Navigating to URL after renderer process is gone
+        When I run :tab-only
+        And I open data/numbers/1.txt
+        And I open data/numbers/2.txt in a new tab
+        And I run :open chrome://kill
+        And I wait for "Renderer process was killed" in the log
+        And I open data/numbers/3.txt
+        Then no crash should happen
+        And the following tabs should be open:
+            - data/numbers/3.txt (active)

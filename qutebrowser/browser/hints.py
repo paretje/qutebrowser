@@ -287,11 +287,13 @@ class HintActions:
 
         prompt = False if context.rapid else None
         qnam = context.tab.networkaccessmanager()
+        user_agent = context.tab.user_agent()
 
         # FIXME:qtwebengine do this with QtWebEngine downloads?
         download_manager = objreg.get('qtnetwork-download-manager',
                                       scope='window', window=self._win_id)
-        download_manager.get(url, qnam=qnam, prompt_download_directory=prompt)
+        download_manager.get(url, qnam=qnam, user_agent=user_agent,
+                             prompt_download_directory=prompt)
 
     def call_userscript(self, elem, context):
         """Call a userscript from a hint.
@@ -314,7 +316,7 @@ class HintActions:
         try:
             userscripts.run_async(context.tab, cmd, *args, win_id=self._win_id,
                                   env=env)
-        except userscripts.UnsupportedError as e:
+        except userscripts.Error as e:
             raise HintingError(str(e))
 
     def spawn(self, url, context):
@@ -570,6 +572,10 @@ class HintManager(QObject):
 
     def _start_cb(self, elems):
         """Initialize the elements and labels based on the context set."""
+        if self._context is None:
+            log.hints.debug("In _start_cb without context!")
+            return
+
         if elems is None:
             message.error("There was an error while getting hint elements")
             return

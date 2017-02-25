@@ -74,6 +74,15 @@ class UnsupportedOperationError(WebTabError):
     """Raised when an operation is not supported with the given backend."""
 
 
+TerminationStatus = usertypes.enum('TerminationStatus', [
+    'normal',
+    'abnormal',  # non-zero exit status
+    'crashed',   # e.g. segfault
+    'killed',
+    'unknown',
+])
+
+
 class TabData:
 
     """A simple namespace with a fixed set of attributes.
@@ -103,6 +112,10 @@ class AbstractAction:
 
     def exit_fullscreen(self):
         """Exit the fullscreen mode."""
+        raise NotImplementedError
+
+    def save_page(self):
+        """Save the current page."""
         raise NotImplementedError
 
 
@@ -528,6 +541,10 @@ class AbstractTab(QWidget):
         fullscreen_requested: Fullscreen display was requested by the page.
                               arg: True if fullscreen should be turned on,
                                    False if it should be turned off.
+        renderer_process_terminated: Emitted when the underlying renderer
+                                     process terminated.
+                                     arg 0: A TerminationStatus member.
+                                     arg 1: The exit code.
     """
 
     window_close_requested = pyqtSignal()
@@ -544,6 +561,7 @@ class AbstractTab(QWidget):
     contents_size_changed = pyqtSignal(QSizeF)
     add_history_item = pyqtSignal(QUrl, QUrl, str)  # url, requested url, title
     fullscreen_requested = pyqtSignal(bool)
+    renderer_process_terminated = pyqtSignal(TerminationStatus, int)
 
     def __init__(self, win_id, mode_manager, parent=None):
         self.win_id = win_id
@@ -666,12 +684,14 @@ class AbstractTab(QWidget):
 
     @pyqtSlot(bool)
     def _on_load_finished(self, ok):
+        sess_manager = objreg.get('session-manager')
+        sess_manager.save_autosave()
+
         if ok and not self._has_ssl_errors:
             if self.url().scheme() == 'https':
                 self._set_load_status(usertypes.LoadStatus.success_https)
             else:
                 self._set_load_status(usertypes.LoadStatus.success)
-
         elif ok:
             self._set_load_status(usertypes.LoadStatus.warn)
         else:
@@ -756,6 +776,14 @@ class AbstractTab(QWidget):
 
     def networkaccessmanager(self):
         """Get the QNetworkAccessManager for this tab.
+
+        This is only implemented for QtWebKit.
+        For QtWebEngine, always returns None.
+        """
+        raise NotImplementedError
+
+    def user_agent(self):
+        """Get the user agent for this tab.
 
         This is only implemented for QtWebKit.
         For QtWebEngine, always returns None.

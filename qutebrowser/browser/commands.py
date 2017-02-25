@@ -44,12 +44,6 @@ from qutebrowser.commands import userscripts, cmdexc, cmdutils, runners
 from qutebrowser.config import config, configexc
 from qutebrowser.browser import (urlmarks, browsertab, inspector, navigate,
                                  webelem, downloads)
-try:
-    from qutebrowser.browser.webkit import mhtml
-except ImportError:
-    # Failing imports on QtWebEngine, only used in QtWebKit commands.
-    # FIXME:qtwebengine don't import this anymore at all
-    pass
 from qutebrowser.keyinput import modeman
 from qutebrowser.utils import (message, usertypes, log, qtutils, urlutils,
                                objreg, utils, typing)
@@ -433,6 +427,11 @@ class CommandDispatcher:
         cmdutils.check_exclusive((bg, window), 'bw')
         curtab = self._current_widget()
         cur_title = self._tabbed_browser.page_title(self._current_index())
+        try:
+            history = curtab.history.serialize()
+        except browsertab.WebTabError as e:
+            raise cmdexc.CommandError(e)
+
         # The new tab could be in a new tabbed_browser (e.g. because of
         # tabs-are-windows being set)
         if window:
@@ -443,13 +442,15 @@ class CommandDispatcher:
         new_tabbed_browser = objreg.get('tabbed-browser', scope='window',
                                         window=newtab.win_id)
         idx = new_tabbed_browser.indexOf(newtab)
+
         new_tabbed_browser.set_page_title(idx, cur_title)
         if config.get('tabs', 'show-favicons'):
             new_tabbed_browser.setTabIcon(idx, curtab.icon())
             if config.get('tabs', 'tabs-are-windows'):
                 new_tabbed_browser.window().setWindowIcon(curtab.icon())
+
         newtab.data.keep_icon = True
-        newtab.history.deserialize(curtab.history.serialize())
+        newtab.history.deserialize(history)
         newtab.zoom.set_factor(curtab.zoom.factor())
         return newtab
 
@@ -1332,46 +1333,31 @@ class CommandDispatcher:
         if dest is not None:
             target = downloads.FileDownloadTarget(dest)
 
+        tab = self._current_widget()
+        user_agent = tab.user_agent()
+
         if url:
             if mhtml_:
                 raise cmdexc.CommandError("Can only download the current page"
                                           " as mhtml.")
             url = urlutils.qurl_from_user_input(url)
             urlutils.raise_cmdexc_if_invalid(url)
-            download_manager.get(url, target=target)
+            download_manager.get(url, user_agent=user_agent, target=target)
         elif mhtml_:
-            self._download_mhtml(target)
+            tab = self._current_widget()
+            if tab.backend == usertypes.Backend.QtWebEngine:
+                webengine_download_manager = objreg.get(
+                    'webengine-download-manager')
+                try:
+                    webengine_download_manager.get_mhtml(tab, target)
+                except browsertab.UnsupportedOperationError as e:
+                    raise cmdexc.CommandError(e)
+            else:
+                download_manager.get_mhtml(tab, target)
         else:
-            qnam = self._current_widget().networkaccessmanager()
-            download_manager.get(self._current_url(), qnam=qnam, target=target)
-
-    def _download_mhtml(self, target=None):
-        """Download the current page as an MHTML file, including all assets.
-
-        Args:
-            target: The download target for the file.
-        """
-        tab = self._current_widget()
-        if tab.backend == usertypes.Backend.QtWebEngine:
-            raise cmdexc.CommandError("Download --mhtml is not implemented "
-                                      "with QtWebEngine yet")
-        if target is not None:
-            mhtml.start_download_checked(target, tab=tab)
-            return
-
-        suggested_fn = self._current_title() + ".mht"
-        suggested_fn = utils.sanitize_filename(suggested_fn)
-
-        filename = downloads.immediate_download_path()
-        if filename is not None:
-            target = downloads.FileDownloadTarget(filename)
-            mhtml.start_download_checked(target, tab=tab)
-        else:
-            question = downloads.get_filename_question(
-                suggested_filename=suggested_fn, url=tab.url(), parent=tab)
-            question.answered.connect(functools.partial(
-                mhtml.start_download_checked, tab=tab))
-            message.global_bridge.ask(question, blocking=False)
+            qnam = tab.networkaccessmanager()
+            download_manager.get(self._current_url(), user_agent=user_agent,
+                                 qnam=qnam, target=target)
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
     def view_source(self):
@@ -1421,6 +1407,18 @@ class CommandDispatcher:
                 message.info("Dumped page to {}.".format(dest))
 
         tab.dump_async(callback, plain=plain)
+
+    @cmdutils.register(instance='command-dispatcher', scope='window')
+    def history(self, tab=True, bg=False, window=False):
+        """Show browsing history.
+
+        Args:
+            tab: Open in a new tab.
+            bg: Open in a background tab.
+            window: Open in a new window.
+        """
+        url = QUrl('qute://history/')
+        self._open(url, tab, bg, window)
 
     @cmdutils.register(instance='command-dispatcher', name='help',
                        scope='window')
@@ -1929,12 +1927,13 @@ class CommandDispatcher:
 
     @cmdutils.register(instance='command-dispatcher', scope='window',
                        maxsplit=0, no_cmd_split=True)
-    def jseval(self, js_code, quiet=False, *,
+    def jseval(self, js_code, file=False, quiet=False, *,
                world: typing.Union[usertypes.JsWorld, int]=None):
         """Evaluate a JavaScript string.
 
         Args:
-            js_code: The string to evaluate.
+            js_code: The string/file to evaluate.
+            file: Interpret js-code as a path to a file.
             quiet: Don't show resulting JS object.
             world: Ignored on QtWebKit. On QtWebEngine, a world ID or name to
                    run the snippet in.
@@ -1961,6 +1960,13 @@ class CommandDispatcher:
                     if len(out) > 5000:
                         out = out[:5000] + ' [...trimmed...]'
                     message.info(out)
+
+        if file:
+            try:
+                with open(js_code, 'r', encoding='utf-8') as f:
+                    js_code = f.read()
+            except OSError as e:
+                raise cmdexc.CommandError(str(e))
 
         widget = self._current_widget()
         widget.run_js_async(js_code, callback=jseval_cb, world=world)

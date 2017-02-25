@@ -59,6 +59,10 @@ class WebKitAction(browsertab.AbstractAction):
     def exit_fullscreen(self):
         raise browsertab.UnsupportedOperationError
 
+    def save_page(self):
+        """Save the current page."""
+        raise browsertab.UnsupportedOperationError
+
 
 class WebKitPrinting(browsertab.AbstractPrinting):
 
@@ -439,7 +443,7 @@ class WebKitScroller(browsertab.AbstractScroller):
         # FIXME:qtwebengine needed?
         # self._widget.setFocus()
 
-        for _ in range(count):
+        for _ in range(min(count, 5000)):
             press_evt = QKeyEvent(QEvent.KeyPress, key, Qt.NoModifier, 0, 0, 0)
             release_evt = QKeyEvent(QEvent.KeyRelease, key, Qt.NoModifier,
                                     0, 0, 0)
@@ -692,6 +696,10 @@ class WebKitTab(browsertab.AbstractTab):
 
     def networkaccessmanager(self):
         return self._widget.page().networkAccessManager()
+
+    def user_agent(self):
+        page = self._widget.page()
+        return page.userAgentForUrl(self.url())
 
     @pyqtSlot()
     def _on_frame_load_finished(self):

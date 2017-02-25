@@ -71,6 +71,10 @@ def is_ignored_lowlevel_message(message):
         # Started appearing with Qt 5.8...
         # http://patchwork.sourceware.org/patch/10255/
         return True
+    elif ("CreatePlatformSocket() returned an error, errno=97: Address family "
+          "not supported by protocol" in message):
+        # Makes tests fail on Quantumcross' machine
+        return True
     return False
 
 
@@ -244,7 +248,9 @@ class QuteProc(testprocess.Process):
             if not line.strip():
                 return None
             elif (is_ignored_qt_message(line) or
-                  is_ignored_lowlevel_message(line)):
+                  is_ignored_lowlevel_message(line) or
+                  self.request.node.get_marker('no_invalid_lines')):
+                self._log("IGNORED: {}".format(line))
                 return None
             else:
                 raise
@@ -295,7 +301,8 @@ class QuteProc(testprocess.Process):
         URLs like about:... and qute:... are handled specially and returned
         verbatim.
         """
-        if path.startswith('about:') or path.startswith('qute:'):
+        special_schemes = ['about:', 'qute:', 'chrome:']
+        if any(path.startswith(scheme) for scheme in special_schemes):
             return path
         else:
             httpbin = self.request.getfixturevalue('httpbin')
@@ -327,13 +334,6 @@ class QuteProc(testprocess.Process):
         if (x is None and y is not None) or (y is None and x is not None):
             raise ValueError("Either both x/y or neither must be given!")
 
-        if self.request.config.webengine:
-            # pylint: disable=no-name-in-module,useless-suppression
-            from PyQt5.QtWebEngineWidgets import QWebEnginePage
-            # pylint: enable=no-name-in-module,useless-suppression
-            if not hasattr(QWebEnginePage, 'scrollPositionChanged'):
-                # Qt < 5.7
-                pytest.skip("QWebEnginePage.scrollPositionChanged missing")
         if x is None and y is None:
             point = 'PyQt5.QtCore.QPoint(*, *)'  # not counting 0/0 here
         elif x == '0' and y == '0':

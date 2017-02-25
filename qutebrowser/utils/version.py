@@ -28,7 +28,8 @@ import subprocess
 import importlib
 import collections
 
-from PyQt5.QtCore import QT_VERSION_STR, PYQT_VERSION_STR, qVersion
+from PyQt5.QtCore import (QT_VERSION_STR, PYQT_VERSION_STR, qVersion,
+                          QLibraryInfo)
 from PyQt5.QtNetwork import QSslSocket
 from PyQt5.QtWidgets import QApplication
 
@@ -38,7 +39,7 @@ except ImportError:  # pragma: no cover
     qWebKitVersion = None
 
 import qutebrowser
-from qutebrowser.utils import log, utils, standarddir
+from qutebrowser.utils import log, utils, standarddir, usertypes, qtutils
 from qutebrowser.misc import objects
 from qutebrowser.browser import pdfjs
 
@@ -230,7 +231,13 @@ def version():
     gitver = _git_str()
     if gitver is not None:
         lines.append("Git commit: {}".format(gitver))
-    lines.append("Backend: {}".format(objects.backend.name))
+
+    backend = objects.backend.name
+    if (qWebKitVersion is not None and
+            objects.backend == usertypes.Backend.QtWebKit and
+            qtutils.is_qtwebkit_ng(qWebKitVersion())):
+        backend = 'QtWebKit-NG'
+    lines.append("Backend: {}".format(backend))
 
     if qVersion() != QT_VERSION_STR:
         qt_version = 'Qt: {} (compiled {})'.format(qVersion(), QT_VERSION_STR)
@@ -272,6 +279,10 @@ def version():
                                   platform.architecture()[0]),
         'Frozen: {}'.format(hasattr(sys, 'frozen')),
         "Imported from {}".format(importpath),
+        "Qt library executable path: {}, data path: {}".format(
+            QLibraryInfo.location(QLibraryInfo.LibraryExecutablesPath),
+            QLibraryInfo.location(QLibraryInfo.DataPath)
+        )
     ]
     lines += _os_info()
 
