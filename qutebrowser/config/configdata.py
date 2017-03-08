@@ -200,8 +200,9 @@ def data(readonly=False):
 
             ('print-element-backgrounds',
              SettingValue(typ.Bool(), 'true',
-                          backends=(None if qtutils.version_check('5.8')
-                                    else [usertypes.Backend.QtWebKit])),
+                          backends=(
+                              None if qtutils.version_check('5.8', strict=True)
+                              else [usertypes.Backend.QtWebKit])),
              "Whether the background color and images are also drawn when the "
              "page is printed.\n"
              "This setting only works with Qt 5.8 or newer when using the "
@@ -860,7 +861,8 @@ def data(readonly=False):
             ('javascript-can-access-clipboard',
              SettingValue(typ.Bool(), 'false'),
              "Whether JavaScript programs can read or write to the "
-             "clipboard."),
+             "clipboard.\nWith QtWebEngine, writing the clipboard as response "
+             "to a user interaction is always allowed."),
 
             ('ignore-javascript-prompt',
              SettingValue(typ.Bool(), 'false'),
@@ -1658,7 +1660,8 @@ KEY_DATA = collections.OrderedDict([
         ('set-cmd-text -s :buffer', ['gt']),
         ('tab-focus last', ['<Ctrl-Tab>']),
         ('enter-mode passthrough', ['<Ctrl-V>']),
-        ('quit', ['<Ctrl-Q>']),
+        ('quit', ['<Ctrl-Q>', 'ZQ']),
+        ('wq', ['ZZ']),
         ('scroll-page 0 1', ['<Ctrl-F>']),
         ('scroll-page 0 -1', ['<Ctrl-B>']),
         ('scroll-page 0 0.5', ['<Ctrl-D>']),

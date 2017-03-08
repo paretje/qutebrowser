@@ -188,6 +188,14 @@ Feature: Using hints
         And I run :hint
         Then the error "No elements found." should be shown
 
+    Scenario: Clicking input with existing text
+        When I set general -> log-javascript-console to info
+        And I open data/hints/input.html
+        And I run :click-element id qute-input-existing
+        And I wait for "Entering mode KeyMode.insert *" in the log
+        And I run :fake-key new
+        Then the javascript message "contents: existingnew" should be logged
+
     ### iframes
 
     @qtwebengine_todo: Hinting in iframes is not implemented yet

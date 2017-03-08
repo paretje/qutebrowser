@@ -56,9 +56,7 @@ class WebEngineElement(webelem.AbstractWebElement):
 
     def __setitem__(self, key, val):
         self._js_dict['attributes'][key] = val
-        js_code = javascript.assemble('webelem', 'set_attribute', self._id,
-            key, val)
-        self._tab.run_js_async(js_code)
+        self._js_call('set_attribute', key, val)
 
     def __delitem__(self, key):
         log.stub()
@@ -69,16 +67,17 @@ class WebEngineElement(webelem.AbstractWebElement):
     def __len__(self):
         return len(self._js_dict['attributes'])
 
+    def _js_call(self, name, *args, callback=None):
+        """Wrapper to run stuff from webelem.js."""
+        js_code = javascript.assemble('webelem', name, self._id, *args)
+        self._tab.run_js_async(js_code, callback=callback)
+
     def has_frame(self):
         return True
 
     def geometry(self):
         log.stub()
         return QRect()
-
-    def style_property(self, name, *, strategy):
-        log.stub()
-        return ''
 
     def classes(self):
         """Get a list of classes assigned to this element."""
@@ -99,15 +98,13 @@ class WebEngineElement(webelem.AbstractWebElement):
         return self._js_dict.get('value', None)
 
     def set_value(self, value):
-        js_code = javascript.assemble('webelem', 'set_value', self._id, value)
-        self._tab.run_js_async(js_code)
+        self._js_call('set_value', value)
 
     def insert_text(self, text):
         if not self.is_editable(strict=True):
             raise webelem.Error("Element is not editable!")
         log.webelem.debug("Inserting text into element {!r}".format(self))
-        js_code = javascript.assemble('webelem', 'insert_text', self._id, text)
-        self._tab.run_js_async(js_code)
+        self._js_call('insert_text', text)
 
     def rect_on_view(self, *, elem_geometry=None, no_js=False):
         """Get the geometry of the element relative to the webview.
@@ -153,9 +150,11 @@ class WebEngineElement(webelem.AbstractWebElement):
     def remove_blank_target(self):
         if self._js_dict['attributes'].get('target') == '_blank':
             self._js_dict['attributes']['target'] = '_top'
-        js_code = javascript.assemble('webelem', 'remove_blank_target',
-            self._id)
-        self._tab.run_js_async(js_code)
+        self._js_call('remove_blank_target')
+
+    def _move_text_cursor(self):
+        if self.is_text_input() and self.is_editable():
+            self._js_call('move_cursor_to_end')
 
     def _click_editable(self, click_target):
         # WORKAROUND for https://bugreports.qt.io/browse/QTBUG-58515
@@ -169,8 +168,8 @@ class WebEngineElement(webelem.AbstractWebElement):
         # pylint: enable=no-member
         self._tab.send_event(ev)
         # This actually "clicks" the element by calling focus() on it in JS.
-        js_code = javascript.assemble('webelem', 'focus', self._id)
-        self._tab.run_js_async(js_code)
+        self._js_call('focus')
+        self._move_text_cursor()
 
     def _click_js(self, _click_target):
         settings = QWebEngineSettings.globalSettings()
@@ -189,5 +188,4 @@ class WebEngineElement(webelem.AbstractWebElement):
         def reset_setting(_arg):
             settings.setAttribute(attribute, could_open_windows)
 
-        js_code = javascript.assemble('webelem', 'click', self._id)
-        self._tab.run_js_async(js_code, reset_setting)
+        self._js_call('click', callback=reset_setting)

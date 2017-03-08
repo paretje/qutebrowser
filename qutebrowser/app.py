@@ -142,9 +142,6 @@ def init(args, crash_handler):
                                pre_text="Error while initializing")
         sys.exit(usertypes.Exit.err_init)
 
-    QTimer.singleShot(0, functools.partial(_process_args, args))
-    QTimer.singleShot(10, functools.partial(_init_late_modules, args))
-
     log.init.debug("Initializing eventfilter...")
     event_filter = EventFilter(qApp)
     qApp.installEventFilter(event_filter)
@@ -155,11 +152,13 @@ def init(args, crash_handler):
     config_obj.style_changed.connect(style.get_stylesheet.cache_clear)
     qApp.focusChanged.connect(on_focus_changed)
 
+    _process_args(args)
+
     QDesktopServices.setUrlHandler('http', open_desktopservices_url)
     QDesktopServices.setUrlHandler('https', open_desktopservices_url)
     QDesktopServices.setUrlHandler('qute', open_desktopservices_url)
 
-    macros.init()
+    QTimer.singleShot(10, functools.partial(_init_late_modules, args))
 
     log.init.debug("Init done!")
     crash_handler.raise_crashdlg()
@@ -449,6 +448,7 @@ def _init_modules(args, crash_handler):
         os.environ['QT_WAYLAND_DISABLE_WINDOWDECORATION'] = '1'
     else:
         os.environ.pop('QT_WAYLAND_DISABLE_WINDOWDECORATION', None)
+    macros.init()
     # Init backend-specific stuff
     browsertab.init()
 

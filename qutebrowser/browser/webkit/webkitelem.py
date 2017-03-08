@@ -96,16 +96,6 @@ class WebKitElement(webelem.AbstractWebElement):
         self._check_vanished()
         return self._elem.geometry()
 
-    def style_property(self, name, *, strategy):
-        self._check_vanished()
-        strategies = {
-            # FIXME:qtwebengine which ones do we actually need?
-            'inline': QWebElement.InlineStyle,
-            'computed': QWebElement.ComputedStyle,
-        }
-        qt_strategy = strategies[strategy]
-        return self._elem.styleProperty(name, qt_strategy)
-
     def classes(self):
         self._check_vanished()
         return self._elem.classes()
@@ -300,9 +290,18 @@ class WebKitElement(webelem.AbstractWebElement):
                 break
             elem = elem._parent()  # pylint: disable=protected-access
 
+    def _move_text_cursor(self):
+        if self is None:
+            # old PyQt versions call the slot after the element is deleted.
+            return
+        if self.is_text_input() and self.is_editable():
+            self._tab.caret.move_to_end_of_document()
+
     def _click_editable(self, click_target):
         ok = self._elem.evaluateJavaScript('this.focus(); true;')
-        if not ok:
+        if ok:
+            self._move_text_cursor()
+        else:
             log.webelem.debug("Failed to focus via JS, falling back to event")
             self._click_fake_event(click_target)
 
