@@ -75,6 +75,12 @@ def is_ignored_lowlevel_message(message):
           "not supported by protocol" in message):
         # Makes tests fail on Quantumcross' machine
         return True
+    elif 'Unable to locate theme engine in module_path:' in message:
+        return True
+    elif message == 'getrlimit(RLIMIT_NOFILE) failed':
+        return True
+    elif message == 'Could not bind NETLINK socket: Address already in use':
+        return True
     return False
 
 
@@ -350,7 +356,8 @@ class QuteProc(testprocess.Process):
         self.wait_for(category='webview',
                       message='Scroll position changed to ' + point)
 
-    def wait_for(self, timeout=None, **kwargs):
+    def wait_for(self, timeout=None,  # pylint: disable=arguments-differ
+                 **kwargs):
         """Extend wait_for to add divisor if a test is xfailing."""
         __tracebackhide__ = (lambda e:
                              e.errisinstance(testprocess.WaitForTimeout))

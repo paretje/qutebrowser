@@ -170,12 +170,15 @@ def _init_icon():
     for size in [16, 24, 32, 48, 64, 96, 128, 256, 512]:
         filename = ':/icons/qutebrowser-{}x{}.png'.format(size, size)
         pixmap = QPixmap(filename)
-        qtutils.ensure_not_null(pixmap)
-        fallback_icon.addPixmap(pixmap)
-    qtutils.ensure_not_null(fallback_icon)
+        if pixmap.isNull():
+            log.init.warning("Failed to load {}".format(filename))
+        else:
+            fallback_icon.addPixmap(pixmap)
     icon = QIcon.fromTheme('qutebrowser', fallback_icon)
-    qtutils.ensure_not_null(icon)
-    qApp.setWindowIcon(icon)
+    if icon.isNull():
+        log.init.warning("Failed to load icon")
+    else:
+        qApp.setWindowIcon(icon)
 
 
 def _process_args(args):
@@ -302,7 +305,7 @@ def _open_startpage(win_id=None):
         window_ids = [win_id]
     else:
         window_ids = objreg.window_registry
-    for cur_win_id in window_ids:
+    for cur_win_id in list(window_ids):  # Copying as the dict could change
         tabbed_browser = objreg.get('tabbed-browser', scope='window',
                                     window=cur_win_id)
         if tabbed_browser.count() == 0:
@@ -341,8 +344,9 @@ def _open_quickstart(args):
 
 def _save_version():
     """Save the current version to the state config."""
-    state_config = objreg.get('state-config')
-    state_config['general']['version'] = qutebrowser.__version__
+    state_config = objreg.get('state-config', None)
+    if state_config is not None:
+        state_config['general']['version'] = qutebrowser.__version__
 
 
 def on_focus_changed(_old, new):
@@ -648,14 +652,14 @@ class Quitter:
         self._shutting_down = True
         log.destroy.debug("Shutting down with status {}, session {}...".format(
             status, session))
-
-        session_manager = objreg.get('session-manager')
-        if session is not None:
-            session_manager.save(session, last_window=last_window,
-                                 load_next_time=True)
-        elif config.get('general', 'save-session'):
-            session_manager.save(sessions.default, last_window=last_window,
-                                 load_next_time=True)
+        session_manager = objreg.get('session-manager', None)
+        if session_manager is not None:
+            if session is not None:
+                session_manager.save(session, last_window=last_window,
+                                     load_next_time=True)
+            elif config.get('general', 'save-session'):
+                session_manager.save(sessions.default, last_window=last_window,
+                                     load_next_time=True)
 
         if prompt.prompt_queue.shutdown():
             # If shutdown was called while we were asking a question, we're in
@@ -672,7 +676,7 @@ class Quitter:
             # event loop, so we can shut down immediately.
             self._shutdown(status, restart=restart)
 
-    def _shutdown(self, status, restart):
+    def _shutdown(self, status, restart):  # noqa
         """Second stage of shutdown."""
         log.destroy.debug("Stage 2 of shutting down...")
         if qApp is None:
@@ -681,7 +685,9 @@ class Quitter:
         # Remove eventfilter
         try:
             log.destroy.debug("Removing eventfilter...")
-            qApp.removeEventFilter(objreg.get('event-filter'))
+            event_filter = objreg.get('event-filter', None)
+            if event_filter is not None:
+                qApp.removeEventFilter(event_filter)
         except AttributeError:
             pass
         # Close all windows
@@ -723,7 +729,9 @@ class Quitter:
         # Now we can hopefully quit without segfaults
         log.destroy.debug("Deferring QApplication::exit...")
         objreg.get('signal-handler').deactivate()
-        objreg.get('session-manager').delete_autosave()
+        session_manager = objreg.get('session-manager', None)
+        if session_manager is not None:
+            session_manager.delete_autosave()
         # We use a singleshot timer to exit here to minimize the likelihood of
         # segfaults.
         QTimer.singleShot(0, functools.partial(qApp.exit, status))
@@ -785,7 +793,7 @@ class Application(QApplication):
     def exit(self, status):
         """Extend QApplication::exit to log the event."""
         log.destroy.debug("Now calling QApplication::exit.")
-        if self._args.debug_exit:
+        if 'debug-exit' in self._args.debug_flags:
             if hunter is None:
                 print("Not logging late shutdown because hunter could not be "
                       "imported!", file=sys.stderr)

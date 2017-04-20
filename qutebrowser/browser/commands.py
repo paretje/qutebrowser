@@ -236,7 +236,7 @@ class CommandDispatcher:
     @cmdutils.argument('url', completion=usertypes.Completion.url)
     @cmdutils.argument('count', count=True)
     def openurl(self, url=None, implicit=False,
-                bg=False, tab=False, window=False, count=None):
+                bg=False, tab=False, window=False, count=None, secure=False):
         """Open a URL in the current/[count]th tab.
 
         If the URL contains newlines, each line gets opened in its own tab.
@@ -249,6 +249,7 @@ class CommandDispatcher:
             implicit: If opening a new tab, treat the tab as implicit (like
                       clicking on a link).
             count: The tab index to open the URL in, or None.
+            secure: Force HTTPS.
         """
         if url is None:
             urls = [config.get('general', 'default-page')]
@@ -256,6 +257,8 @@ class CommandDispatcher:
             urls = self._parse_url_input(url)
 
         for i, cur_url in enumerate(urls):
+            if secure:
+                cur_url.setScheme('https')
             if not window and i > 0:
                 tab = False
                 bg = True
@@ -631,7 +634,7 @@ class CommandDispatcher:
                        scope='window')
     @cmdutils.argument('count', count=True)
     @cmdutils.argument('horizontal', flag='x')
-    def scroll_perc(self, perc: float=None, horizontal=False, count=None):
+    def scroll_perc(self, perc: float = None, horizontal=False, count=None):
         """Scroll to a specific percentage of the page.
 
         The percentage can be given either as argument or as count.
@@ -667,7 +670,7 @@ class CommandDispatcher:
     @cmdutils.argument('bottom_navigate', metavar='ACTION',
                        choices=('next', 'increment'))
     def scroll_page(self, x: float, y: float, *,
-                    top_navigate: str=None, bottom_navigate: str=None,
+                    top_navigate: str = None, bottom_navigate: str = None,
                     count=1):
         """Scroll the frame page-wise.
 
@@ -804,7 +807,7 @@ class CommandDispatcher:
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
     @cmdutils.argument('count', count=True)
-    def zoom(self, zoom: int=None, count=None):
+    def zoom(self, zoom: int = None, count=None):
         """Set the zoom level for the current tab.
 
         The zoom can be given as argument or as [count]. If neither is
@@ -1230,7 +1233,7 @@ class CommandDispatcher:
         except urlmarks.Error as e:
             raise cmdexc.CommandError(str(e))
         else:
-            msg = "Bookmarked {}!" if was_added else "Removed bookmark {}!"
+            msg = "Bookmarked {}" if was_added else "Removed bookmark {}"
             message.info(msg.format(url.toDisplayString()))
 
     @cmdutils.register(instance='command-dispatcher', scope='window',
@@ -1334,6 +1337,9 @@ class CommandDispatcher:
                                       scope='window', window=self._win_id)
         target = None
         if dest is not None:
+            dest = downloads.transform_path(dest)
+            if dest is None:
+                raise cmdexc.CommandError("Invalid target filename")
             target = downloads.FileDownloadTarget(dest)
 
         tab = self._current_widget()
@@ -1536,10 +1542,7 @@ class CommandDispatcher:
                        backend=usertypes.Backend.QtWebKit)
     def paste_primary(self):
         """Paste the primary selection at cursor position."""
-        try:
-            self.insert_text(utils.get_clipboard(selection=True))
-        except utils.SelectionUnsupportedError:
-            self.insert_text(utils.get_clipboard())
+        self.insert_text(utils.get_clipboard(selection=True, fallback=True))
 
     @cmdutils.register(instance='command-dispatcher', maxsplit=0,
                        scope='window')
@@ -1650,21 +1653,22 @@ class CommandDispatcher:
         tab = self._current_widget()
         tab.search.clear()
 
+        if not text:
+            return
+
         options = {
             'ignore_case': config.get('general', 'ignore-case'),
             'reverse': reverse,
         }
+
         self._tabbed_browser.search_text = text
         self._tabbed_browser.search_options = dict(options)
 
-        if text:
-            cb = functools.partial(self._search_cb, tab=tab,
-                                   old_scroll_pos=tab.scroller.pos_px(),
-                                   options=options, text=text, prev=False)
-        else:
-            cb = None
-
+        cb = functools.partial(self._search_cb, tab=tab,
+                               old_scroll_pos=tab.scroller.pos_px(),
+                               options=options, text=text, prev=False)
         options['result_cb'] = cb
+
         tab.search.search(text, **options)
 
     @cmdutils.register(instance='command-dispatcher', hide=True,
