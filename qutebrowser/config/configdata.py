@@ -680,6 +680,11 @@ def data(readonly=False):
              SettingValue(typ.Bool(), 'true'),
              "Whether to show favicons in the tab bar."),
 
+            ('favicon-scale',
+             SettingValue(typ.Float(minval=0.0), '1.0'),
+             "Scale for favicons in the tab bar. The tab size is unchanged, "
+             "so big favicons also require extra `tabs->padding`."),
+
             ('width',
              SettingValue(typ.PercOrInt(minperc=0, maxperc=100, minint=1),
                           '20%'),
@@ -1359,7 +1364,7 @@ def data(readonly=False):
 
         ('fonts', sect.KeyValue(
             ('_monospace',
-             SettingValue(typ.Font(), 'Terminus, Monospace, '
+             SettingValue(typ.Font(), 'xos4 Terminus, Terminus, Monospace, '
                           '"DejaVu Sans Mono", Monaco, '
                           '"Bitstream Vera Sans Mono", "Andale Mono", '
                           '"Courier New", Courier, "Liberation Mono", '
