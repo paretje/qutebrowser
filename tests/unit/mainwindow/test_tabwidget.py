@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2015-2016 Daniel Schadt
+# Copyright 2015-2017 Daniel Schadt
 #
 # This file is part of qutebrowser.
 #
@@ -49,6 +49,8 @@ class TestTabWidget:
             'indicator-width': 3,
             'indicator-padding': configtypes.PaddingValues(2, 2, 0, 4),
             'title-format': '{index}: {title}',
+            'title-format-pinned': '{index}',
+            'pinned-width': 43,
             'title-alignment': Qt.AlignLeft,
         },
         'colors': {

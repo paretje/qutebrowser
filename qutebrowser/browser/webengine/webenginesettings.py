@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2016-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -17,6 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with qutebrowser.  If not, see <http://www.gnu.org/licenses/>.
 
+# We get various "abstract but not overridden" warnings
+# pylint: disable=abstract-method
+
 """Bridge from QWebEngineSettings to our own settings.
 
 Module attributes:
@@ -27,46 +30,44 @@ Module attributes:
 import os
 import logging
 
-# pylint: disable=no-name-in-module,import-error,useless-suppression
 from PyQt5.QtWebEngineWidgets import (QWebEngineSettings, QWebEngineProfile,
                                       QWebEngineScript)
-# pylint: enable=no-name-in-module,import-error,useless-suppression
 
 from qutebrowser.browser import shared
 from qutebrowser.config import config, websettings
-from qutebrowser.utils import objreg, utils, standarddir, javascript, log
+from qutebrowser.utils import (objreg, utils, standarddir, javascript, log,
+                               qtutils)
 
 
-class Attribute(websettings.Attribute):
+# The default QWebEngineProfile
+default_profile = None
+# The QWebEngineProfile used for private (off-the-record) windows
+private_profile = None
+
+
+class Base(websettings.Base):
+
+    """Base settings class with appropriate _get_global_settings."""
+
+    def _get_global_settings(self):
+        return [default_profile.settings(), private_profile.settings()]
+
+
+class Attribute(Base, websettings.Attribute):
 
     """A setting set via QWebEngineSettings::setAttribute."""
 
-    GLOBAL_SETTINGS = QWebEngineSettings.globalSettings
     ENUM_BASE = QWebEngineSettings
 
 
-class Setter(websettings.Setter):
+class Setter(Base, websettings.Setter):
 
     """A setting set via QWebEngineSettings getter/setter methods."""
 
-    GLOBAL_SETTINGS = QWebEngineSettings.globalSettings
+    pass
 
 
-class NullStringSetter(websettings.NullStringSetter):
-
-    """A setter for settings requiring a null QString as default."""
-
-    GLOBAL_SETTINGS = QWebEngineSettings.globalSettings
-
-
-class StaticSetter(websettings.StaticSetter):
-
-    """A setting set via static QWebEngineSettings getter/setter methods."""
-
-    GLOBAL_SETTINGS = QWebEngineSettings.globalSettings
-
-
-class ProfileSetter(websettings.Base):
+class DefaultProfileSetter(websettings.Base):
 
     """A setting set on the QWebEngineProfile."""
 
@@ -77,16 +78,16 @@ class ProfileSetter(websettings.Base):
 
     def get(self, settings=None):
         utils.unused(settings)
-        getter = getattr(QWebEngineProfile.defaultProfile(), self._getter)
+        getter = getattr(default_profile, self._getter)
         return getter()
 
     def _set(self, value, settings=None):
         utils.unused(settings)
-        setter = getattr(QWebEngineProfile.defaultProfile(), self._setter)
+        setter = getattr(default_profile, self._setter)
         setter(value)
 
 
-class PersistentCookiePolicy(ProfileSetter):
+class PersistentCookiePolicy(DefaultProfileSetter):
 
     """The cookies -> store setting is different from other settings."""
 
@@ -140,19 +141,43 @@ def _init_stylesheet(profile):
     profile.scripts().insert(script)
 
 
-def _init_profile(profile):
-    """Initialize settings set on the QWebEngineProfile."""
-    profile.setCachePath(os.path.join(standarddir.cache(), 'webengine'))
-    profile.setPersistentStoragePath(
-        os.path.join(standarddir.data(), 'webengine'))
+def _set_user_agent(profile):
+    """Set the user agent for the given profile.
+
+    We override this per request in the URL interceptor (to allow for
+    per-domain user agents), but this one still gets used for things like
+    window.navigator.userAgent in JS.
+    """
+    user_agent = config.get('network', 'user-agent')
+    profile.setHttpUserAgent(user_agent)
 
 
 def update_settings(section, option):
     """Update global settings when qwebsettings changed."""
     websettings.update_mappings(MAPPINGS, section, option)
-    profile = QWebEngineProfile.defaultProfile()
     if section == 'ui' and option in ['hide-scrollbar', 'user-stylesheet']:
-        _init_stylesheet(profile)
+        _init_stylesheet(default_profile)
+        _init_stylesheet(private_profile)
+    elif section == 'network' and option == 'user-agent':
+        _set_user_agent(default_profile)
+        _set_user_agent(private_profile)
+
+
+def _init_profiles():
+    """Init the two used QWebEngineProfiles."""
+    global default_profile, private_profile
+    default_profile = QWebEngineProfile.defaultProfile()
+    default_profile.setCachePath(
+        os.path.join(standarddir.cache(), 'webengine'))
+    default_profile.setPersistentStoragePath(
+        os.path.join(standarddir.data(), 'webengine'))
+    _init_stylesheet(default_profile)
+    _set_user_agent(default_profile)
+
+    private_profile = QWebEngineProfile()
+    assert private_profile.isOffTheRecord()
+    _init_stylesheet(private_profile)
+    _set_user_agent(private_profile)
 
 
 def init(args):
@@ -172,13 +197,12 @@ def init(args):
         else:
             log.misc.debug("Imported PyOpenGL as workaround")
 
-    profile = QWebEngineProfile.defaultProfile()
-    _init_profile(profile)
-    _init_stylesheet(profile)
+    _init_profiles()
+
     # We need to do this here as a WORKAROUND for
     # https://bugreports.qt.io/browse/QTBUG-58650
-    PersistentCookiePolicy().set(config.get('content', 'cookies-store'))
-
+    if not qtutils.version_check('5.9'):
+        PersistentCookiePolicy().set(config.get('content', 'cookies-store'))
     Attribute(QWebEngineSettings.FullScreenSupportEnabled).set(True)
 
     websettings.init_mappings(MAPPINGS)
@@ -221,9 +245,6 @@ MAPPINGS = {
             Attribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls),
         'local-content-can-access-file-urls':
             Attribute(QWebEngineSettings.LocalContentCanAccessFileUrls),
-        # https://bugreports.qt.io/browse/QTBUG-58650
-        # 'cookies-store':
-        #     PersistentCookiePolicy(),
         'webgl':
             Attribute(QWebEngineSettings.WebGLEnabled),
     },
@@ -283,8 +304,8 @@ MAPPINGS = {
         'local-storage':
             Attribute(QWebEngineSettings.LocalStorageEnabled),
         'cache-size':
-            ProfileSetter(getter='httpCacheMaximumSize',
-                          setter='setHttpCacheMaximumSize')
+            DefaultProfileSetter(getter='httpCacheMaximumSize',
+                                 setter='setHttpCacheMaximumSize')
     },
     'general': {
         'xss-auditing':
@@ -301,3 +322,8 @@ try:
 except AttributeError:
     # Added in Qt 5.8
     pass
+
+
+if qtutils.version_check('5.9'):
+    # https://bugreports.qt.io/browse/QTBUG-58650
+    MAPPINGS['content']['cookies-store'] = PersistentCookiePolicy()

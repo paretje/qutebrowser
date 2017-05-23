@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The-Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The-Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -35,12 +35,14 @@ import faulthandler
 import traceback
 import signal
 import importlib
-import pkg_resources
 import datetime
 try:
     import tkinter
 except ImportError:
     tkinter = None
+
+import pkg_resources
+
 # NOTE: No qutebrowser or PyQt import should be done here, as some early
 # initialization needs to take place before that!
 

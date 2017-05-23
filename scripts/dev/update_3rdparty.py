@@ -2,6 +2,7 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
 # Copyright 2015 Daniel Schadt
+# Copyright 2016-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -120,7 +121,7 @@ def main():
                         action='store_true')
     args = parser.parse_args()
 
-    update_pdfjs(args.pdfjs)
+    # update_pdfjs(args.pdfjs)
     update_ace()
     if args.fancy_dmg:
         update_dmg_makefile()

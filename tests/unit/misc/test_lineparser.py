@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2015-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2015-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -20,8 +20,9 @@
 """Tests for qutebrowser.misc.lineparser."""
 
 import os
-import pytest
 from unittest import mock
+
+import pytest
 
 from qutebrowser.misc import lineparser as lineparsermod
 
@@ -57,10 +58,10 @@ class TestBaseLineParser:
         mocker.patch('builtins.open', mock.mock_open())
 
         with lineparser._open('r'):
-            with pytest.raises(IOError) as excinf:
+            with pytest.raises(IOError, match="Refusing to double-open "
+                                              "AppendLineParser."):
                 with lineparser._open('r'):
                     pass
-        assert str(excinf.value) == 'Refusing to double-open AppendLineParser.'
 
     def test_binary(self, mocker):
         """Test if _open and _write correctly handle binary files."""

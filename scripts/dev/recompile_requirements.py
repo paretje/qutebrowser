@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2016-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -112,11 +112,7 @@ def get_all_names():
     """Get all requirement names based on filenames."""
     for filename in glob.glob(os.path.join(REQ_DIR, 'requirements-*.txt-raw')):
         basename = os.path.basename(filename)
-        name = basename[len('requirements-'):-len('.txt-raw')]
-        if name == 'cxfreeze' and sys.hexversion >= 0x030600:
-            print("Warning: Skipping cxfreeze")
-        else:
-            yield name
+        yield basename[len('requirements-'):-len('.txt-raw')]
     yield 'pip'
 
 

@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2016 Ryan Roden-Corrent (rcorre) <ryan@rcorre.net>
+# Copyright 2016-2017 Ryan Roden-Corrent (rcorre) <ryan@rcorre.net>
 #
 # This file is part of qutebrowser.
 #
@@ -172,8 +172,8 @@ def _set_cmd_prompt(cmd, txt):
     (':open | -t', usertypes.Completion.url, ''),
     (':tab-detach |', None, ''),
     (':bind --mode=caret <c-x> |', usertypes.Completion.command, ''),
-    pytest.mark.xfail(reason='issue #74')((':bind --mode caret <c-x> |',
-                                           usertypes.Completion.command, '')),
+    pytest.param(':bind --mode caret <c-x> |', usertypes.Completion.command,
+                 '', marks=pytest.mark.xfail(reason='issue #74')),
     (':set -t -p |', usertypes.Completion.section, ''),
     (':open -- |', None, ''),
     (':gibberish nonesense |', None, ''),

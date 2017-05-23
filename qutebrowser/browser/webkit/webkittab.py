@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2016-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -56,6 +56,9 @@ def init():
 class WebKitAction(browsertab.AbstractAction):
 
     """QtWebKit implementations related to web actions."""
+
+    action_class = QWebPage
+    action_base = QWebPage.WebAction
 
     def exit_fullscreen(self):
         raise browsertab.UnsupportedOperationError
@@ -132,12 +135,14 @@ class WebKitSearch(browsertab.AbstractSearch):
             QTimer.singleShot(0, functools.partial(callback, found))
 
     def clear(self):
+        self.search_displayed = False
         # We first clear the marked text, then the highlights
         self._widget.findText('')
         self._widget.findText('', QWebPage.HighlightAllOccurrences)
 
     def search(self, text, *, ignore_case=False, reverse=False,
                result_cb=None):
+        self.search_displayed = True
         flags = QWebPage.FindWrapsAroundDocument
         if ignore_case == 'smart':
             if not text.islower():
@@ -155,10 +160,12 @@ class WebKitSearch(browsertab.AbstractSearch):
         self._call_cb(result_cb, found, text, flags, 'search')
 
     def next_result(self, *, result_cb=None):
+        self.search_displayed = True
         found = self._widget.findText(self.text, self._flags)
         self._call_cb(result_cb, found, self.text, self._flags, 'next_result')
 
     def prev_result(self, *, result_cb=None):
+        self.search_displayed = True
         # The int() here makes sure we get a copy of the flags.
         flags = QWebPage.FindFlags(int(self._flags))
         if flags & QWebPage.FindBackward:
@@ -460,15 +467,11 @@ class WebKitScroller(browsertab.AbstractScroller):
         # self._widget.setFocus()
 
         for _ in range(min(count, 5000)):
-            press_evt = QKeyEvent(QEvent.KeyPress, key, Qt.NoModifier, 0, 0, 0)
-            release_evt = QKeyEvent(QEvent.KeyRelease, key, Qt.NoModifier,
-                                    0, 0, 0)
             # Abort scrolling if the minimum/maximum was reached.
             if (getter is not None and
                     frame.scrollBarValue(direction) == getter(direction)):
                 return
-            self._widget.keyPressEvent(press_evt)
-            self._widget.keyReleaseEvent(release_evt)
+            self._tab.key_press(key)
 
     def up(self, count=1):
         self._key_press(Qt.Key_Up, count, 'scrollBarMinimum', Qt.Vertical)
@@ -626,10 +629,13 @@ class WebKitTab(browsertab.AbstractTab):
 
     """A QtWebKit tab in the browser."""
 
-    def __init__(self, win_id, mode_manager, parent=None):
+    def __init__(self, *, win_id, mode_manager, private, parent=None):
         super().__init__(win_id=win_id, mode_manager=mode_manager,
-                         parent=parent)
-        widget = webview.WebView(win_id, self.tab_id, tab=self)
+                         private=private, parent=parent)
+        widget = webview.WebView(win_id=win_id, tab_id=self.tab_id,
+                                 private=private, tab=self)
+        if private:
+            self._make_private(widget)
         self.history = WebKitHistory(self)
         self.scroller = WebKitScroller(self, parent=self)
         self.caret = WebKitCaret(win_id=win_id, mode_manager=mode_manager,
@@ -652,6 +658,10 @@ class WebKitTab(browsertab.AbstractTab):
 
     def _install_event_filter(self):
         self._widget.installEventFilter(self._mouse_event_filter)
+
+    def _make_private(self, widget):
+        settings = widget.settings()
+        settings.setAttribute(QWebSettings.PrivateBrowsingEnabled, True)
 
     def openurl(self, url):
         self._openurl_prepare(url)
@@ -701,13 +711,20 @@ class WebKitTab(browsertab.AbstractTab):
     def clear_ssl_errors(self):
         self.networkaccessmanager().clear_all_ssl_errors()
 
+    def key_press(self, key, modifier=Qt.NoModifier):
+        press_evt = QKeyEvent(QEvent.KeyPress, key, modifier, 0, 0, 0)
+        release_evt = QKeyEvent(QEvent.KeyRelease, key, modifier,
+                                0, 0, 0)
+        self.send_event(press_evt)
+        self.send_event(release_evt)
+
     @pyqtSlot()
     def _on_history_trigger(self):
         url = self.url()
         requested_url = self.url(requested=True)
         self.add_history_item.emit(url, requested_url, self.title())
 
-    def set_html(self, html, base_url):
+    def set_html(self, html, base_url=QUrl()):
         self._widget.setHtml(html, base_url)
 
     def networkaccessmanager(self):

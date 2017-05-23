@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -134,7 +134,8 @@ def read_file(filename, binary=False):
         The file contents as string.
     """
     if hasattr(sys, 'frozen'):
-        # cx_Freeze doesn't support pkg_resources :(
+        # PyInstaller doesn't support pkg_resources :(
+        # https://github.com/pyinstaller/pyinstaller/wiki/FAQ#misc
         fn = os.path.join(os.path.dirname(sys.executable), filename)
         if binary:
             with open(fn, 'rb') as f:

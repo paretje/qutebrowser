@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -21,7 +21,6 @@
 
 from PyQt5.QtCore import pyqtSlot, pyqtProperty, Qt, QUrl
 
-from qutebrowser.browser import browsertab
 from qutebrowser.mainwindow.statusbar import textbase
 from qutebrowser.config import style
 from qutebrowser.utils import usertypes, urlutils
@@ -165,7 +164,6 @@ class UrlText(textbase.TextBase):
             self._hover_url = None
         self._update_url()
 
-    @pyqtSlot(browsertab.AbstractTab)
     def on_tab_changed(self, tab):
         """Update URL if the tab changed."""
         self._hover_url = None

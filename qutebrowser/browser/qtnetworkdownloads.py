@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -27,6 +27,7 @@ import collections
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QTimer
 from PyQt5.QtNetwork import QNetworkRequest, QNetworkReply
 
+from qutebrowser.config import config
 from qutebrowser.utils import message, usertypes, log, urlutils, utils
 from qutebrowser.browser import downloads
 from qutebrowser.browser.webkit import http
@@ -366,7 +367,8 @@ class DownloadManager(downloads.AbstractDownloadManager):
     def __init__(self, win_id, parent=None):
         super().__init__(parent)
         self._networkmanager = networkmanager.NetworkManager(
-            win_id, None, self)
+            win_id=win_id, tab_id=None,
+            private=config.get('general', 'private-browsing'), parent=self)
 
     @pyqtSlot('QUrl')
     def get(self, url, *, user_agent=None, **kwargs):

@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 
 # This file is part of qutebrowser.
 #
@@ -23,7 +23,6 @@ import sys
 import json
 
 import qutebrowser
-from qutebrowser.utils import log
 try:
     from qutebrowser.misc.checkpyver import check_python_version
 except ImportError:
@@ -38,8 +37,9 @@ except ImportError:
         sys.stderr.flush()
         sys.exit(100)
 check_python_version()
+from qutebrowser.utils import log
 
-import argparse
+import argparse  # pylint: disable=wrong-import-order
 from qutebrowser.misc import earlyinit
 
 
@@ -130,7 +130,7 @@ def directory(arg):
         raise argparse.ArgumentTypeError("Invalid empty value")
 
 
-def logfilter_error(logfilter: str):
+def logfilter_error(logfilter):
     """Validate logger names passed to --logfilter.
 
     Args:
@@ -162,13 +162,7 @@ def debug_flag_error(flag):
 
 def main():
     parser = get_argparser()
-    if sys.platform == 'darwin' and getattr(sys, 'frozen', False):
-        # Ignore Mac OS X' idiotic -psn_* argument...
-        # http://stackoverflow.com/questions/19661298/
-        # http://sourceforge.net/p/cx-freeze/mailman/message/31041783/
-        argv = [arg for arg in sys.argv[1:] if not arg.startswith('-psn_0_')]
-    else:
-        argv = sys.argv[1:]
+    argv = sys.argv[1:]
     args = parser.parse_args(argv)
     if args.json_args is not None:
         # Restoring after a restart.

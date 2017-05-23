@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -52,7 +52,7 @@ def call_script(name, *args, python=sys.executable):
     subprocess.check_call([python, path] + list(args))
 
 
-def call_tox(toxenv, *args, python=os.path.dirname(sys.executable)):
+def call_tox(toxenv, *args, python=sys.executable):
     """Call tox.
 
     Args:
@@ -154,6 +154,15 @@ def build_osx():
     return [(dmg_name, 'application/x-apple-diskimage', 'OS X .dmg')]
 
 
+def patch_windows(out_dir):
+    """Copy missing DLLs for windows into the given output."""
+    dll_dir = os.path.join('.tox', 'pyinstaller', 'lib', 'site-packages',
+                           'PyQt5', 'Qt', 'bin')
+    dlls = ['libEGL.dll', 'libGLESv2.dll', 'libeay32.dll', 'ssleay32.dll']
+    for dll in dlls:
+        shutil.copy(os.path.join(dll_dir, dll), out_dir)
+
+
 def build_windows():
     """Build windows executables/setups."""
     utils.print_title("Updating 3rdparty content")
@@ -162,49 +171,47 @@ def build_windows():
     utils.print_title("Building Windows binaries")
     parts = str(sys.version_info.major), str(sys.version_info.minor)
     ver = ''.join(parts)
-    dotver = '.'.join(parts)
-    python_x86 = r'C:\Python{}_x32'.format(ver)
-    python_x64 = r'C:\Python{}'.format(ver)
+    python_x86 = r'C:\Program Files (x86)\Python{}-32\python.exe'.format(ver)
+    python_x64 = r'C:\Program Files\Python{}\python.exe'.format(ver)
+    out_pyinstaller = os.path.join('dist', 'qutebrowser')
+    out_32 = os.path.join('dist',
+                          'qutebrowser-{}-x86'.format(qutebrowser.__version__))
+    out_64 = os.path.join('dist',
+                          'qutebrowser-{}-x64'.format(qutebrowser.__version__))
 
     artifacts = []
 
-    utils.print_title("Rebuilding tox environment")
-    call_tox('cxfreeze-windows', '-r', '--notest')
-    utils.print_title("Running 32bit freeze.py build_exe")
-    call_tox('cxfreeze-windows', 'build_exe', python=python_x86)
-    utils.print_title("Running 32bit freeze.py bdist_msi")
-    call_tox('cxfreeze-windows', 'bdist_msi', python=python_x86)
-    utils.print_title("Running 64bit freeze.py build_exe")
-    call_tox('cxfreeze-windows', 'build_exe', python=python_x64)
-    utils.print_title("Running 64bit freeze.py bdist_msi")
-    call_tox('cxfreeze-windows', 'bdist_msi', python=python_x64)
+    utils.print_title("Running pyinstaller 32bit")
+    _maybe_remove(out_32)
+    call_tox('pyinstaller', '-r', python=python_x86)
+    shutil.move(out_pyinstaller, out_32)
+    patch_windows(out_32)
 
-    name_32 = 'qutebrowser-{}-win32.msi'.format(qutebrowser.__version__)
-    name_64 = 'qutebrowser-{}-amd64.msi'.format(qutebrowser.__version__)
+    utils.print_title("Running pyinstaller 64bit")
+    _maybe_remove(out_64)
+    call_tox('pyinstaller', '-r', python=python_x64)
+    shutil.move(out_pyinstaller, out_64)
+    patch_windows(out_64)
 
-    artifacts += [
-        (os.path.join('dist', name_32), 'application/x-msi',
-         'Windows 32bit installer'),
-        (os.path.join('dist', name_64), 'application/x-msi',
-         'Windows 64bit installer'),
-    ]
+    # name_32 = 'qutebrowser-{}-win32.msi'.format(qutebrowser.__version__)
+    # name_64 = 'qutebrowser-{}-amd64.msi'.format(qutebrowser.__version__)
+
+    # artifacts += [
+    #     (os.path.join('dist', name_32), 'application/x-msi',
+    #      'Windows 32bit installer'),
+    #     (os.path.join('dist', name_64), 'application/x-msi',
+    #      'Windows 64bit installer'),
+    # ]
 
     utils.print_title("Running 32bit smoke test")
-    smoke_test('build/exe.win32-{}/qutebrowser.exe'.format(dotver))
+    smoke_test(os.path.join(out_32, 'qutebrowser.exe'))
     utils.print_title("Running 64bit smoke test")
-    smoke_test('build/exe.win-amd64-{}/qutebrowser.exe'.format(dotver))
-
-    basedirname = 'qutebrowser-{}'.format(qutebrowser.__version__)
-    builddir = os.path.join('build', basedirname)
-    _maybe_remove(builddir)
+    smoke_test(os.path.join(out_64, 'qutebrowser.exe'))
 
     utils.print_title("Zipping 32bit standalone...")
     name = 'qutebrowser-{}-windows-standalone-win32'.format(
         qutebrowser.__version__)
-    origin = os.path.join('build', 'exe.win32-{}'.format(dotver))
-    os.rename(origin, builddir)
-    shutil.make_archive(name, 'zip', 'build', basedirname)
-    shutil.rmtree(builddir)
+    shutil.make_archive(name, 'zip', 'dist', os.path.basename(out_32))
     artifacts.append(('{}.zip'.format(name),
                       'application/zip',
                       'Windows 32bit standalone'))
@@ -212,10 +219,7 @@ def build_windows():
     utils.print_title("Zipping 64bit standalone...")
     name = 'qutebrowser-{}-windows-standalone-amd64'.format(
         qutebrowser.__version__)
-    origin = os.path.join('build', 'exe.win-amd64-{}'.format(dotver))
-    os.rename(origin, builddir)
-    shutil.make_archive(name, 'zip', 'build', basedirname)
-    shutil.rmtree(builddir)
+    shutil.make_archive(name, 'zip', 'dist', os.path.basename(out_64))
     artifacts.append(('{}.zip'.format(name),
                       'application/zip',
                       'Windows 64bit standalone'))
@@ -278,7 +282,7 @@ def github_upload(artifacts, tag):
     with open(token_file, encoding='ascii') as f:
         token = f.read().strip()
     gh = github3.login(token=token)
-    repo = gh.repository('The-Compiler', 'qutebrowser')
+    repo = gh.repository('qutebrowser', 'qutebrowser')
 
     release = None  # to satisfy pylint
     for release in repo.iter_releases():

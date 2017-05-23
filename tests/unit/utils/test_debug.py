@@ -1,4 +1,4 @@
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
 #
@@ -165,9 +165,11 @@ class TestQFlagsKey:
 
     @pytest.mark.parametrize('base, value, klass, expected', [
         (Qt, Qt.AlignTop, None, 'AlignTop'),
-        fixme((Qt, Qt.AlignLeft | Qt.AlignTop, None, 'AlignLeft|AlignTop')),
+        pytest.param(Qt, Qt.AlignLeft | Qt.AlignTop, None,
+                     'AlignLeft|AlignTop', marks=fixme),
         (Qt, Qt.AlignCenter, None, 'AlignHCenter|AlignVCenter'),
-        fixme((Qt, 0x0021, Qt.Alignment, 'AlignLeft|AlignTop')),
+        pytest.param(Qt, 0x0021, Qt.Alignment, 'AlignLeft|AlignTop',
+                     marks=fixme),
         (Qt, 0x1100, Qt.Alignment, '0x0100|0x1000'),
         (Qt, Qt.DockWidgetAreas(0), Qt.DockWidgetArea, 'NoDockWidgetArea'),
         (Qt, Qt.DockWidgetAreas(0), None, '0x0000'),

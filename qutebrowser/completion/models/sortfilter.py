@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -23,11 +23,12 @@ Contains:
     CompletionFilterModel -- A QSortFilterProxyModel subclass for completions.
 """
 
+import re
+
 from PyQt5.QtCore import QSortFilterProxyModel, QModelIndex, Qt
 
 from qutebrowser.utils import log, qtutils, debug
 from qutebrowser.completion.models import base as completion
-import re
 
 
 class CompletionFilterModel(QSortFilterProxyModel):

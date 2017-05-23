@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -168,10 +168,9 @@ def pytest_configure(config):
     webengine_env = os.environ.get('QUTE_BDD_WEBENGINE', '')
     config.webengine = bool(webengine_arg or webengine_env)
     # Fail early if QtWebEngine is not available
-    # pylint: disable=no-name-in-module,unused-variable,useless-suppression
+    # pylint: disable=unused-variable
     if config.webengine:
         import PyQt5.QtWebEngineWidgets
-    # pylint: enable=no-name-in-module,unused-variable,useless-suppression
 
 
 @pytest.fixture(scope='session', autouse=True)

@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2015-2016 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2015-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -263,10 +263,9 @@ class TestSave:
         mocker.patch('qutebrowser.misc.sessions.yaml.dump',
                      side_effect=exception)
 
-        with pytest.raises(sessions.SessionError) as excinfo:
+        with pytest.raises(sessions.SessionError, match=str(exception)):
             sess_man.save(str(tmpdir / 'foo.yml'))
 
-        assert str(excinfo.value) == str(exception)
         assert not tmpdir.listdir()
 
     def test_load_next_time(self, tmpdir, state_config, sess_man):
