@@ -391,27 +391,39 @@ def opengl_vendor():  # pragma: no cover
     from PyQt5.QtGui import (QOpenGLContext, QOpenGLVersionProfile,
                              QOffscreenSurface)
     assert QApplication.instance()
-    assert QOpenGLContext.currentContext() is None
+
+    old_context = QOpenGLContext.currentContext()
+    old_surface = None if old_context is None else old_context.surface()
 
     surface = QOffscreenSurface()
     surface.create()
 
     ctx = QOpenGLContext()
     ok = ctx.create()
-    assert ok
-
-    ok = ctx.makeCurrent(surface)
-    assert ok
-
-    if ctx.isOpenGLES():
-        # Can't use versionFunctions there
+    if not ok:
+        log.init.debug("opengl_vendor: Creating context failed!")
         return None
 
-    vp = QOpenGLVersionProfile()
-    vp.setVersion(2, 0)
+    ok = ctx.makeCurrent(surface)
+    if not ok:
+        log.init.debug("opengl_vendor: Making context current failed!")
+        return None
 
-    vf = ctx.versionFunctions(vp)
-    vendor = vf.glGetString(vf.GL_VENDOR)
-    ctx.doneCurrent()
+    try:
+        if ctx.isOpenGLES():
+            # Can't use versionFunctions there
+            return None
 
-    return vendor
+        vp = QOpenGLVersionProfile()
+        vp.setVersion(2, 0)
+
+        vf = ctx.versionFunctions(vp)
+        if vf is None:
+            log.init.debug("opengl_vendor: Getting version functions failed!")
+            return None
+
+        return vf.glGetString(vf.GL_VENDOR)
+    finally:
+        ctx.doneCurrent()
+        if old_context and old_surface:
+            old_context.makeCurrent(old_surface)

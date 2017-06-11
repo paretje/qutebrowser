@@ -30,9 +30,11 @@ Install the dependencies via apt-get:
 # apt-get install python3-lxml python-tox python3-pyqt5 python3-pyqt5.qtwebkit python3-pyqt5.qtquick python3-sip python3-jinja2 python3-pygments python3-yaml
 ----
 
-On Debian Stretch or Ubuntu 17.04 or later, it's also recommended to install
-`python3-pyqt5.qtwebengine` and start qutebrowser with `--backend webengine` in
-order to use the new backend.
+On Debian Stretch or Ubuntu 17.04 or later, it's also recommended to use the
+newer QtWebEngine backend.
+
+To do so, install `python3-pyqt5.qtwebengine` and `python3-pyqt5.qtopengl`, then
+start qutebrowser with `--backend webengine`.
 
 Get the qutebrowser package from the
 https://github.com/qutebrowser/qutebrowser/releases[release page] and download
@@ -96,8 +98,7 @@ qutebrowser is available in the official [community] repository.
 ----
 
 It's also recommended to install `qt5-webkit-ng` or `qt5-webengine` (and start
-with `--backend webengine`) to use an up-to-date backend. Note that private
-browsing won't work with QtWebKit-NG yet.
+with `--backend webengine`) to use an up-to-date backend.
 
 There is also a -git version available in the AUR:
 https://aur.archlinux.org/packages/qutebrowser-git/[qutebrowser-git].
@@ -166,7 +167,6 @@ necessary.
 It's also recommended to install QtWebKit-NG via
 https://gist.github.com/annulen/309569fb61e5d64a703c055c1e726f71[this ebuild],
 or install Qt >= 5.7.1 with QtWebEngine in order to use an up-to-date backend.
-Note that private browsing won't work with QtWebKit-NG yet.
 
 If video or sound don't seem to work, try installing the gstreamer plugins:
 

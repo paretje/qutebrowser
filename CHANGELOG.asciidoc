@@ -44,6 +44,8 @@ Added
 - New `tabs -> favicon-scale` option to scale up/down favicons.
 - `colors -> statusbar.bg/fg.private` and `.command.private` to
   customize statusbar colors for private windows.
+- New `{private}` field displaying `[Private Mode]` for
+  `ui -> window-title-format` and `tabs -> title-format`.
 
 Changed
 ~~~~~~~
@@ -70,6 +72,8 @@ Changed
   closes the current tab.
 - (QtWebEngine) With Qt 5.9, `content -> cookies-store` can now be set without
   a restart.
+- (QtWebEngine) With Qt 5.9, better error messages are now shown for failed
+  downloads.
 - The adblocker now also blocks non-GET requests (e.g. POST).
 - `javascript:` links can now be hinted.
 - `:view-source`, `:tab-clone` and `:navigate --tab` now don't open the tab as
@@ -87,6 +91,8 @@ Changed
   - The installer is now generated using NSIS instead of being a MSI
 - Texts in prompts are now selectable.
 - Renderer process crashes now show an error page.
+- (QtWebKit) storage -> offline-web-application-storage` got renamed to `...-cache`
+- The default level for `:messages` is now `info`, not `error`
 
 Fixed
 ~~~~~
@@ -101,6 +107,7 @@ Fixed
 - (QtWebEngine) Cloning a view-source tab now doesn't crash anymore.
 - (QtWebKit) The HTTP cache is disabled on Qt 5.7.1 and 5.8 now as it leads to
   frequent crashes due to a Qt bug.
+- Fixed crash with `:download` on PyQt 5.9.
 - Cloning a page without history doesn't crash anymore.
 - When a download results in a HTTP error, it now shows the error correctly
   instead of crashing.
@@ -123,7 +130,10 @@ Fixed
 - (QtWebEngine) HTML fullscreen is now tracked for each tab separately, which
   means it's not possible anymore to accidentally get stuck in fullscreen state
   by closing a tab with a fullscreen video.
+- For some people, running some userscripts crashed - this should now be fixed.
 - Various other rare crashes should now be fixed.
+- The settings documentation was truncated with v0.10.1 which should now be
+  fixed.
 
 v0.10.1
 -------
@@ -183,6 +193,18 @@ Changed
 - `input -> mouse-zoom-divider` can now be 0 to disable zooming by mouse wheel
 - `network -> proxy` can also be set to `pac+file://...` now to
   use a local proxy autoconfig file (on QtWebKit)
+
+Removed
+~~~~~~~
+
+- (QtWebKit) Various rarely customized settings were removed:
+  - `ui -> css-media-type` (defaults to desktop)
+  - `general -> site-specific-quirks` (now always turned on)
+  - `storage -> offline-storage-default-quota` (defaults to 5MB)
+  - `storage -> offline-web-application-cache-quota` (defaults to no quota)
+  - `storage -> object-cache-capacities` (default depends on disk space)
+  - `content -> css-regions` (now always turned off)
+  - `storage -> offline-storage-database` (merged into `storage -> local-storage`)
 
 Fixed
 ~~~~~
