@@ -59,7 +59,7 @@ Distribution = usertypes.enum(
                      'gentoo', 'fedora', 'opensuse', 'linuxmint', 'manjaro'])
 
 
-def distribution(filename='/etc/os-release'):
+def distribution():
     """Get some information about the running Linux distribution.
 
     Returns:
@@ -68,6 +68,7 @@ def distribution(filename='/etc/os-release'):
             version: A Version object, or None
             pretty: Always a string (might be "Unknown")
     """
+    filename = os.environ.get('QUTE_FAKE_OS_RELEASE', '/etc/os-release')
     info = {}
     try:
         with open(filename, 'r', encoding='utf-8') as f:
@@ -376,3 +377,41 @@ def version():
         lines += ['{}: {}'.format(name, path)]
 
     return '\n'.join(lines)
+
+
+def opengl_vendor():  # pragma: no cover
+    """Get the OpenGL vendor used.
+
+    This returns a string such as 'nouveau' or
+    'Intel Open Source Technology Center'; or None if the vendor can't be
+    determined.
+    """
+    # We're doing those imports here because this is only available with Qt 5.4
+    # or newer.
+    from PyQt5.QtGui import (QOpenGLContext, QOpenGLVersionProfile,
+                             QOffscreenSurface)
+    assert QApplication.instance()
+    assert QOpenGLContext.currentContext() is None
+
+    surface = QOffscreenSurface()
+    surface.create()
+
+    ctx = QOpenGLContext()
+    ok = ctx.create()
+    assert ok
+
+    ok = ctx.makeCurrent(surface)
+    assert ok
+
+    if ctx.isOpenGLES():
+        # Can't use versionFunctions there
+        return None
+
+    vp = QOpenGLVersionProfile()
+    vp.setVersion(2, 0)
+
+    vf = ctx.versionFunctions(vp)
+    vendor = vf.glGetString(vf.GL_VENDOR)
+    ctx.doneCurrent()
+
+    return vendor

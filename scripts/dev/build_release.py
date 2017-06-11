@@ -37,7 +37,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), os.pardir,
 
 import qutebrowser
 from scripts import utils
-from scripts.dev import update_3rdparty
+# from scripts.dev import update_3rdparty
 
 
 def call_script(name, *args, python=sys.executable):
@@ -62,8 +62,9 @@ def call_tox(toxenv, *args, python=sys.executable):
     """
     env = os.environ.copy()
     env['PYTHON'] = python
+    env['PATH'] = os.environ['PATH'] + os.pathsep + os.path.dirname(python)
     subprocess.check_call(
-        [sys.executable, '-m', 'tox', '-e', toxenv] + list(args),
+        [sys.executable, '-m', 'tox', '-v', '-e', toxenv] + list(args),
         env=env)
 
 
@@ -124,7 +125,7 @@ def patch_osx_app():
 def build_osx():
     """Build OS X .dmg/.app."""
     utils.print_title("Updating 3rdparty content")
-    update_3rdparty.update_pdfjs()
+    # update_3rdparty.run(ace=False, pdfjs=True, fancy_dmg=False)
     utils.print_title("Building .app via pyinstaller")
     call_tox('pyinstaller', '-r')
     utils.print_title("Patching .app")
@@ -166,13 +167,13 @@ def patch_windows(out_dir):
 def build_windows():
     """Build windows executables/setups."""
     utils.print_title("Updating 3rdparty content")
-    update_3rdparty.update_pdfjs()
+    # update_3rdparty.run(ace=False, pdfjs=True, fancy_dmg=False)
 
     utils.print_title("Building Windows binaries")
     parts = str(sys.version_info.major), str(sys.version_info.minor)
     ver = ''.join(parts)
-    python_x86 = r'C:\Program Files (x86)\Python{}-32\python.exe'.format(ver)
-    python_x64 = r'C:\Program Files\Python{}\python.exe'.format(ver)
+    python_x86 = r'C:\Python{}-32\python.exe'.format(ver)
+    python_x64 = r'C:\Python{}\python.exe'.format(ver)
     out_pyinstaller = os.path.join('dist', 'qutebrowser')
     out_32 = os.path.join('dist',
                           'qutebrowser-{}-x86'.format(qutebrowser.__version__))
@@ -193,15 +194,26 @@ def build_windows():
     shutil.move(out_pyinstaller, out_64)
     patch_windows(out_64)
 
-    # name_32 = 'qutebrowser-{}-win32.msi'.format(qutebrowser.__version__)
-    # name_64 = 'qutebrowser-{}-amd64.msi'.format(qutebrowser.__version__)
+    utils.print_title("Building installers")
+    subprocess.check_call(['makensis.exe',
+                           '/DVERSION={}'.format(qutebrowser.__version__),
+                           'misc/qutebrowser.nsi'])
+    subprocess.check_call(['makensis.exe',
+                           '/DX64',
+                           '/DVERSION={}'.format(qutebrowser.__version__),
+                           'misc/qutebrowser.nsi'])
 
-    # artifacts += [
-    #     (os.path.join('dist', name_32), 'application/x-msi',
-    #      'Windows 32bit installer'),
-    #     (os.path.join('dist', name_64), 'application/x-msi',
-    #      'Windows 64bit installer'),
-    # ]
+    name_32 = 'qutebrowser-{}-win32.msi'.format(qutebrowser.__version__)
+    name_64 = 'qutebrowser-{}-amd64.msi'.format(qutebrowser.__version__)
+
+    artifacts += [
+        (os.path.join('dist', name_32),
+         'application/vnd.microsoft.portable-executable',
+         'Windows 32bit installer'),
+        (os.path.join('dist', name_64),
+         'application/vnd.microsoft.portable-executable',
+         'Windows 64bit installer'),
+    ]
 
     utils.print_title("Running 32bit smoke test")
     smoke_test(os.path.join(out_32, 'qutebrowser.exe'))
