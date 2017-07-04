@@ -273,6 +273,8 @@ class TabbedBrowser(tabwidget.TabWidget):
         """
         idx = self.indexOf(tab)
         if idx == -1:
+            if crashed:
+                return
             raise TabDeletedError("tab {} is not contained in "
                                   "TabbedWidget!".format(tab))
         if tab is self._now_focused:
@@ -340,7 +342,7 @@ class TabbedBrowser(tabwidget.TabWidget):
             newtab = self.tabopen(url, background=False, idx=idx)
 
         newtab.history.deserialize(history_data)
-        self.set_tab_pinned(idx, pinned)
+        self.set_tab_pinned(newtab, pinned)
 
     @pyqtSlot('QUrl', bool)
     def openurl(self, url, newtab):
@@ -433,8 +435,12 @@ class TabbedBrowser(tabwidget.TabWidget):
             # Make sure the background tab has the correct initial size.
             # With a foreground tab, it's going to be resized correctly by the
             # layout anyways.
-            tab_size = QSize(self.width(),
-                             self.height() - self.tabBar().height())
+            if self.tabBar().vertical:
+                tab_size = QSize(self.width() - self.tabBar().width(),
+                                 self.height())
+            else:
+                tab_size = QSize(self.width(),
+                                 self.height() - self.tabBar().height())
             tab.resize(tab_size)
             self.tab_index_changed.emit(self.currentIndex(), self.count())
         else:

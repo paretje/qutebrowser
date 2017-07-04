@@ -496,6 +496,7 @@ class ImportFake:
             'typing': True,
             'PyQt5.QtWebEngineWidgets': True,
             'PyQt5.QtWebKitWidgets': True,
+            'OpenGL': True,
         }
         self.version_attribute = '__version__'
         self.version = '1.2.3'
@@ -555,7 +556,7 @@ class TestModuleVersions:
         """Test with all modules present in version 1.2.3."""
         expected = ['sip: yes', 'colorama: 1.2.3', 'pypeg2: 1.2.3',
                     'jinja2: 1.2.3', 'pygments: 1.2.3', 'yaml: 1.2.3',
-                    'cssutils: 1.2.3', 'typing: yes',
+                    'cssutils: 1.2.3', 'typing: yes', 'OpenGL: 1.2.3',
                     'PyQt5.QtWebEngineWidgets: yes',
                     'PyQt5.QtWebKitWidgets: yes']
         assert version._module_versions() == expected
@@ -579,17 +580,17 @@ class TestModuleVersions:
     @pytest.mark.parametrize('value, expected', [
         ('VERSION', ['sip: yes', 'colorama: 1.2.3', 'pypeg2: yes',
                      'jinja2: yes', 'pygments: yes', 'yaml: yes',
-                     'cssutils: yes', 'typing: yes',
+                     'cssutils: yes', 'typing: yes', 'OpenGL: yes',
                      'PyQt5.QtWebEngineWidgets: yes',
                      'PyQt5.QtWebKitWidgets: yes']),
         ('SIP_VERSION_STR', ['sip: 1.2.3', 'colorama: yes', 'pypeg2: yes',
                              'jinja2: yes', 'pygments: yes', 'yaml: yes',
-                             'cssutils: yes', 'typing: yes',
+                             'cssutils: yes', 'typing: yes', 'OpenGL: yes',
                              'PyQt5.QtWebEngineWidgets: yes',
                              'PyQt5.QtWebKitWidgets: yes']),
         (None, ['sip: yes', 'colorama: yes', 'pypeg2: yes', 'jinja2: yes',
                 'pygments: yes', 'yaml: yes', 'cssutils: yes', 'typing: yes',
-                'PyQt5.QtWebEngineWidgets: yes',
+                'OpenGL: yes', 'PyQt5.QtWebEngineWidgets: yes',
                 'PyQt5.QtWebKitWidgets: yes']),
     ])
     def test_version_attribute(self, value, expected, import_fake):
@@ -774,19 +775,6 @@ class FakeQSslSocket:
         return self._version
 
 
-@pytest.mark.parametrize('same', [True, False])
-def test_qt_version(monkeypatch, same):
-    if same:
-        qt_version_str = '5.4.0'
-        expected = '5.4.0'
-    else:
-        qt_version_str = '5.3.0'
-        expected = '5.4.0 (compiled 5.3.0)'
-    monkeypatch.setattr(version, 'qVersion', lambda: '5.4.0')
-    monkeypatch.setattr(version, 'QT_VERSION_STR', qt_version_str)
-    assert version.qt_version() == expected
-
-
 @pytest.mark.parametrize('ua, expected', [
     (None, 'unavailable'),  # No QWebEngineProfile
     ('Mozilla/5.0', 'unknown'),
@@ -820,7 +808,7 @@ def test_chromium_version_unpatched(qapp):
     (True, False, True, False, True),  # no webkit
     (True, False, True, 'ng', True),  # QtWebKit-NG
     (True, False, True, True, False),  # unknown Linux distribution
-])
+])  # pylint: disable=too-many-locals
 def test_version_output(git_commit, frozen, style, with_webkit,
                         known_distribution, stubs, monkeypatch):
     """Test version.version()."""
@@ -836,8 +824,7 @@ def test_version_output(git_commit, frozen, style, with_webkit,
         'platform.python_implementation': lambda: 'PYTHON IMPLEMENTATION',
         'platform.python_version': lambda: 'PYTHON VERSION',
         'PYQT_VERSION_STR': 'PYQT VERSION',
-        'QT_VERSION_STR': 'QT VERSION',
-        'qVersion': lambda: 'QT VERSION',
+        'earlyinit.qt_version': lambda: 'QT VERSION',
         '_module_versions': lambda: ['MODULE VERSION 1', 'MODULE VERSION 2'],
         '_pdfjs_version': lambda: 'PDFJS VERSION',
         'QSslSocket': FakeQSslSocket('SSL VERSION'),
@@ -863,11 +850,12 @@ def test_version_output(git_commit, frozen, style, with_webkit,
         patches['objects.backend'] = usertypes.Backend.QtWebKit
         patches['QWebEngineProfile'] = None
         if with_webkit == 'ng':
+            backend = 'QtWebKit-NG'
             patches['qtutils.is_qtwebkit_ng'] = lambda: True
-            substitutions['backend'] = 'QtWebKit-NG (WebKit WEBKIT VERSION)'
         else:
+            backend = 'legacy QtWebKit'
             patches['qtutils.is_qtwebkit_ng'] = lambda: False
-            substitutions['backend'] = 'QtWebKit (WebKit WEBKIT VERSION)'
+        substitutions['backend'] = backend + ' (WebKit WEBKIT VERSION)'
     else:
         monkeypatch.delattr(version, 'qtutils.qWebKitVersion', raising=False)
         patches['objects.backend'] = usertypes.Backend.QtWebEngine

@@ -50,7 +50,7 @@ Feature: Javascript stuff
         And I open data/javascript/window_open.html in a new tab
         And I run :click-element id open-normal
         And I wait for "Changing title for idx 2 to 'about:blank'" in the log
-        And I run :tab-focus 2
+        And I run :buffer window_open.html
         And I run :click-element id close-twice
         And I wait for "Focus object changed: *" in the log
         Then no crash should happen
@@ -112,6 +112,15 @@ Feature: Javascript stuff
     Scenario: Checking visible/invisible window size
         When I run :tab-only
         And I set general -> log-javascript-console to info
+        And I open data/javascript/windowsize.html in a new background tab
+        And I wait for "[*/data/javascript/windowsize.html:*] loaded" in the log
+        And I run :tab-next
+        Then the window sizes should be the same
+
+    Scenario: Checking visible/invisible window size with vertical tabbar
+        When I run :tab-only
+        And I set general -> log-javascript-console to info
+        And I set tabs -> position to left
         And I open data/javascript/windowsize.html in a new background tab
         And I wait for "[*/data/javascript/windowsize.html:*] loaded" in the log
         And I run :tab-next
