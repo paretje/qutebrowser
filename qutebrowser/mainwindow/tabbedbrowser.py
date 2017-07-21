@@ -23,7 +23,7 @@ import functools
 import collections
 
 from PyQt5.QtWidgets import QSizePolicy
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, QTimer, QUrl, QSize
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, QTimer, QUrl
 from PyQt5.QtGui import QIcon
 
 from qutebrowser.config import config
@@ -232,6 +232,19 @@ class TabbedBrowser(tabwidget.TabWidget):
         for tab in self.widgets():
             self._remove_tab(tab)
 
+    def tab_close_prompt_if_pinned(self, tab, force, yes_action):
+        """Helper method for tab_close.
+
+        If tab is pinned, prompt. If everything is good, run yes_action.
+        """
+        if tab.data.pinned and not force:
+            message.confirm_async(
+                title='Pinned Tab',
+                text="Are you sure you want to close a pinned tab?",
+                yes_action=yes_action, default=False)
+        else:
+            yes_action()
+
     def close_tab(self, tab, *, add_undo=True):
         """Close a tab.
 
@@ -366,7 +379,8 @@ class TabbedBrowser(tabwidget.TabWidget):
             log.webview.debug("Got invalid tab {} for index {}!".format(
                 tab, idx))
             return
-        self.close_tab(tab)
+        self.tab_close_prompt_if_pinned(
+            tab, False, lambda: self.close_tab(tab))
 
     @pyqtSlot(browsertab.AbstractTab)
     def on_window_close_requested(self, widget):
@@ -435,13 +449,7 @@ class TabbedBrowser(tabwidget.TabWidget):
             # Make sure the background tab has the correct initial size.
             # With a foreground tab, it's going to be resized correctly by the
             # layout anyways.
-            if self.tabBar().vertical:
-                tab_size = QSize(self.width() - self.tabBar().width(),
-                                 self.height())
-            else:
-                tab_size = QSize(self.width(),
-                                 self.height() - self.tabBar().height())
-            tab.resize(tab_size)
+            tab.resize(self.currentWidget().size())
             self.tab_index_changed.emit(self.currentIndex(), self.count())
         else:
             self.setCurrentWidget(tab)

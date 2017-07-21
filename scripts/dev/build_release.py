@@ -92,7 +92,7 @@ def smoke_test(executable):
                            '--temp-basedir', 'about:blank', ':later 500 quit'])
 
 
-def patch_osx_app():
+def patch_mac_app():
     """Patch .app to copy missing data and link some libs.
 
     See https://github.com/pyinstaller/pyinstaller/issues/2276
@@ -125,8 +125,8 @@ def patch_osx_app():
                    os.path.join(dest, lib))
 
 
-def build_osx():
-    """Build OS X .dmg/.app."""
+def build_mac():
+    """Build macOS .dmg/.app."""
     utils.print_title("Cleaning up...")
     for f in ['wc.dmg', 'template.dmg']:
         try:
@@ -141,7 +141,7 @@ def build_osx():
     utils.print_title("Building .app via pyinstaller")
     call_tox('pyinstaller', '-r')
     utils.print_title("Patching .app")
-    patch_osx_app()
+    patch_mac_app()
     utils.print_title("Building .dmg")
     subprocess.check_call(['make', '-f', 'scripts/dev/Makefile-dmg'])
 
@@ -163,7 +163,7 @@ def build_osx():
     except PermissionError as e:
         print("Failed to remove tempdir: {}".format(e))
 
-    return [(dmg_name, 'application/x-apple-diskimage', 'OS X .dmg')]
+    return [(dmg_name, 'application/x-apple-diskimage', 'macOS .dmg')]
 
 
 def patch_windows(out_dir):
@@ -292,6 +292,14 @@ def build_sdist():
     return artifacts
 
 
+def read_github_token():
+    """Read the GitHub API token from disk."""
+    token_file = os.path.join(os.path.expanduser('~'), '.gh_token')
+    with open(token_file, encoding='ascii') as f:
+        token = f.read().strip()
+    return token
+
+
 def github_upload(artifacts, tag):
     """Upload the given artifacts to GitHub.
 
@@ -302,9 +310,7 @@ def github_upload(artifacts, tag):
     import github3
     utils.print_title("Uploading to github...")
 
-    token_file = os.path.join(os.path.expanduser('~'), '.gh_token')
-    with open(token_file, encoding='ascii') as f:
-        token = f.read().strip()
+    token = read_github_token()
     gh = github3.login(token=token)
     repo = gh.repository('qutebrowser', 'qutebrowser')
 
@@ -341,6 +347,12 @@ def main():
 
     upload_to_pypi = False
 
+    if args.upload is not None:
+        # Fail early when trying to upload without github3 installed
+        # or without API token
+        import github3  # pylint: disable=unused-variable
+        read_github_token()
+
     if os.name == 'nt':
         if sys.maxsize > 2**32:
             # WORKAROUND
@@ -354,7 +366,7 @@ def main():
         artifacts = build_windows()
     elif sys.platform == 'darwin':
         run_asciidoc2html(args)
-        artifacts = build_osx()
+        artifacts = build_mac()
     else:
         artifacts = build_sdist()
         upload_to_pypi = True
