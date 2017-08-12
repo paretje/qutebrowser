@@ -19,14 +19,12 @@
 
 """Test the web history completion category."""
 
-import unittest.mock
 import datetime
 
 import pytest
 
 from qutebrowser.misc import sql
 from qutebrowser.completion.models import histcategory
-from qutebrowser.commands import cmdexc
 
 
 @pytest.fixture
@@ -110,6 +108,15 @@ def test_set_pattern(pattern, before, after, model_validator, hist):
         ('c', 'c', '2017-05-16'),
         ('a', 'a', '2017-04-16'),
     ]),
+    (2 ** 63 - 1, [  # Maximum value sqlite can handle for LIMIT
+        ('a', 'a', '2017-04-16'),
+        ('b', 'b', '2017-06-16'),
+        ('c', 'c', '2017-05-16'),
+    ], [
+        ('b', 'b', '2017-06-16'),
+        ('c', 'c', '2017-05-16'),
+        ('a', 'a', '2017-04-16'),
+    ]),
     (2, [
         ('a', 'a', '2017-04-16'),
         ('b', 'b', '2017-06-16'),
@@ -117,7 +124,8 @@ def test_set_pattern(pattern, before, after, model_validator, hist):
     ], [
         ('b', 'b', '2017-06-16'),
         ('c', 'c', '2017-05-16'),
-    ])
+    ]),
+    (1, [], []),  # issue 2849 (crash with empty history)
 ])
 def test_sorting(max_items, before, after, model_validator, hist, config_stub):
     """Validate the filtering and sorting results of set_pattern."""
@@ -131,20 +139,29 @@ def test_sorting(max_items, before, after, model_validator, hist, config_stub):
     model_validator.validate(after)
 
 
-def test_delete_cur_item(hist):
+def test_remove_rows(hist, model_validator):
     hist.insert({'url': 'foo', 'title': 'Foo'})
     hist.insert({'url': 'bar', 'title': 'Bar'})
-    func = unittest.mock.Mock(spec=[])
-    cat = histcategory.HistoryCategory(delete_func=func)
+    cat = histcategory.HistoryCategory()
+    model_validator.set_model(cat)
     cat.set_pattern('')
-    cat.delete_cur_item(cat.index(0, 0))
-    func.assert_called_with(['foo', 'Foo', ''])
+    hist.delete('url', 'foo')
+    cat.removeRows(0, 1)
+    model_validator.validate([('bar', 'Bar', '')])
 
 
-def test_delete_cur_item_no_func(hist):
-    hist.insert({'url': 'foo', 'title': 1})
-    hist.insert({'url': 'bar', 'title': 2})
+def test_remove_rows_fetch(hist):
+    """removeRows should fetch enough data to make the current index valid."""
+    # we cannot use model_validator as it will fetch everything up front
+    hist.insert_batch({'url': [str(i) for i in range(300)]})
     cat = histcategory.HistoryCategory()
     cat.set_pattern('')
-    with pytest.raises(cmdexc.CommandError, match='Cannot delete this item'):
-        cat.delete_cur_item(cat.index(0, 0))
+
+    # sanity check that we didn't fetch everything up front
+    assert cat.rowCount() < 300
+    cat.fetchMore()
+    assert cat.rowCount() == 300
+
+    hist.delete('url', '298')
+    cat.removeRows(297, 1)
+    assert cat.rowCount() == 299

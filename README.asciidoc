@@ -71,6 +71,9 @@ There's also a https://lists.schokokeks.org/mailman/listinfo.cgi/qutebrowser-ann
 at mailto:qutebrowser-announce@lists.qutebrowser.org[] (the announcements also
 get sent to the general qutebrowser@ list).
 
+If you're a reddit user, there's a
+https://www.reddit.com/r/qutebrowser/[/r/qutebrowser] subreddit there.
+
 Contributions / Bugs
 --------------------
 
@@ -115,7 +118,6 @@ The following software and libraries are required to run qutebrowser:
 * http://jinja.pocoo.org/[jinja2]
 * http://pygments.org/[pygments]
 * http://pyyaml.org/wiki/PyYAML[PyYAML]
-* http://pyopengl.sourceforge.net/[PyOpenGL] when using QtWebEngine
 
 The following libraries are optional:
 

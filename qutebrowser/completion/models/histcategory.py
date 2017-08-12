@@ -25,7 +25,6 @@ from PyQt5.QtSql import QSqlQueryModel
 
 from qutebrowser.misc import sql
 from qutebrowser.utils import debug
-from qutebrowser.commands import cmdexc
 from qutebrowser.config import config
 
 
@@ -60,6 +59,9 @@ class HistoryCategory(QSqlQueryModel):
     def _atime_expr(self):
         """If max_items is set, return an expression to limit the query."""
         max_items = config.get('completion', 'web-history-max-items')
+        # HistoryCategory should not be added to the completion in that case.
+        assert max_items != 0
+
         if max_items < 0:
             return ''
 
@@ -68,6 +70,10 @@ class HistoryCategory(QSqlQueryModel):
             '(SELECT last_atime FROM CompletionHistory',
             'ORDER BY last_atime DESC LIMIT :limit)',
         ])).run(limit=max_items).value()
+
+        if not min_atime:
+            # if there are no history items, min_atime may be '' (issue #2849)
+            return ''
 
         return "AND last_atime >= {}".format(min_atime)
 
@@ -87,14 +93,12 @@ class HistoryCategory(QSqlQueryModel):
             self._query.run(pat=pattern)
         self.setQuery(self._query)
 
-    def delete_cur_item(self, index):
-        """Delete the row at the given index."""
-        if not self.delete_func:
-            raise cmdexc.CommandError("Cannot delete this item.")
-        data = [self.data(index.sibling(index.row(), i))
-                for i in range(self.columnCount())]
-        self.delete_func(data)
+    def removeRows(self, row, _count, _parent=None):
+        """Override QAbstractItemModel::removeRows to re-run sql query."""
         # re-run query to reload updated table
         with debug.log_time('sql', 'Re-running completion query post-delete'):
             self._query.run()
         self.setQuery(self._query)
+        while self.rowCount() < row:
+            self.fetchMore()
+        return True

@@ -109,8 +109,6 @@ class CompletionView(QTreeView):
         super().__init__(parent)
         self.pattern = ''
         self._win_id = win_id
-        # FIXME handle new aliases.
-        # objreg.get('config').changed.connect(self.init_command_completion)
         objreg.get('config').changed.connect(self._on_config_changed)
 
         self._active = False
@@ -150,6 +148,8 @@ class CompletionView(QTreeView):
 
     def _resize_columns(self):
         """Resize the completion columns based on column_widths."""
+        if self.model() is None:
+            return
         width = self.size().width()
         column_widths = self.model().column_widths
         pixel_widths = [(width * perc // 100) for perc in column_widths]
@@ -255,6 +255,10 @@ class CompletionView(QTreeView):
         selmodel.setCurrentIndex(
             idx, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
 
+        # if the last item is focused, try to fetch more
+        if idx.row() == self.model().rowCount(idx.parent()) - 1:
+            self.expandAll()
+
         count = self.model().count()
         if count == 0:
             self.hide()
@@ -297,6 +301,7 @@ class CompletionView(QTreeView):
         self.pattern = pattern
         with debug.log_time(log.completion, 'Set pattern {}'.format(pattern)):
             self.model().set_pattern(pattern)
+            self.selectionModel().clear()
             self._maybe_update_geometry()
             self._maybe_show()
 
