@@ -45,9 +45,9 @@ class WebKitInspector(inspector.AbstractWebInspector):
         super().closeEvent(e)
 
     def inspect(self, page):
-        if not config.get('general', 'developer-extras'):
+        if not config.val.content.developer_extras:
             raise inspector.WebInspectorError(
-                "Please enable developer-extras before using the "
+                "Please enable content.developer_extras before using the "
                 "webinspector!")
         self._widget.setPage(page)
         self.show()
