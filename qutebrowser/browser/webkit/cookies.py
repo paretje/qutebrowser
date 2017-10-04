@@ -60,7 +60,7 @@ class RAMCookieJar(QNetworkCookieJar):
         Return:
             True if one or more cookies are set for 'url', otherwise False.
         """
-        global_policy = config.val.content.cookies.accept == 'never'
+        global_policy = not config.val.content.cookies.accept == 'never'
         domain_policy = objreg.get('domain-manager').get_setting(url.host(),
                                                                  "cookies",
                                                                  global_policy)
