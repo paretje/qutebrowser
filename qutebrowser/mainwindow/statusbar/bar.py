@@ -182,7 +182,7 @@ class StatusBar(QWidget):
         self.url = url.UrlText()
         self._hbox.addWidget(self.url)
 
-        if objreg.get('args').backend != 'webengine':
+        if config.val.backend == 'webkit':
             from qutebrowser.mainwindow.statusbar import settings
             self.settings = settings.TabSettings()
             self._hbox.addWidget(self.settings)

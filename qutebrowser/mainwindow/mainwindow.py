@@ -463,7 +463,7 @@ class MainWindow(QWidget):
         tabs.cur_load_finished.connect(status.prog.hide)
         tabs.cur_load_started.connect(status.prog.on_load_started)
 
-        if objreg.get('args').backend != 'webengine':
+        if config.val.backend == 'webkit':
             tabs.current_tab_changed.connect(status.settings.on_tab_changed)
             tabs.cur_url_changed.connect(status.settings.set_text)
 
