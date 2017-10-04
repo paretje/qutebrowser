@@ -20,14 +20,14 @@
 
 import copy
 import types
+import unittest.mock
 
 import pytest
-from PyQt5.QtCore import QObject, QUrl
+from PyQt5.QtCore import QObject
 from PyQt5.QtGui import QColor
 
-from qutebrowser.commands import cmdexc
-from qutebrowser.config import config, configdata, configexc
-from qutebrowser.utils import objreg, usertypes
+from qutebrowser.config import config, configdata, configexc, configfiles
+from qutebrowser.utils import usertypes
 from qutebrowser.misc import objects
 
 
@@ -36,12 +36,6 @@ def configdata_init():
     """Initialize configdata if needed."""
     if configdata.DATA is None:
         configdata.init()
-
-
-@pytest.fixture
-def keyconf(config_stub):
-    config_stub.val.aliases = {}
-    return config.KeyConfig(config_stub)
 
 
 class TestChangeFilter:
@@ -178,19 +172,13 @@ class TestKeyConfig:
         config_stub.val.bindings.commands = {'normal': bindings}
         assert keyconf.get_reverse_bindings_for('normal') == expected
 
-    @pytest.mark.parametrize('force', [True, False])
     @pytest.mark.parametrize('key', ['a', '<Ctrl-X>', 'b'])
-    def test_bind_duplicate(self, keyconf, config_stub, force, key):
+    def test_bind_duplicate(self, keyconf, config_stub, key):
         config_stub.val.bindings.default = {'normal': {'a': 'nop',
                                                        '<Ctrl+x>': 'nop'}}
         config_stub.val.bindings.commands = {'normal': {'b': 'nop'}}
-        if force:
-            keyconf.bind(key, 'message-info foo', mode='normal', force=True)
-            assert keyconf.get_command(key, 'normal') == 'message-info foo'
-        else:
-            with pytest.raises(configexc.DuplicateKeyError):
-                keyconf.bind(key, 'message-info foo', mode='normal')
-            assert keyconf.get_command(key, 'normal') == 'nop'
+        keyconf.bind(key, 'message-info foo', mode='normal')
+        assert keyconf.get_command(key, 'normal') == 'message-info foo'
 
     @pytest.mark.parametrize('mode', ['normal', 'caret'])
     @pytest.mark.parametrize('command', [
@@ -262,340 +250,17 @@ class TestKeyConfig:
             keyconf.unbind('foobar', mode='normal')
 
 
-class TestSetConfigCommand:
-
-    """Tests for :set."""
-
-    @pytest.fixture
-    def commands(self, config_stub, keyconf):
-        return config.ConfigCommands(config_stub, keyconf)
-
-    @pytest.fixture
-    def tabbed_browser(self, stubs, win_registry):
-        tb = stubs.TabbedBrowserStub()
-        objreg.register('tabbed-browser', tb, scope='window', window=0)
-        yield tb
-        objreg.delete('tabbed-browser', scope='window', window=0)
-
-    def test_set_no_args(self, commands, tabbed_browser):
-        """Run ':set'.
-
-        Should open qute://settings."""
-        commands.set(win_id=0)
-        assert tabbed_browser.opened_url == QUrl('qute://settings')
-
-    def test_get(self, config_stub, commands, message_mock):
-        """Run ':set url.auto_search?'.
-
-        Should show the value.
-        """
-        config_stub.val.url.auto_search = 'never'
-        commands.set(win_id=0, option='url.auto_search?')
-        msg = message_mock.getmsg(usertypes.MessageLevel.info)
-        assert msg.text == 'url.auto_search = never'
-
-    @pytest.mark.parametrize('temp', [True, False])
-    @pytest.mark.parametrize('option, old_value, inp, new_value', [
-        ('url.auto_search', 'naive', 'dns', 'dns'),
-        # https://github.com/qutebrowser/qutebrowser/issues/2962
-        ('editor.command', ['gvim', '-f', '{}'], '[emacs, "{}"]',
-         ['emacs', '{}']),
-    ])
-    def test_set_simple(self, monkeypatch, commands, config_stub,
-                        temp, option, old_value, inp, new_value):
-        """Run ':set [-t] option value'.
-
-        Should set the setting accordingly.
-        """
-        monkeypatch.setattr(objects, 'backend', usertypes.Backend.QtWebKit)
-        assert config_stub.get(option) == old_value
-
-        commands.set(0, option, inp, temp=temp)
-
-        assert config_stub.get(option) == new_value
-
-        if temp:
-            assert option not in config_stub._yaml
-        else:
-            assert config_stub._yaml[option] == new_value
-
-    @pytest.mark.parametrize('temp', [True, False])
-    def test_set_temp_override(self, commands, config_stub, temp):
-        """Invoking :set twice.
-
-        :set url.auto_search dns
-        :set -t url.auto_search never
-
-        Should set the setting accordingly.
-        """
-        assert config_stub.val.url.auto_search == 'naive'
-        commands.set(0, 'url.auto_search', 'dns')
-        commands.set(0, 'url.auto_search', 'never', temp=True)
-
-        assert config_stub.val.url.auto_search == 'never'
-        assert config_stub._yaml['url.auto_search'] == 'dns'
-
-    def test_set_print(self, config_stub, commands, message_mock):
-        """Run ':set -p url.auto_search never'.
-
-        Should set show the value.
-        """
-        assert config_stub.val.url.auto_search == 'naive'
-        commands.set(0, 'url.auto_search', 'dns', print_=True)
-
-        assert config_stub.val.url.auto_search == 'dns'
-        msg = message_mock.getmsg(usertypes.MessageLevel.info)
-        assert msg.text == 'url.auto_search = dns'
-
-    def test_set_toggle(self, commands, config_stub):
-        """Run ':set auto_save.session!'.
-
-        Should toggle the value.
-        """
-        assert not config_stub.val.auto_save.session
-        commands.set(0, 'auto_save.session!')
-        assert config_stub.val.auto_save.session
-        assert config_stub._yaml['auto_save.session']
-
-    def test_set_toggle_nonbool(self, commands, config_stub):
-        """Run ':set url.auto_search!'.
-
-        Should show an error
-        """
-        assert config_stub.val.url.auto_search == 'naive'
-        with pytest.raises(cmdexc.CommandError, match="set: Can't toggle "
-                           "non-bool setting url.auto_search"):
-            commands.set(0, 'url.auto_search!')
-        assert config_stub.val.url.auto_search == 'naive'
-
-    def test_set_toggle_print(self, commands, config_stub, message_mock):
-        """Run ':set -p auto_save.session!'.
-
-        Should toggle the value and show the new value.
-        """
-        commands.set(0, 'auto_save.session!', print_=True)
-        msg = message_mock.getmsg(usertypes.MessageLevel.info)
-        assert msg.text == 'auto_save.session = true'
-
-    def test_set_invalid_option(self, commands):
-        """Run ':set foo bar'.
-
-        Should show an error.
-        """
-        with pytest.raises(cmdexc.CommandError, match="set: No option 'foo'"):
-            commands.set(0, 'foo', 'bar')
-
-    def test_set_invalid_value(self, commands):
-        """Run ':set auto_save.session blah'.
-
-        Should show an error.
-        """
-        with pytest.raises(cmdexc.CommandError,
-                           match="set: Invalid value 'blah' - must be a "
-                           "boolean!"):
-            commands.set(0, 'auto_save.session', 'blah')
-
-    def test_set_wrong_backend(self, commands, monkeypatch):
-        monkeypatch.setattr(objects, 'backend', usertypes.Backend.QtWebEngine)
-        with pytest.raises(cmdexc.CommandError,
-                           match="set: This setting is not available with the "
-                           "QtWebEngine backend!"):
-            commands.set(0, 'content.cookies.accept', 'all')
-
-    @pytest.mark.parametrize('option', ['?', '!', 'url.auto_search'])
-    def test_empty(self, commands, option):
-        """Run ':set ?' / ':set !' / ':set url.auto_search'.
-
-        Should show an error.
-        See https://github.com/qutebrowser/qutebrowser/issues/1109
-        """
-        with pytest.raises(cmdexc.CommandError,
-                           match="set: The following arguments are required: "
-                                 "value"):
-            commands.set(win_id=0, option=option)
-
-    @pytest.mark.parametrize('suffix', '?!')
-    def test_invalid(self, commands, suffix):
-        """Run ':set foo?' / ':set foo!'.
-
-        Should show an error.
-        """
-        with pytest.raises(cmdexc.CommandError, match="set: No option 'foo'"):
-            commands.set(win_id=0, option='foo' + suffix)
-
-    @pytest.mark.parametrize('initial, expected', [
-        # Normal cycling
-        ('magenta', 'blue'),
-        # Through the end of the list
-        ('yellow', 'green'),
-        # Value which is not in the list
-        ('red', 'green'),
-    ])
-    def test_cycling(self, commands, config_stub, initial, expected):
-        """Run ':set' with multiple values."""
-        opt = 'colors.statusbar.normal.bg'
-        config_stub.set_obj(opt, initial)
-        commands.set(0, opt, 'green', 'magenta', 'blue', 'yellow')
-        assert config_stub.get(opt) == expected
-        assert config_stub._yaml[opt] == expected
-
-    def test_cycling_different_representation(self, commands, config_stub):
-        """When using a different representation, cycling should work.
-
-        For example, we use [foo] which is represented as ["foo"].
-        """
-        opt = 'qt_args'
-        config_stub.set_obj(opt, ['foo'])
-        commands.set(0, opt, '[foo]', '[bar]')
-        assert config_stub.get(opt) == ['bar']
-        commands.set(0, opt, '[foo]', '[bar]')
-        assert config_stub.get(opt) == ['foo']
-
-
-class TestBindConfigCommand:
-
-    """Tests for :bind and :unbind."""
-
-    @pytest.fixture
-    def commands(self, config_stub, keyconf):
-        return config.ConfigCommands(config_stub, keyconf)
-
-    @pytest.fixture
-    def no_bindings(self):
-        """Get a dict with no bindings."""
-        return {'normal': {}}
-
-    @pytest.mark.parametrize('command', ['nop', 'nope'])
-    def test_bind(self, commands, config_stub, no_bindings, keyconf, command):
-        """Simple :bind test (and aliases)."""
-        config_stub.val.aliases = {'nope': 'nop'}
-        config_stub.val.bindings.default = no_bindings
-        config_stub.val.bindings.commands = no_bindings
-
-        commands.bind('a', command)
-        assert keyconf.get_command('a', 'normal') == command
-        yaml_bindings = config_stub._yaml['bindings.commands']['normal']
-        assert yaml_bindings['a'] == command
-
-    @pytest.mark.parametrize('key, mode, expected', [
-        # Simple
-        ('a', 'normal', "a is bound to 'message-info a' in normal mode"),
-        # Alias
-        ('b', 'normal', "b is bound to 'mib' in normal mode"),
-        # Custom binding
-        ('c', 'normal', "c is bound to 'message-info c' in normal mode"),
-        # Special key
-        ('<Ctrl-X>', 'normal',
-         "<ctrl+x> is bound to 'message-info C-x' in normal mode"),
-        # unbound
-        ('x', 'normal', "x is unbound in normal mode"),
-        # non-default mode
-        ('x', 'caret', "x is bound to 'nop' in caret mode"),
-    ])
-    def test_bind_print(self, commands, config_stub, message_mock,
-                        key, mode, expected):
-        """Run ':bind key'.
-
-        Should print the binding.
-        """
-        config_stub.val.aliases = {'mib': 'message-info b'}
-        config_stub.val.bindings.default = {
-            'normal': {'a': 'message-info a',
-                       'b': 'mib',
-                       '<Ctrl+x>': 'message-info C-x'},
-            'caret': {'x': 'nop'}
-        }
-        config_stub.val.bindings.commands = {
-            'normal': {'c': 'message-info c'}
-        }
-
-        commands.bind(key, mode=mode)
-
-        msg = message_mock.getmsg(usertypes.MessageLevel.info)
-        assert msg.text == expected
-
-    def test_bind_invalid_mode(self, commands):
-        """Run ':bind --mode=wrongmode nop'.
-
-        Should show an error.
-        """
-        with pytest.raises(cmdexc.CommandError,
-                           match='bind: Invalid mode wrongmode!'):
-            commands.bind('a', 'nop', mode='wrongmode')
-
-    @pytest.mark.parametrize('force', [True, False])
-    @pytest.mark.parametrize('key', ['a', 'b', '<Ctrl-X>'])
-    def test_bind_duplicate(self, commands, config_stub, keyconf, force, key):
-        """Run ':bind' with a key which already has been bound.'.
-
-        Also tests for https://github.com/qutebrowser/qutebrowser/issues/1544
-        """
-        config_stub.val.bindings.default = {
-            'normal': {'a': 'nop', '<Ctrl+x>': 'nop'}
-        }
-        config_stub.val.bindings.commands = {
-            'normal': {'b': 'nop'},
-        }
-
-        if force:
-            commands.bind(key, 'message-info foo', mode='normal', force=True)
-            assert keyconf.get_command(key, 'normal') == 'message-info foo'
-        else:
-            with pytest.raises(cmdexc.CommandError,
-                               match="bind: Duplicate key .* - use --force to "
-                               "override"):
-                commands.bind(key, 'message-info foo', mode='normal')
-            assert keyconf.get_command(key, 'normal') == 'nop'
-
-    @pytest.mark.parametrize('key, normalized', [
-        ('a', 'a'),  # default bindings
-        ('b', 'b'),  # custom bindings
-        ('c', 'c'),  # :bind then :unbind
-        ('<Ctrl-X>', '<ctrl+x>')  # normalized special binding
-    ])
-    def test_unbind(self, commands, keyconf, config_stub, key, normalized):
-        config_stub.val.bindings.default = {
-            'normal': {'a': 'nop', '<ctrl+x>': 'nop'},
-            'caret': {'a': 'nop', '<ctrl+x>': 'nop'},
-        }
-        config_stub.val.bindings.commands = {
-            'normal': {'b': 'nop'},
-            'caret': {'b': 'nop'},
-        }
-        if key == 'c':
-            # Test :bind and :unbind
-            commands.bind(key, 'nop')
-
-        commands.unbind(key)
-        assert keyconf.get_command(key, 'normal') is None
-
-        yaml_bindings = config_stub._yaml['bindings.commands']['normal']
-        if key in 'bc':
-            # Custom binding
-            assert normalized not in yaml_bindings
-        else:
-            assert yaml_bindings[normalized] is None
-
-    @pytest.mark.parametrize('key, mode, expected', [
-        ('foobar', 'normal',
-         "unbind: Can't find binding 'foobar' in normal mode"),
-        ('x', 'wrongmode', "unbind: Invalid mode wrongmode!"),
-    ])
-    def test_unbind_invalid(self, commands, key, mode, expected):
-        """Run ':unbind foobar' / ':unbind x wrongmode'.
-
-        Should show an error.
-        """
-        with pytest.raises(cmdexc.CommandError, match=expected):
-            commands.unbind(key, mode=mode)
-
-
 class TestConfig:
 
     @pytest.fixture
-    def conf(self, stubs):
-        yaml_config = stubs.FakeYamlConfig()
+    def conf(self, config_tmpdir):
+        yaml_config = configfiles.YamlConfig()
         return config.Config(yaml_config)
+
+    def test_init_save_manager(self, conf, fake_save_manager):
+        conf.init_save_manager(fake_save_manager)
+        fake_save_manager.add_saveable.assert_called_once_with(
+            'yaml-config', unittest.mock.ANY, unittest.mock.ANY)
 
     def test_set_value(self, qtbot, conf, caplog):
         opt = conf.get_opt('tabs.show')
@@ -614,13 +279,59 @@ class TestConfig:
         conf._set_value(opt, 'never')
         assert conf._values['tabs.show'] == 'never'
 
+    @pytest.mark.parametrize('save_yaml', [True, False])
+    def test_unset(self, conf, qtbot, save_yaml):
+        name = 'tabs.show'
+        conf.set_obj(name, 'never', save_yaml=True)
+        assert conf.get(name) == 'never'
+
+        with qtbot.wait_signal(conf.changed):
+            conf.unset(name, save_yaml=save_yaml)
+
+        assert conf.get(name) == 'always'
+        if save_yaml:
+            assert name not in conf._yaml
+        else:
+            assert conf._yaml[name] == 'never'
+
+    def test_unset_never_set(self, conf, qtbot):
+        name = 'tabs.show'
+        assert conf.get(name) == 'always'
+
+        with qtbot.assert_not_emitted(conf.changed):
+            conf.unset(name)
+
+        assert conf.get(name) == 'always'
+
+    def test_unset_unknown(self, conf):
+        with pytest.raises(configexc.NoOptionError):
+            conf.unset('tabs')
+
+    @pytest.mark.parametrize('save_yaml', [True, False])
+    def test_clear(self, conf, qtbot, save_yaml):
+        name1 = 'tabs.show'
+        name2 = 'content.plugins'
+        conf.set_obj(name1, 'never', save_yaml=True)
+        conf.set_obj(name2, True, save_yaml=True)
+        assert conf._values[name1] == 'never'
+        assert conf._values[name2] is True
+
+        with qtbot.waitSignals([conf.changed, conf.changed]) as blocker:
+            conf.clear(save_yaml=save_yaml)
+
+        options = {e.args[0] for e in blocker.all_signals_and_args}
+        assert options == {name1, name2}
+
+        if save_yaml:
+            assert name1 not in conf._yaml
+            assert name2 not in conf._yaml
+        else:
+            assert conf._yaml[name1] == 'never'
+            assert conf._yaml[name2] is True
+
     def test_read_yaml(self, conf):
-        assert not conf._yaml.loaded
         conf._yaml['content.plugins'] = True
-
         conf.read_yaml()
-
-        assert conf._yaml.loaded
         assert conf._values['content.plugins'] is True
 
     def test_get_opt_valid(self, conf):
@@ -720,6 +431,19 @@ class TestConfig:
 
         assert not conf._mutables
         assert conf.get_obj(option) == new
+
+    def test_get_mutable_twice(self, conf):
+        """Get a mutable value twice."""
+        option = 'content.headers.custom'
+        obj = conf.get_obj(option, mutable=True)
+        obj['X-Foo'] = 'fooval'
+        obj2 = conf.get_obj(option, mutable=True)
+        obj2['X-Bar'] = 'barval'
+
+        conf.update_mutables()
+
+        expected = {'X-Foo': 'fooval', 'X-Bar': 'barval'}
+        assert conf.get_obj(option) == expected
 
     def test_get_obj_unknown_mutable(self, conf):
         """Make sure we don't have unknown mutable types."""

@@ -58,11 +58,9 @@ To get more help about a setting, use e.g. `:help tabs.position`.
 To bind and unbind keys, you can use the link:commands.html#bind[`:bind`] and
 link:commands.html#unbind[`:unbind`] commands:
 
-- Binding the key chain "`,`, `v`" to the `:spawn mpv {url}` command:
+- Binding the key chain `,v` to the `:spawn mpv {url}` command:
   `:bind ,v spawn mpv {url}`
 - Unbinding the same key chain: `:unbind ,v`
-- Changing an existing binding: `bind --force ,v message-info foo`. Without
-  `--force`, qutebrowser will show an error because `,v` is already bound.
 
 Key chains starting with a comma are ideal for custom bindings, as the comma key
 will never be used in a default keybinding.
@@ -113,7 +111,7 @@ accepted values depend on the type of the option. Commonly used are:
 - Dictionaries:
   * `c.headers.custom = {'X-Hello': 'World', 'X-Awesome': 'yes'}` to override
     any other values in the dictionary.
-  * `c.aliases['foo'] = ':message-info foo'` to add a single value.
+  * `c.aliases['foo'] = 'message-info foo'` to add a single value.
 - Lists:
   * `c.url.start_pages = ["https://www.qutebrowser.org/"]` to override any
     previous elements.
@@ -177,13 +175,6 @@ To bind a key in a mode other than `'normal'`, add a `mode` argument:
 [source,python]
 ----
 config.bind('<Ctrl-y>', 'prompt-yes', mode='prompt')
-----
-
-If the key is already bound, `force=True` needs to be given to rebind it:
-
-[source,python]
-----
-config.bind('<Ctrl-v>', 'message-info foo', force=True)
 ----
 
 To unbind a key (either a key which has been bound before, or a default binding):
@@ -334,15 +325,15 @@ Note that this won't work for values which are dictionaries.
 Binding chained commands
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-If you have a lot of chained comamnds you want to bind, you can write a helper
+If you have a lot of chained commands you want to bind, you can write a helper
 to do so:
 
 [source,python]
 ----
-def bind_chained(key, *commands, force=False):
-    config.bind(key, ' ;; '.join(commands), force=force)
+def bind_chained(key, *commands):
+    config.bind(key, ' ;; '.join(commands))
 
-bind_chained('<Escape>', 'clear-keychain', 'search', force=True)
+bind_chained('<Escape>', 'clear-keychain', 'search')
 ----
 
 Avoiding flake8 errors

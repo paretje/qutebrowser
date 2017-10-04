@@ -102,15 +102,19 @@ class YamlConfig(QObject):
         return self._values[name]
 
     def __setitem__(self, name, value):
-        self.changed.emit()
-        self._dirty = True
         self._values[name] = value
+        self._mark_changed()
 
     def __contains__(self, name):
         return name in self._values
 
     def __iter__(self):
-        return iter(self._values.items())
+        return iter(sorted(self._values.items()))
+
+    def _mark_changed(self):
+        """Mark the YAML config as changed."""
+        self._dirty = True
+        self.changed.emit()
 
     def _save(self):
         """Save the settings to the YAML file if they've changed."""
@@ -167,6 +171,19 @@ class YamlConfig(QObject):
         self._values = global_obj
         self._dirty = False
 
+    def unset(self, name):
+        """Remove the given option name if it's configured."""
+        try:
+            del self._values[name]
+        except KeyError:
+            return
+        self._mark_changed()
+
+    def clear(self):
+        """Clear all values from the YAML file."""
+        self._values = []
+        self._mark_changed()
+
 
 class ConfigAPI:
 
@@ -219,13 +236,9 @@ class ConfigAPI:
         with self._handle_error('setting', name):
             self._config.set_obj(name, value)
 
-    def bind(self, key, command, mode='normal', *, force=False):
+    def bind(self, key, command, mode='normal'):
         with self._handle_error('binding', key):
-            try:
-                self._keyconfig.bind(key, command, mode=mode, force=force)
-            except configexc.DuplicateKeyError as e:
-                raise configexc.KeybindingError('{} - use force=True to '
-                                                'override!'.format(e))
+            self._keyconfig.bind(key, command, mode=mode)
 
     def unbind(self, key, mode='normal'):
         with self._handle_error('unbinding', key):
