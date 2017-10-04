@@ -41,7 +41,7 @@ class RAMCookieJar(QNetworkCookieJar):
         return utils.get_repr(self, count=len(self.allCookies()))
 
     def cookiesForUrl(self, url):
-        global_policy = not config.get('content', 'cookies-accept') == 'never'
+        global_policy = not config.val.content.cookies.accept == 'never'
         domain_policy = objreg.get('domain-manager').get_setting(url.host(),
                                                                  "cookies",
                                                                  global_policy)
