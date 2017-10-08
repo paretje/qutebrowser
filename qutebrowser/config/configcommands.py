@@ -27,7 +27,7 @@ from PyQt5.QtCore import QUrl
 from qutebrowser.commands import cmdexc, cmdutils
 from qutebrowser.completion.models import configmodel
 from qutebrowser.utils import objreg, utils, message, standarddir
-from qutebrowser.config import configtypes, configexc, configfiles
+from qutebrowser.config import configtypes, configexc, configfiles, configdata
 from qutebrowser.misc import editor
 
 
@@ -45,7 +45,7 @@ class ConfigCommands:
         try:
             yield
         except configexc.Error as e:
-            raise cmdexc.CommandError("set: {}".format(e))
+            raise cmdexc.CommandError(str(e))
 
     def _print_value(self, option):
         """Print the value of the given option."""
@@ -108,7 +108,8 @@ class ConfigCommands:
                 # self._keyconfig.get_command does this, but we also need it
                 # normalized for the output below
                 key = utils.normalize_keystr(key)
-            cmd = self._keyconfig.get_command(key, mode)
+            with self._handle_config_error():
+                cmd = self._keyconfig.get_command(key, mode)
             if cmd is None:
                 message.info("{} is unbound in {} mode".format(key, mode))
             else:
@@ -116,10 +117,8 @@ class ConfigCommands:
                     key, cmd, mode))
             return
 
-        try:
+        with self._handle_config_error():
             self._keyconfig.bind(key, command, mode=mode, save_yaml=True)
-        except configexc.KeybindingError as e:
-            raise cmdexc.CommandError("bind: {}".format(e))
 
     @cmdutils.register(instance='config-commands')
     def unbind(self, key, *, mode='normal'):
@@ -130,10 +129,8 @@ class ConfigCommands:
             mode: A mode to unbind the key in (default: `normal`).
                   See `:help bindings.commands` for the available modes.
         """
-        try:
+        with self._handle_config_error():
             self._keyconfig.unbind(key, mode=mode, save_yaml=True)
-        except configexc.KeybindingError as e:
-            raise cmdexc.CommandError('unbind: {}'.format(e))
 
     @cmdutils.register(instance='config-commands', star_args_optional=True)
     @cmdutils.argument('option', completion=configmodel.option)
@@ -177,7 +174,7 @@ class ConfigCommands:
             self._print_value(option)
 
     @cmdutils.register(instance='config-commands')
-    @cmdutils.argument('option', completion=configmodel.option)
+    @cmdutils.argument('option', completion=configmodel.customized_option)
     def config_unset(self, option, temp=False):
         """Unset an option.
 
@@ -246,3 +243,35 @@ class ConfigCommands:
 
         filename = os.path.join(standarddir.config(), 'config.py')
         ed.edit_file(filename)
+
+    @cmdutils.register(instance='config-commands')
+    def config_write_py(self, filename=None, force=False, defaults=False):
+        """Write the current configuration to a config.py file.
+
+        Args:
+            filename: The file to write to, or None for the default config.py.
+            force: Force overwriting existing files.
+            defaults: Write the defaults instead of values configured via :set.
+        """
+        if filename is None:
+            filename = os.path.join(standarddir.config(), 'config.py')
+        else:
+            filename = os.path.expanduser(filename)
+
+        if os.path.exists(filename) and not force:
+            raise cmdexc.CommandError("{} already exists - use --force to "
+                                      "overwrite!".format(filename))
+
+        if defaults:
+            options = [(opt, opt.default)
+                       for _name, opt in sorted(configdata.DATA.items())]
+            bindings = dict(configdata.DATA['bindings.default'].default)
+            commented = True
+        else:
+            options = list(self._config)
+            bindings = dict(self._config.get_obj('bindings.commands'))
+            commented = False
+
+        writer = configfiles.ConfigPyWriter(options, bindings,
+                                            commented=commented)
+        writer.write(filename)
