@@ -272,7 +272,7 @@ def netrc_authentication(url, authenticator):
         # altogether.
         user, password = None, None
         try:
-            net = config.val.content.netrc_file
+            net = netrc.netrc(config.val.content.netrc_file)
             authenticators = net.authenticators(url.host())
             if authenticators is not None:
                 (user, _account, password) = authenticators
