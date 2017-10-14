@@ -28,8 +28,6 @@ Module attributes:
 """
 
 import os
-import ctypes
-import ctypes.util
 
 from PyQt5.QtGui import QFont
 from PyQt5.QtWebEngineWidgets import (QWebEngineSettings, QWebEngineProfile,
@@ -231,16 +229,11 @@ def init(args):
     if args.enable_webengine_inspector:
         os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = str(utils.random_port())
 
-    # WORKAROUND for
-    # https://bugs.launchpad.net/ubuntu/+source/python-qt4/+bug/941826
-    if utils.is_linux:
-        ctypes.CDLL(ctypes.util.find_library("GL"), mode=ctypes.RTLD_GLOBAL)
-
     _init_profiles()
 
     # We need to do this here as a WORKAROUND for
     # https://bugreports.qt.io/browse/QTBUG-58650
-    if not qtutils.version_check('5.9'):
+    if not qtutils.version_check('5.9', compiled=False):
         PersistentCookiePolicy().set(config.val.content.cookies.store)
     Attribute(QWebEngineSettings.FullScreenSupportEnabled).set(True)
 
@@ -340,6 +333,6 @@ if qtutils.version_check('5.8'):
     MAPPINGS['spellcheck.languages'] = DictionaryLanguageSetter()
 
 
-if qtutils.version_check('5.9'):
+if qtutils.version_check('5.9', compiled=False):
     # https://bugreports.qt.io/browse/QTBUG-58650
     MAPPINGS['content.cookies.store'] = PersistentCookiePolicy()

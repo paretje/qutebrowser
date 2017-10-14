@@ -119,15 +119,44 @@ class TestYaml:
             'yaml-config', unittest.mock.ANY, unittest.mock.ANY)
 
     def test_unknown_key(self, yaml, config_tmpdir):
-        """An unknown setting should be deleted."""
+        """An unknown setting should show an error."""
         autoconfig = config_tmpdir / 'autoconfig.yml'
         autoconfig.write_text('global:\n  hello: world', encoding='utf-8')
+
+        with pytest.raises(configexc.ConfigFileErrors) as excinfo:
+            yaml.load()
+
+        assert len(excinfo.value.errors) == 1
+        error = excinfo.value.errors[0]
+        assert error.text == "While loading options"
+        assert str(error.exception) == "Unknown option hello"
+
+    def test_deleted_key(self, monkeypatch, yaml, config_tmpdir):
+        """A key marked as deleted should be removed."""
+        autoconfig = config_tmpdir / 'autoconfig.yml'
+        autoconfig.write_text('global:\n  hello: world', encoding='utf-8')
+
+        monkeypatch.setattr(configdata.MIGRATIONS, 'deleted', ['hello'])
 
         yaml.load()
         yaml._save()
 
         lines = autoconfig.read_text('utf-8').splitlines()
         assert '  hello:' not in lines
+
+    def test_renamed_key(self, monkeypatch, yaml, config_tmpdir):
+        """A key marked as renamed should be renamed properly."""
+        autoconfig = config_tmpdir / 'autoconfig.yml'
+        autoconfig.write_text('global:\n  old: value', encoding='utf-8')
+
+        monkeypatch.setattr(configdata.MIGRATIONS, 'renamed', {'old': 'new'})
+
+        yaml.load()
+        yaml._save()
+
+        lines = autoconfig.read_text('utf-8').splitlines()
+        assert '  old:' not in lines
+        assert '  new:' not in lines
 
     @pytest.mark.parametrize('old_config', [
         None,
@@ -432,6 +461,20 @@ class TestConfigPy:
         assert config.instance._values['aliases']['foo'] == 'message-info foo'
         assert config.instance._values['aliases']['bar'] == 'message-info bar'
 
+    @pytest.mark.parametrize('option, value', [
+        ('content.user_stylesheets', 'style.css'),
+        ('url.start_pages', 'https://www.python.org/'),
+    ])
+    def test_appending(self, config_tmpdir, confpy, option, value):
+        """Test appending an item to some special list types.
+
+        See https://github.com/qutebrowser/qutebrowser/issues/3104
+        """
+        (config_tmpdir / 'style.css').ensure()
+        confpy.write('c.{}.append("{}")'.format(option, value))
+        confpy.read()
+        assert config.instance._values[option][-1] == value
+
     def test_oserror(self, tmpdir, data_tmpdir, config_tmpdir):
         with pytest.raises(configexc.ConfigFileErrors) as excinfo:
             configfiles.read_config_py(str(tmpdir / 'foo'))
@@ -504,6 +547,18 @@ class TestConfigPy:
         assert isinstance(error.exception, configexc.NoOptionError)
         assert str(error.exception) == "No option 'foo'"
         assert error.traceback is None
+
+    def test_renamed_option_error(self, confpy, monkeypatch):
+        """Setting an option which has been renamed should show a hint."""
+        monkeypatch.setattr(configdata.MIGRATIONS, 'renamed',
+                            {'qt_args': 'qt.args'})
+        confpy.write('c.qt_args = ["foo"]')
+
+        error = confpy.read(error=True)
+        assert isinstance(error.exception, configexc.NoOptionError)
+        expected = ("No option 'qt_args' (this option was renamed to "
+                    "'qt.args')")
+        assert str(error.exception) == expected
 
     def test_multiple_errors(self, confpy):
         confpy.write("c.foo = 42", "config.set('foo', 42)", "1/0")

@@ -27,7 +27,7 @@ import pytest
 
 from qutebrowser import qutebrowser
 from qutebrowser.config import (config, configexc, configfiles, configinit,
-                                configdata)
+                                configdata, configtypes)
 from qutebrowser.utils import objreg, usertypes
 
 
@@ -39,6 +39,7 @@ def init_patch(qapp, fake_save_manager, monkeypatch, config_tmpdir,
     monkeypatch.setattr(config, 'key_instance', None)
     monkeypatch.setattr(config, 'change_filters', [])
     monkeypatch.setattr(configinit, '_init_errors', None)
+    monkeypatch.setattr(configtypes.Font, 'monospace_fonts', None)
     yield
     try:
         objreg.delete('config-commands')
@@ -103,7 +104,7 @@ class TestEarlyInit:
         else:
             assert config.instance._values == {}
 
-    @pytest.mark.parametrize('load_autoconfig', [True, False])
+    @pytest.mark.parametrize('load_autoconfig', [True, False])  # noqa
     @pytest.mark.parametrize('config_py', [True, 'error', False])
     @pytest.mark.parametrize('invalid_yaml', ['42', 'unknown', 'wrong-type',
                                               False])
@@ -148,6 +149,10 @@ class TestEarlyInit:
             elif invalid_yaml == 'wrong-type':
                 error = ("Error{}: Invalid value 'True' - expected a value of "
                         "type str but got bool.".format(suffix))
+                expected_errors.append(error)
+            elif invalid_yaml == 'unknown':
+                error = ("While loading options{}: Unknown option "
+                         "colors.foobar".format(suffix))
                 expected_errors.append(error)
         if config_py == 'error':
             expected_errors.append("While setting 'foo': No option 'foo'")
@@ -196,18 +201,99 @@ class TestEarlyInit:
         assert msg.text == "set: NoOptionError - No option 'foo'"
         assert 'colors.completion.fg' not in config.instance._values
 
-    def test_force_software_rendering(self, monkeypatch, init_patch, args):
+    @pytest.mark.parametrize('settings, size, family', [
+        # Only fonts.monospace customized
+        ([('fonts.monospace', '"Comic Sans MS"')], 8, 'Comic Sans MS'),
+        # fonts.monospace and font settings customized
+        # https://github.com/qutebrowser/qutebrowser/issues/3096
+        ([('fonts.monospace', '"Comic Sans MS"'),
+          ('fonts.tabs', '10pt monospace'),
+          ('fonts.keyhint', '10pt monospace')], 10, 'Comic Sans MS'),
+    ])
+    @pytest.mark.parametrize('method', ['temp', 'auto', 'py'])
+    def test_monospace_fonts_init(self, init_patch, args, config_tmpdir,
+                                  method, settings, size, family):
+        """Ensure setting fonts.monospace at init works properly.
+
+        See https://github.com/qutebrowser/qutebrowser/issues/2973
+        """
+        if method == 'temp':
+            args.temp_settings = settings
+        elif method == 'auto':
+            autoconfig_file = config_tmpdir / 'autoconfig.yml'
+            lines = ["global:"] + ["  {}: '{}'".format(k, v)
+                                   for k, v in settings]
+            autoconfig_file.write_text('\n'.join(lines), 'utf-8', ensure=True)
+        elif method == 'py':
+            config_py_file = config_tmpdir / 'config.py'
+            lines = ["c.{} = '{}'".format(k, v) for k, v in settings]
+            config_py_file.write_text('\n'.join(lines), 'utf-8', ensure=True)
+
+        configinit.early_init(args)
+
+        # Font
+        expected = '{}pt "{}"'.format(size, family)
+        assert config.instance.get('fonts.keyhint') == expected
+        # QtFont
+        font = config.instance.get('fonts.tabs')
+        assert font.pointSize() == size
+        assert font.family() == family
+
+    def test_monospace_fonts_later(self, init_patch, args):
+        """Ensure setting fonts.monospace after init works properly.
+
+        See https://github.com/qutebrowser/qutebrowser/issues/2973
+        """
+        configinit.early_init(args)
+        changed_options = []
+        config.instance.changed.connect(changed_options.append)
+
+        config.instance.set_obj('fonts.monospace', '"Comic Sans MS"')
+
+        assert 'fonts.keyhint' in changed_options  # Font
+        assert config.instance.get('fonts.keyhint') == '8pt "Comic Sans MS"'
+        assert 'fonts.tabs' in changed_options  # QtFont
+        assert config.instance.get('fonts.tabs').family() == 'Comic Sans MS'
+
+        # Font subclass, but doesn't end with "monospace"
+        assert 'fonts.web.family.standard' not in changed_options
+
+    def test_force_software_rendering(self, monkeypatch, config_stub):
         """Setting force_software_rendering should set the environment var."""
         envvar = 'QT_XCB_FORCE_SOFTWARE_OPENGL'
         monkeypatch.setattr(configinit.objects, 'backend',
                             usertypes.Backend.QtWebEngine)
         monkeypatch.delenv(envvar, raising=False)
-        args.temp_settings = [('force_software_rendering', 'true')]
-        args.backend = 'webengine'
 
-        configinit.early_init(args)
+        config_stub.val.qt.force_software_rendering = True
+
+        configinit._init_envvars()
 
         assert os.environ[envvar] == '1'
+
+    def test_force_platform(self, monkeypatch, config_stub):
+        envvar = 'QT_QPA_PLATFORM'
+        monkeypatch.delenv(envvar, raising=False)
+
+        config_stub.val.qt.force_platform = 'toaster'
+
+        configinit._init_envvars()
+        assert os.environ[envvar] == 'toaster'
+
+    @pytest.mark.parametrize('old', ['1', '0', None])
+    @pytest.mark.parametrize('configval', [True, False])
+    def test_hide_wayland_decoration(self, monkeypatch, config_stub,
+                                     old, configval):
+        envvar = 'QT_WAYLAND_DISABLE_WINDOWDECORATION'
+        if old is None:
+            monkeypatch.delenv(envvar, raising=False)
+        else:
+            monkeypatch.setenv(envvar, old)
+
+        config_stub.val.window.hide_wayland_decoration = configval
+        configinit._init_envvars()
+
+        assert os.environ.get(envvar) == ('1' if configval else None)
 
 
 @pytest.mark.parametrize('errors', [True, False])
@@ -281,7 +367,7 @@ class TestQtArgs:
 
     def test_with_settings(self, config_stub, parser):
         parsed = parser.parse_args(['--qt-flag', 'foo'])
-        config_stub.val.qt_args = ['bar']
+        config_stub.val.qt.args = ['bar']
         assert configinit.qt_args(parsed) == [sys.argv[0], '--foo', '--bar']
 
 

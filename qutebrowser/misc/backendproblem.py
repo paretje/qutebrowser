@@ -23,6 +23,8 @@ import os
 import sys
 import functools
 import html
+import ctypes
+import ctypes.util
 
 import attr
 from PyQt5.QtCore import Qt
@@ -31,7 +33,7 @@ from PyQt5.QtWidgets import (QApplication, QDialog, QPushButton, QHBoxLayout,
 from PyQt5.QtNetwork import QSslSocket
 
 from qutebrowser.config import config
-from qutebrowser.utils import usertypes, objreg, version, qtutils, log
+from qutebrowser.utils import usertypes, objreg, version, qtutils, log, utils
 from qutebrowser.misc import objects, msgbox
 
 
@@ -154,6 +156,19 @@ def _show_dialog(*args, **kwargs):
     sys.exit(usertypes.Exit.err_init)
 
 
+def _nvidia_shader_workaround():
+    """Work around QOpenGLShaderProgram issues.
+
+    NOTE: This needs to be called before _handle_nouveau_graphics, or some
+    setups will segfault in version.opengl_vendor().
+
+    See https://bugs.launchpad.net/ubuntu/+source/python-qt4/+bug/941826
+    """
+    assert objects.backend == usertypes.Backend.QtWebEngine, objects.backend
+    if utils.is_linux:
+        ctypes.CDLL(ctypes.util.find_library("GL"), mode=ctypes.RTLD_GLOBAL)
+
+
 def _handle_nouveau_graphics():
     assert objects.backend == usertypes.Backend.QtWebEngine, objects.backend
 
@@ -167,7 +182,7 @@ def _handle_nouveau_graphics():
             'QT_XCB_FORCE_SOFTWARE_OPENGL' in os.environ):
         return
 
-    button = _Button("Force software rendering", 'force_software_rendering',
+    button = _Button("Force software rendering", 'qt.force_software_rendering',
                      True)
     _show_dialog(
         backend=usertypes.Backend.QtWebEngine,
@@ -177,7 +192,7 @@ def _handle_nouveau_graphics():
              "<p>This allows you to use the newer QtWebEngine backend (based "
              "on Chromium) but could have noticable performance impact "
              "(depending on your hardware). "
-             "This sets the <i>force_software_rendering = True</i> option "
+             "This sets the <i>qt.force_software_rendering = True</i> option "
              "(if you have a <i>config.py</i> file, you'll need to set this "
              "manually).</p>",
         buttons=[button],
@@ -197,14 +212,31 @@ def _handle_wayland():
     if platform not in ['wayland', 'wayland-egl']:
         return
 
-    _show_dialog(
-        backend=usertypes.Backend.QtWebEngine,
-        because="you're using Wayland",
-        text="<p>There are two ways to fix this:</p>"
-             "<p><b>Set up XWayland</b></p>"
-             "<p>This allows you to use the newer QtWebEngine backend (based "
-             "on Chromium). "
-    )
+    if 'DISPLAY' in os.environ:
+        # XWayland is available, but QT_QPA_PLATFORM=wayland is set
+        button = _Button("Force XWayland", 'qt.force_platform', 'xcb')
+        _show_dialog(
+            backend=usertypes.Backend.QtWebEngine,
+            because="you're using Wayland",
+            text="<p>There are two ways to fix this:</p>"
+                 "<p><b>Force Qt to use XWayland</b></p>"
+                 "<p>This allows you to use the newer QtWebEngine backend "
+                 "(based on Chromium). "
+                 "This sets the <i>qt.force_platform = 'xcb'</i> option "
+                 "(if you have a <i>config.py</i> file, you'll need to set "
+                 "this manually).</p>",
+            buttons=[button],
+        )
+    else:
+        # XWayland is unavailable
+        _show_dialog(
+            backend=usertypes.Backend.QtWebEngine,
+            because="you're using Wayland without XWayland",
+            text="<p>There are two ways to fix this:</p>"
+                 "<p><b>Set up XWayland</b></p>"
+                 "<p>This allows you to use the newer QtWebEngine backend "
+                 "(based on Chromium). "
+        )
 
     # Should never be reached
     assert False
@@ -335,6 +367,7 @@ def init():
     if objects.backend == usertypes.Backend.QtWebEngine:
         _handle_ssl_support()
         _handle_wayland()
+        _nvidia_shader_workaround()
         _handle_nouveau_graphics()
     else:
         assert objects.backend == usertypes.Backend.QtWebKit, objects.backend

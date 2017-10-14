@@ -2,6 +2,9 @@
 
 Feature: Special qute:// pages
 
+    Background:
+        Given I open about:blank
+
     # :help
 
     Scenario: :help without topic
@@ -36,8 +39,7 @@ Feature: Special qute:// pages
             - qute://help/settings.html#editor.command (active)
 
     Scenario: :help with -t
-        When I open about:blank
-        And I run :tab-only
+        When I run :tab-only
         And I run :help -t
         And I wait until qute://help/index.html is loaded
         Then the following tabs should be open:
@@ -63,8 +65,7 @@ Feature: Special qute:// pages
             - qute://history/ (active)
 
     Scenario: :history with -t
-        When I open about:blank
-        And I run :tab-only
+        When I run :tab-only
         And I run :history -t
         And I wait until qute://history/ is loaded
         Then the following tabs should be open:

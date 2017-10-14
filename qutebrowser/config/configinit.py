@@ -48,8 +48,6 @@ def early_init(args):
     for cf in config.change_filters:
         cf.validate()
 
-    configtypes.Font.monospace_fonts = config.val.fonts.monospace
-
     config_commands = configcommands.ConfigCommands(
         config.instance, config.key_instance)
     objreg.register('config-commands', config_commands)
@@ -76,9 +74,40 @@ def early_init(args):
         except configexc.Error as e:
             message.error("set: {} - {}".format(e.__class__.__name__, e))
 
+    configtypes.Font.monospace_fonts = config.val.fonts.monospace
+    config.instance.changed.connect(_update_monospace_fonts)
+
+    _init_envvars()
+
+
+def _init_envvars():
+    """Initialize environment variables which need to be set early."""
     if (objects.backend == usertypes.Backend.QtWebEngine and
-            config.val.force_software_rendering):
+            config.val.qt.force_software_rendering):
         os.environ['QT_XCB_FORCE_SOFTWARE_OPENGL'] = '1'
+
+    if config.val.qt.force_platform is not None:
+        os.environ['QT_QPA_PLATFORM'] = config.val.qt.force_platform
+
+    if config.val.window.hide_wayland_decoration:
+        os.environ['QT_WAYLAND_DISABLE_WINDOWDECORATION'] = '1'
+    else:
+        os.environ.pop('QT_WAYLAND_DISABLE_WINDOWDECORATION', None)
+
+
+@config.change_filter('fonts.monospace', function=True)
+def _update_monospace_fonts():
+    """Update all fonts if fonts.monospace was set."""
+    configtypes.Font.monospace_fonts = config.val.fonts.monospace
+    for name, opt in configdata.DATA.items():
+        if name == 'fonts.monospace':
+            continue
+        elif not isinstance(opt.typ, configtypes.Font):
+            continue
+        elif not config.instance.get_obj(name).endswith(' monospace'):
+            continue
+
+        config.instance.changed.emit(name)
 
 
 def get_backend(args):
@@ -128,5 +157,5 @@ def qt_args(namespace):
         for name, value in namespace.qt_arg:
             argv += ['--' + name, value]
 
-    argv += ['--' + arg for arg in config.val.qt_args]
+    argv += ['--' + arg for arg in config.val.qt.args]
     return argv

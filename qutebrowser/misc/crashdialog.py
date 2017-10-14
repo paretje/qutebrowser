@@ -32,7 +32,7 @@ import pkg_resources
 from PyQt5.QtCore import pyqtSlot, Qt, QSize
 from PyQt5.QtWidgets import (QDialog, QLabel, QTextEdit, QPushButton,
                              QVBoxLayout, QHBoxLayout, QCheckBox,
-                             QDialogButtonBox, QApplication)
+                             QDialogButtonBox, QApplication, QMessageBox)
 
 import qutebrowser
 from qutebrowser.utils import version, log, utils, objreg, usertypes
@@ -511,9 +511,27 @@ class FatalCrashDialog(_CrashDialog):
         if self._chk_history.isChecked():
             try:
                 history = objreg.get('web-history').get_recent()
-                self._crash_info.append(("History", ''.join(history)))
+                self._crash_info.append(("History",
+                                         '\n'.join(str(e) for e in history)))
             except Exception:
                 self._crash_info.append(("History", traceback.format_exc()))
+
+    @pyqtSlot()
+    def on_report_clicked(self):
+        """Prevent empty reports."""
+        if (not self._info.toPlainText().strip() and
+                not self._contact.toPlainText().strip() and
+                self._type == 'Segmentation fault' and
+                self._func == 'qt_mainloop'):
+            msgbox.msgbox(parent=self, title='Empty crash info',
+                          text="Empty reports for fatal crashes are useless "
+                          "and mean I'll spend time deleting reports I could "
+                          "spend on developing qutebrowser instead.\n\nPlease "
+                          "help making qutebrowser better by providing more "
+                          "information, or don't report this.",
+                          icon=QMessageBox.Critical)
+        else:
+            super().on_report_clicked()
 
 
 class ReportDialog(_CrashDialog):

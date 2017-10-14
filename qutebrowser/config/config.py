@@ -180,6 +180,18 @@ class KeyConfig:
         bindings[mode][key] = command
         self._config.update_mutables(save_yaml=save_yaml)
 
+    def bind_default(self, key, *, mode='normal', save_yaml=False):
+        """Restore a default keybinding."""
+        key = self._prepare(key, mode)
+
+        bindings_commands = self._config.get_obj('bindings.commands')
+        try:
+            del bindings_commands[mode][key]
+        except KeyError:
+            raise configexc.KeybindingError(
+                "Can't find binding '{}' in {} mode".format(key, mode))
+        self._config.update_mutables(save_yaml=save_yaml)
+
     def unbind(self, key, *, mode='normal', save_yaml=False):
         """Unbind the given key in the given mode."""
         key = self._prepare(key, mode)
@@ -260,7 +272,11 @@ class Config(QObject):
         try:
             return configdata.DATA[name]
         except KeyError:
-            raise configexc.NoOptionError(name) from None
+            deleted = name in configdata.MIGRATIONS.deleted
+            renamed = configdata.MIGRATIONS.renamed.get(name)
+            exception = configexc.NoOptionError(
+                name, deleted=deleted, renamed=renamed)
+            raise exception from None
 
     def get(self, name):
         """Get the given setting converted for Python code."""

@@ -412,7 +412,7 @@ class WebEngineHistory(browsertab.AbstractHistory):
         return self._history.goToItem(item)
 
     def serialize(self):
-        if not qtutils.version_check('5.9'):
+        if not qtutils.version_check('5.9', compiled=False):
             # WORKAROUND for
             # https://github.com/qutebrowser/qutebrowser/issues/2289
             # Don't use the history's currentItem here, because of
@@ -602,7 +602,7 @@ class WebEngineTab(browsertab.AbstractTab):
     def shutdown(self):
         self.shutting_down.emit()
         self.action.exit_fullscreen()
-        if qtutils.version_check('5.8', exact=True):
+        if qtutils.version_check('5.8', exact=True, compiled=False):
             # WORKAROUND for
             # https://bugreports.qt.io/browse/QTBUG-58563
             self.search.clear()
@@ -650,6 +650,15 @@ class WebEngineTab(browsertab.AbstractTab):
 
     @pyqtSlot()
     def _on_history_trigger(self):
+        try:
+            self._widget.page()
+        except RuntimeError:
+            # Looks like this slot can be triggered on destroyed tabs:
+            # https://crashes.qutebrowser.org/view/3abffbed (Qt 5.9.1)
+            # wrapped C/C++ object of type WebEngineView has been deleted
+            log.misc.debug("Ignoring history trigger for destroyed tab")
+            return
+
         url = self.url()
         requested_url = self.url(requested=True)
 
@@ -729,8 +738,8 @@ class WebEngineTab(browsertab.AbstractTab):
     @pyqtSlot()
     def _on_load_started(self):
         """Clear search when a new load is started if needed."""
-        if (qtutils.version_check('5.9') and
-                not qtutils.version_check('5.9.2')):
+        if (qtutils.version_check('5.9', compiled=False) and
+                not qtutils.version_check('5.9.2', compiled=False)):
             # WORKAROUND for
             # https://bugreports.qt.io/browse/QTBUG-61506
             self.search.clear()

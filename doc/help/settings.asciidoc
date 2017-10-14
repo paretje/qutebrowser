@@ -52,7 +52,7 @@
 |<<colors.messages.info.border,colors.messages.info.border>>|Border color of an info message.
 |<<colors.messages.info.fg,colors.messages.info.fg>>|Foreground color an info message.
 |<<colors.messages.warning.bg,colors.messages.warning.bg>>|Background color of a warning message.
-|<<colors.messages.warning.border,colors.messages.warning.border>>|Border color of an error message.
+|<<colors.messages.warning.border,colors.messages.warning.border>>|Border color of a warning message.
 |<<colors.messages.warning.fg,colors.messages.warning.fg>>|Foreground color a warning message.
 |<<colors.prompts.bg,colors.prompts.bg>>|Background color for prompts.
 |<<colors.prompts.border,colors.prompts.border>>|Border used around UI elements in prompts.
@@ -70,6 +70,8 @@
 |<<colors.statusbar.insert.fg,colors.statusbar.insert.fg>>|Foreground color of the statusbar in insert mode.
 |<<colors.statusbar.normal.bg,colors.statusbar.normal.bg>>|Background color of the statusbar.
 |<<colors.statusbar.normal.fg,colors.statusbar.normal.fg>>|Foreground color of the statusbar.
+|<<colors.statusbar.passthrough.bg,colors.statusbar.passthrough.bg>>|Background color of the statusbar in passthrough mode.
+|<<colors.statusbar.passthrough.fg,colors.statusbar.passthrough.fg>>|Foreground color of the statusbar in passthrough mode.
 |<<colors.statusbar.private.bg,colors.statusbar.private.bg>>|Background color of the statusbar in private browsing mode.
 |<<colors.statusbar.private.fg,colors.statusbar.private.fg>>|Foreground color of the statusbar in private browsing mode.
 |<<colors.statusbar.progress.bg,colors.statusbar.progress.bg>>|Background color of the progress bar.
@@ -179,7 +181,6 @@
 |<<fonts.web.size.default_fixed,fonts.web.size.default_fixed>>|The default font size for fixed-pitch text.
 |<<fonts.web.size.minimum,fonts.web.size.minimum>>|The hard minimum font size.
 |<<fonts.web.size.minimum_logical,fonts.web.size.minimum_logical>>|The minimum logical font size that is applied when zooming out.
-|<<force_software_rendering,force_software_rendering>>|Force software rendering for QtWebEngine.
 |<<hints.auto_follow,hints.auto_follow>>|Controls when a hint can be automatically followed without pressing Enter.
 |<<hints.auto_follow_timeout,hints.auto_follow_timeout>>|A timeout (in milliseconds) to ignore normal-mode key bindings after a successful auto-follow.
 |<<hints.border,hints.border>>|CSS border value for hints.
@@ -211,10 +212,13 @@
 |<<new_instance_open_target_window,new_instance_open_target_window>>|Which window to choose when opening links as new tabs.
 |<<prompt.filebrowser,prompt.filebrowser>>|Show a filebrowser in upload/download prompts.
 |<<prompt.radius,prompt.radius>>|The rounding radius for the edges of prompts.
-|<<qt_args,qt_args>>|Additional arguments to pass to Qt, without leading `--`.
+|<<qt.args,qt.args>>|Additional arguments to pass to Qt, without leading `--`.
+|<<qt.force_platform,qt.force_platform>>|Force a Qt platform to use.
+|<<qt.force_software_rendering,qt.force_software_rendering>>|Force software rendering for QtWebEngine.
 |<<scrolling.bar,scrolling.bar>>|Show a scrollbar.
 |<<scrolling.smooth,scrolling.smooth>>|Enable smooth scrolling for web pages.
 |<<session_default_name,session_default_name>>|The name of the session to save by default.
+|<<spellcheck.languages,spellcheck.languages>>|Spell checking languages.
 |<<statusbar.hide,statusbar.hide>>|Hide the statusbar unless a message is shown.
 |<<statusbar.padding,statusbar.padding>>|Padding for the statusbar.
 |<<statusbar.position,statusbar.position>>|The position of the status bar.
@@ -513,6 +517,9 @@ Default:
 * +pass:[PP]+: +pass:[open -t -- {primary}]+
 * +pass:[Pp]+: +pass:[open -t -- {clipboard}]+
 * +pass:[R]+: +pass:[reload -f]+
+* +pass:[Sb]+: +pass:[open qute://bookmarks#bookmarks]+
+* +pass:[Sh]+: +pass:[open qute://history]+
+* +pass:[Sq]+: +pass:[open qute://bookmarks]+
 * +pass:[Ss]+: +pass:[open qute://settings]+
 * +pass:[T]+: +pass:[tab-focus]+
 * +pass:[ZQ]+: +pass:[quit]+
@@ -575,7 +582,10 @@ Default:
 * +pass:[wo]+: +pass:[set-cmd-text -s :open -w]+
 * +pass:[wp]+: +pass:[open -w -- {clipboard}]+
 * +pass:[xO]+: +pass:[set-cmd-text :open -b -r {url:pretty}]+
+* +pass:[xb]+: +pass:[config-cycle statusbar.hide]+
 * +pass:[xo]+: +pass:[set-cmd-text -s :open -b]+
+* +pass:[xt]+: +pass:[config-cycle tabs.show always switching]+
+* +pass:[xx]+: +pass:[config-cycle statusbar.hide ;; config-cycle tabs.show always switching]+
 * +pass:[yD]+: +pass:[yank domain -s]+
 * +pass:[yP]+: +pass:[yank pretty-url -s]+
 * +pass:[yT]+: +pass:[yank title -s]+
@@ -943,7 +953,7 @@ Default: +pass:[darkorange]+
 
 [[colors.messages.warning.border]]
 === colors.messages.warning.border
-Border color of an error message.
+Border color of a warning message.
 
 Type: <<types,QssColor>>
 
@@ -1080,6 +1090,22 @@ Default: +pass:[black]+
 [[colors.statusbar.normal.fg]]
 === colors.statusbar.normal.fg
 Foreground color of the statusbar.
+
+Type: <<types,QssColor>>
+
+Default: +pass:[white]+
+
+[[colors.statusbar.passthrough.bg]]
+=== colors.statusbar.passthrough.bg
+Background color of the statusbar in passthrough mode.
+
+Type: <<types,QssColor>>
+
+Default: +pass:[darkblue]+
+
+[[colors.statusbar.passthrough.fg]]
+=== colors.statusbar.passthrough.fg
+Foreground color of the statusbar in passthrough mode.
 
 Type: <<types,QssColor>>
 
@@ -1730,6 +1756,8 @@ Valid values:
 
 Default: +pass:[ask]+
 
+This setting is only available with the QtWebKit backend.
+
 [[content.pdfjs]]
 === content.pdfjs
 Enable pdf.js to view PDF files in the browser.
@@ -2108,17 +2136,6 @@ Type: <<types,Int>>
 
 Default: +pass:[6]+
 
-[[force_software_rendering]]
-=== force_software_rendering
-Force software rendering for QtWebEngine.
-This is needed for QtWebEngine to work with Nouveau drivers. This setting requires a restart.
-
-Type: <<types,Bool>>
-
-Default: +pass:[false]+
-
-This setting is only available with the QtWebEngine backend.
-
 [[hints.auto_follow]]
 === hints.auto_follow
 Controls when a hint can be automatically followed without pressing Enter.
@@ -2437,8 +2454,8 @@ Type: <<types,Int>>
 
 Default: +pass:[8]+
 
-[[qt_args]]
-=== qt_args
+[[qt.args]]
+=== qt.args
 Additional arguments to pass to Qt, without leading `--`.
 With QtWebEngine, some Chromium arguments (see https://peter.sh/experiments/chromium-command-line-switches/ for a list) will work.
 This setting requires a restart.
@@ -2446,6 +2463,26 @@ This setting requires a restart.
 Type: <<types,List of String>>
 
 Default: empty
+
+[[qt.force_platform]]
+=== qt.force_platform
+Force a Qt platform to use.
+This sets the `QT_QPA_PLATFORM` environment variable and is useful to force using the XCB plugin when running QtWebEngine on Wayland.
+
+Type: <<types,String>>
+
+Default: empty
+
+[[qt.force_software_rendering]]
+=== qt.force_software_rendering
+Force software rendering for QtWebEngine.
+This is needed for QtWebEngine to work with Nouveau drivers. This setting requires a restart.
+
+Type: <<types,Bool>>
+
+Default: +pass:[false]+
+
+This setting is only available with the QtWebEngine backend.
 
 [[scrolling.bar]]
 === scrolling.bar
@@ -2472,6 +2509,64 @@ If this is set to null, the session which was last loaded is saved.
 Type: <<types,SessionName>>
 
 Default: empty
+
+[[spellcheck.languages]]
+=== spellcheck.languages
+Spell checking languages.
+You can check for available languages and install dictionaries using scripts/install_dict.py. Run the script with -h/--help for instructions.
+
+Type: <<types,List of String>>
+
+Valid values:
+
+ * +af-ZA+: Afrikaans (South Africa)
+ * +bg-BG+: Bulgarian (Bulgaria)
+ * +ca-ES+: Catalan (Spain)
+ * +cs-CZ+: Czech (Czech Republic)
+ * +da-DK+: Danish (Denmark)
+ * +de-DE+: German (Germany)
+ * +el-GR+: Greek (Greece)
+ * +en-CA+: English (Canada)
+ * +en-GB+: English (United Kingdom)
+ * +en-US+: English (United States)
+ * +es-ES+: Spanish (Spain)
+ * +et-EE+: Estonian (Estonia)
+ * +fa-IR+: Farsi (Iran)
+ * +fo-FO+: Faroese (Faroe Islands)
+ * +fr-FR+: French (France)
+ * +he-IL+: Hebrew (Israel)
+ * +hi-IN+: Hindi (India)
+ * +hr-HR+: Croatian (Croatia)
+ * +hu-HU+: Hungarian (Hungary)
+ * +id-ID+: Indonesian (Indonesia)
+ * +it-IT+: Italian (Italy)
+ * +ko+: Korean
+ * +lt-LT+: Lithuanian (Lithuania)
+ * +lv-LV+: Latvian (Latvia)
+ * +nb-NO+: Norwegian (Norway)
+ * +nl-NL+: Dutch (Netherlands)
+ * +pl-PL+: Polish (Poland)
+ * +pt-BR+: Portuguese (Brazil)
+ * +pt-PT+: Portuguese (Portugal)
+ * +ro-RO+: Romanian (Romania)
+ * +ru-RU+: Russian (Russia)
+ * +sh+: Serbo-Croatian
+ * +sk-SK+: Slovak (Slovakia)
+ * +sl-SI+: Slovenian (Slovenia)
+ * +sq+: Albanian
+ * +sr+: Serbian
+ * +sv-SE+: Swedish (Sweden)
+ * +ta-IN+: Tamil (India)
+ * +tg-TG+: Tajik (Tajikistan)
+ * +tr-TR+: Turkish (Turkey)
+ * +uk-UA+: Ukrainian (Ukraine)
+ * +vi-VN+: Vietnamese (Viet Nam)
+
+Default: empty
+
+On QtWebEngine, this setting requires Qt 5.8 or newer.
+
+On QtWebKit, this setting is unavailable.
 
 [[statusbar.hide]]
 === statusbar.hide
@@ -2715,6 +2810,7 @@ The following placeholders are defined:
 * `{host}`: The host of the current web page.
 * `{backend}`: Either ''webkit'' or ''webengine''
 * `{private}` : Indicates when private mode is enabled.
+* `{current_url}` : The url of the current web page.
 
 
 Type: <<types,FormatString>>
@@ -2851,6 +2947,7 @@ The following placeholders are defined:
 * `{host}`: The host of the current web page.
 * `{backend}`: Either ''webkit'' or ''webengine''
 * `{private}` : Indicates when private mode is enabled.
+* `{current_url}` : The url of the current web page.
 
 
 Type: <<types,FormatString>>

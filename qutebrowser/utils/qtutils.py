@@ -33,7 +33,8 @@ import contextlib
 
 import pkg_resources
 from PyQt5.QtCore import (qVersion, QEventLoop, QDataStream, QByteArray,
-                          QIODevice, QSaveFile, QT_VERSION_STR)
+                          QIODevice, QSaveFile, QT_VERSION_STR,
+                          PYQT_VERSION_STR)
 try:
     from PyQt5.QtWebKit import qWebKitVersion
 except ImportError:  # pragma: no cover
@@ -71,23 +72,29 @@ class QtOSError(OSError):
             self.qt_errno = None
 
 
-def version_check(version, exact=False, strict=False):
+def version_check(version, exact=False, compiled=True):
     """Check if the Qt runtime version is the version supplied or newer.
 
     Args:
         version: The version to check against.
         exact: if given, check with == instead of >=
-        strict: If given, also check the compiled Qt version.
+        compiled: Set to False to not check the compiled version.
     """
     # Catch code using the old API for this
     assert exact not in [operator.gt, operator.lt, operator.ge, operator.le,
                          operator.eq], exact
+    if compiled and exact:
+        raise ValueError("Can't use compiled=True with exact=True!")
+
     parsed = pkg_resources.parse_version(version)
     op = operator.eq if exact else operator.ge
     result = op(pkg_resources.parse_version(qVersion()), parsed)
-    if strict and result:
-        # v1 ==/>= parsed, now check if v2 ==/>= parsed too.
+    if compiled and result:
+        # qVersion() ==/>= parsed, now check if QT_VERSION_STR ==/>= parsed.
         result = op(pkg_resources.parse_version(QT_VERSION_STR), parsed)
+    if compiled and result:
+        # FInally, check PYQT_VERSION_STR as well.
+        result = op(pkg_resources.parse_version(PYQT_VERSION_STR), parsed)
     return result
 
 

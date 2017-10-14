@@ -30,15 +30,27 @@ from qutebrowser.utils import usertypes
 
 
 def test_init(config_stub):
-    """Test reading the default yaml file and validating the values."""
+    """Test reading the default yaml file."""
     # configdata.init() is called by config_stub
     config_stub.val.aliases = {}
     assert isinstance(configdata.DATA, dict)
     assert 'ignore_case' in configdata.DATA
+
+
+def test_data(config_stub):
+    """Test various properties of the default values."""
     for option in configdata.DATA.values():
         # Make sure to_py and to_str work
         option.typ.to_py(option.default)
         option.typ.to_str(option.default)
+
+        # https://github.com/qutebrowser/qutebrowser/issues/3104
+        # For lists/dicts, don't use None as default
+        if isinstance(option.typ, (configtypes.Dict, configtypes.List)):
+            assert option.default is not None
+        # For ListOrValue, use a list as default
+        if isinstance(option.typ, configtypes.ListOrValue):
+            assert isinstance(option.default, list)
 
 
 # https://github.com/qutebrowser/qutebrowser/issues/2777
@@ -57,7 +69,7 @@ def test_is_valid_prefix(monkeypatch):
 class TestReadYaml:
 
     def test_valid(self):
-        data = textwrap.dedent("""
+        yaml_data = textwrap.dedent("""
             test1:
                 type: Bool
                 default: true
@@ -69,7 +81,7 @@ class TestReadYaml:
                 backend: QtWebKit
                 desc: Hello World 2
         """)
-        data = configdata._read_yaml(data)
+        data, _migrations = configdata._read_yaml(yaml_data)
         assert data.keys() == {'test1', 'test2'}
         assert data['test1'].description == "Hello World"
         assert data['test2'].default == "foo"
@@ -112,6 +124,45 @@ class TestReadYaml:
                 configdata._read_yaml(data)
         else:
             configdata._read_yaml(data)
+
+    def test_rename(self):
+        yaml_data = textwrap.dedent("""
+            test:
+                renamed: test_new
+
+            test_new:
+                type: Bool
+                default: true
+                desc: Hello World
+        """)
+        data, migrations = configdata._read_yaml(yaml_data)
+        assert data.keys() == {'test_new'}
+        assert migrations.renamed == {'test': 'test_new'}
+
+    def test_rename_unknown_target(self):
+        yaml_data = textwrap.dedent("""
+            test:
+                renamed: test2
+        """)
+        with pytest.raises(ValueError, match='Renaming test to unknown test2'):
+            configdata._read_yaml(yaml_data)
+
+    def test_delete(self):
+        yaml_data = textwrap.dedent("""
+            test:
+                deleted: true
+        """)
+        data, migrations = configdata._read_yaml(yaml_data)
+        assert not data.keys()
+        assert migrations.deleted == ['test']
+
+    def test_delete_invalid_value(self):
+        yaml_data = textwrap.dedent("""
+            test:
+                deleted: false
+        """)
+        with pytest.raises(ValueError, match='Invalid deleted value: False'):
+            configdata._read_yaml(yaml_data)
 
 
 class TestParseYamlType:

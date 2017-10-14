@@ -88,31 +88,6 @@ session_default_name:
 
     If this is set to null, the session which was last loaded is saved.
 
-qt_args:
-  type:
-    name: List
-    valtype: String
-    none_ok: true
-  default: []
-  desc: >-
-    Additional arguments to pass to Qt, without leading `--`.
-
-    With QtWebEngine, some Chromium arguments (see
-    https://peter.sh/experiments/chromium-command-line-switches/ for a list)
-    will work.
-
-    This setting requires a restart.
-
-force_software_rendering:
-  type: Bool
-  default: false
-  backend: QtWebEngine
-  desc: >-
-    Force software rendering for QtWebEngine.
-
-    This is needed for QtWebEngine to work with Nouveau drivers.
-    This setting requires a restart.
-
 backend:
   type:
     name: String
@@ -135,6 +110,52 @@ backend:
     qutebrowser, but is generally the preferred choice.
 
     This setting requires a restart.
+
+
+## qt
+
+qt_args:
+  renamed: qt.args
+
+qt.args:
+  type:
+    name: List
+    valtype: String
+    none_ok: true
+  default: []
+  desc: >-
+    Additional arguments to pass to Qt, without leading `--`.
+
+    With QtWebEngine, some Chromium arguments (see
+    https://peter.sh/experiments/chromium-command-line-switches/ for a list)
+    will work.
+
+    This setting requires a restart.
+
+force_software_rendering:
+  renamed: qt.force_software_rendering
+
+qt.force_software_rendering:
+  type: Bool
+  default: false
+  backend: QtWebEngine
+  desc: >-
+    Force software rendering for QtWebEngine.
+
+    This is needed for QtWebEngine to work with Nouveau drivers.
+    This setting requires a restart.
+
+qt.force_platform:
+  type:
+    name: String
+    none_ok: true
+  default: null
+  desc: >-
+    Force a Qt platform to use.
+
+    This sets the `QT_QPA_PLATFORM` environment variable and is useful to force
+    using the XCB plugin when running QtWebEngine on Wayland.
+
 
 ## auto_save
 
@@ -503,6 +524,7 @@ content.netrc_file:
 content.notifications:
   default: ask
   type: BoolAsk
+  backend: QtWebKit
   desc: Allow websites to show notifications.
 
 content.pdfjs:
@@ -561,7 +583,7 @@ content.user_stylesheets:
     name: ListOrValue
     valtype: File
     none_ok: True
-  default: null
+  default: []
   desc: A list of user stylesheet filenames to use.
 
 content.webgl:
@@ -1202,6 +1224,7 @@ tabs.title.format:
       - scroll_pos
       - host
       - private
+      - current_url
     none_ok: true
   desc: |
     The format to use for the tab title.
@@ -1217,6 +1240,7 @@ tabs.title.format:
     * `{host}`: The host of the current web page.
     * `{backend}`: Either ''webkit'' or ''webengine''
     * `{private}` : Indicates when private mode is enabled.
+    * `{current_url}` : The url of the current web page.
 
 tabs.title.format_pinned:
   default: '{index}'
@@ -1232,6 +1256,7 @@ tabs.title.format_pinned:
       - scroll_pos
       - host
       - private
+      - current_url
     none_ok: true
   desc: The format to use for the tab title for pinned tabs. The same placeholders
     like for `tabs.title.format` are defined.
@@ -1251,6 +1276,9 @@ tabs.width.indicator:
     name: Int
     minval: 0
   desc: Width of the progress indicator (0 to disable).
+
+tabs.width.pinned:
+  deleted: true
 
 tabs.wrap:
   default: true
@@ -1309,7 +1337,7 @@ url.start_pages:
   type:
     name: ListOrValue
     valtype: FuzzyUrl
-  default: "https://start.duckduckgo.com"
+  default: ["https://start.duckduckgo.com"]
   desc: The page(s) to open at the start.
 
 url.yank_ignored_parameters:
@@ -1346,6 +1374,7 @@ window.title_format:
       - host
       - backend
       - private
+      - current_url
   default: '{perc}{title}{title_sep}qutebrowser'
   desc: |
     The format to use for the window title.
@@ -1360,6 +1389,7 @@ window.title_format:
     * `{host}`: The host of the current web page.
     * `{backend}`: Either ''webkit'' or ''webengine''
     * `{private}` : Indicates when private mode is enabled.
+    * `{current_url}` : The url of the current web page.
 
 ## zoom
 
@@ -1443,16 +1473,6 @@ colors.completion.category.border.bottom:
   default: black
   type: QssColor
   desc: Bottom border color of the completion widget category headers.
-
-colors.statusbar.insert.fg:
-  default: white
-  type: QssColor
-  desc: Foreground color of the statusbar in insert mode.
-
-colors.statusbar.insert.bg:
-  default: darkgreen
-  type: QssColor
-  desc: Background color of the statusbar in insert mode.
 
 colors.completion.item.selected.fg:
   default: black
@@ -1596,7 +1616,7 @@ colors.messages.warning.bg:
 colors.messages.warning.border:
   default: '#d47300'
   type: QssColor
-  desc: Border color of an error message.
+  desc: Border color of a warning message.
 
 colors.messages.info.fg:
   default: white
@@ -1642,6 +1662,26 @@ colors.statusbar.normal.bg:
   default: black
   type: QssColor
   desc: Background color of the statusbar.
+
+colors.statusbar.insert.fg:
+  default: white
+  type: QssColor
+  desc: Foreground color of the statusbar in insert mode.
+
+colors.statusbar.insert.bg:
+  default: darkgreen
+  type: QssColor
+  desc: Background color of the statusbar in insert mode.
+
+colors.statusbar.passthrough.fg:
+  default: white
+  type: QssColor
+  desc: Foreground color of the statusbar in passthrough mode.
+
+colors.statusbar.passthrough.bg:
+  default: darkblue
+  type: QssColor
+  desc: Background color of the statusbar in passthrough mode.
 
 colors.statusbar.private.fg:
   default: white
@@ -2129,6 +2169,12 @@ bindings.default:
       <Ctrl-s>: stop
       <Ctrl-Alt-p>: print
       Ss: open qute://settings
+      Sb: open qute://bookmarks#bookmarks
+      Sq: open qute://bookmarks
+      Sh: open qute://history
+      xx: config-cycle statusbar.hide ;; config-cycle tabs.show always switching
+      xt: config-cycle tabs.show always switching
+      xb: config-cycle statusbar.hide
       <Return>: follow-selected
       <Ctrl-Return>: follow-selected -t
       .: repeat-command
