@@ -155,12 +155,13 @@ def _get_setting_quickref():
 
 def _get_configtypes():
     """Get configtypes classes to document."""
-    predicate = lambda e: (inspect.isclass(e) and
-                           e not in [configtypes.BaseType,
-                                     configtypes.MappingType,
-                                     # pylint: disable=protected-access
-                                     configtypes._Numeric] and
-                           issubclass(e, configtypes.BaseType))
+    predicate = lambda e: (
+        inspect.isclass(e) and
+        # pylint: disable=protected-access
+        e not in [configtypes.BaseType, configtypes.MappingType,
+                  configtypes._Numeric] and
+        # pylint: enable=protected-access
+        issubclass(e, configtypes.BaseType))
     yield from inspect.getmembers(configtypes, predicate)
 
 
@@ -498,10 +499,10 @@ def _format_block(filename, what, data):
 
 def regenerate_manpage(filename):
     """Update manpage OPTIONS using an argparse parser."""
-    # pylint: disable=protected-access
     parser = qutebrowser.get_argparser()
     groups = []
     # positionals, optionals and user-defined groups
+    # pylint: disable=protected-access
     for group in parser._action_groups:
         groupdata = []
         groupdata.append('=== {}'.format(group.title))
@@ -512,6 +513,7 @@ def regenerate_manpage(filename):
             if action_data is not None:
                 groupdata.append(action_data)
         groups.append('\n'.join(groupdata))
+    # pylint: enable=protected-access
     options = '\n'.join(groups)
     # epilog
     if parser.epilog is not None:

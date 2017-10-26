@@ -46,9 +46,11 @@ class TabWidget(QTabWidget):
         tab_index_changed: Emitted when the current tab was changed.
                            arg 0: The index of the tab which is now focused.
                            arg 1: The total count of tabs.
+        new_tab_requested: Emitted when a new tab is requested.
     """
 
     tab_index_changed = pyqtSignal(int, int)
+    new_tab_requested = pyqtSignal('QUrl', bool, bool)
 
     def __init__(self, win_id, parent=None):
         super().__init__(parent)
@@ -59,6 +61,7 @@ class TabWidget(QTabWidget):
         bar.tabMoved.connect(functools.partial(
             QTimer.singleShot, 0, self._update_tab_titles))
         bar.currentChanged.connect(self._on_current_changed)
+        bar.new_tab_requested.connect(self._on_new_tab_requested)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setDocumentMode(True)
         self.setElideMode(Qt.ElideRight)
@@ -121,21 +124,29 @@ class TabWidget(QTabWidget):
         """Get the tab title user data."""
         return self.tabBar().page_title(idx)
 
-    def _update_tab_title(self, idx):
-        """Update the tab text for the given tab."""
+    def _update_tab_title(self, idx, field=None):
+        """Update the tab text for the given tab.
+
+        Args:
+            idx: The tab index to update.
+            field: A field name which was updated. If given, the title
+                   is only set if the given field is in the template.
+        """
         tab = self.widget(idx)
+        if tab.data.pinned:
+            fmt = config.val.tabs.title.format_pinned
+        else:
+            fmt = config.val.tabs.title.format
+
+        if (field is not None and
+                (fmt is None or ('{' + field + '}') not in fmt)):
+            return
+
         fields = self.get_tab_fields(idx)
         fields['title'] = fields['title'].replace('&', '&&')
         fields['index'] = idx + 1
 
-        fmt = config.val.tabs.title.format
-        fmt_pinned = config.val.tabs.title.format_pinned
-
-        if tab.data.pinned:
-            title = '' if fmt_pinned is None else fmt_pinned.format(**fields)
-        else:
-            title = '' if fmt is None else fmt.format(**fields)
-
+        title = '' if fmt is None else fmt.format(**fields)
         self.tabBar().setTabText(idx, title)
 
     def get_tab_fields(self, idx):
@@ -261,6 +272,11 @@ class TabWidget(QTabWidget):
         self.tabBar().on_current_changed()
         self.tab_index_changed.emit(index, self.count())
 
+    @pyqtSlot()
+    def _on_new_tab_requested(self):
+        """Open a new tab."""
+        self.new_tab_requested.emit(config.val.url.default_page, False, False)
+
     def tab_url(self, idx):
         """Get the URL of the tab at the given index.
 
@@ -290,7 +306,12 @@ class TabBar(QTabBar):
     Attributes:
         vertical: When the tab bar is currently vertical.
         win_id: The window ID this TabBar belongs to.
+
+    Signals:
+        new_tab_requested: Emitted when a new tab is requested.
     """
+
+    new_tab_requested = pyqtSignal()
 
     def __init__(self, win_id, parent=None):
         super().__init__(parent)
@@ -424,7 +445,16 @@ class TabBar(QTabBar):
             e.accept()
             idx = self.tabAt(e.pos())
             if idx == -1:
-                idx = self.currentIndex()
+                action = config.val.tabs.close_mouse_button_on_bar
+                if action == 'ignore':
+                    return
+                elif action == 'new-tab':
+                    self.new_tab_requested.emit()
+                    return
+                elif action == 'close-current':
+                    idx = self.currentIndex()
+                elif action == 'close-last':
+                    idx = self.count() - 1
             self.tabCloseRequested.emit(idx)
             return
         super().mousePressEvent(e)
@@ -657,7 +687,7 @@ class TabBarStyle(QCommonStyle):
         icon_state = (QIcon.On if opt.state & QStyle.State_Selected
                       else QIcon.Off)
         icon = opt.icon.pixmap(opt.iconSize, icon_mode, icon_state)
-        p.drawPixmap(layouts.icon.x(), layouts.icon.y(), icon)
+        self._style.drawItemPixmap(p, layouts.icon, Qt.AlignCenter, icon)
 
     def drawControl(self, element, opt, p, widget=None):
         """Override drawControl to draw odd tabs in a different color.
@@ -824,8 +854,7 @@ class TabBarStyle(QCommonStyle):
                       else QIcon.Off)
         # reserve space for favicon when tab bar is vertical (issue #1968)
         position = config.val.tabs.position
-        if (opt.icon.isNull() and
-                position in [QTabWidget.East, QTabWidget.West] and
+        if (position in [QTabWidget.East, QTabWidget.West] and
                 config.val.tabs.favicons.show):
             tab_icon_size = icon_size
         else:
@@ -833,6 +862,7 @@ class TabBarStyle(QCommonStyle):
             tab_icon_size = QSize(
                 min(actual_size.width(), icon_size.width()),
                 min(actual_size.height(), icon_size.height()))
+
         icon_top = text_rect.center().y() + 1 - tab_icon_size.height() / 2
         icon_rect = QRect(QPoint(text_rect.left(), icon_top), tab_icon_size)
         icon_rect = self._style.visualRect(opt.direction, opt.rect, icon_rect)

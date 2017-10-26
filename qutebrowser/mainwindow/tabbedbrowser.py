@@ -116,6 +116,7 @@ class TabbedBrowser(tabwidget.TabWidget):
         self._tab_insert_idx_right = -1
         self.shutting_down = False
         self.tabCloseRequested.connect(self.on_tab_close_requested)
+        self.new_tab_requested.connect(self.tabopen)
         self.currentChanged.connect(self.on_current_changed)
         self.cur_load_started.connect(self.on_cur_load_started)
         self.cur_fullscreen_requested.connect(self.tabBar().maybe_hide)
@@ -173,8 +174,18 @@ class TabbedBrowser(tabwidget.TabWidget):
                 widgets.append(widget)
         return widgets
 
-    def _update_window_title(self):
-        """Change the window title to match the current tab."""
+    def _update_window_title(self, field=None):
+        """Change the window title to match the current tab.
+
+        Args:
+            idx: The tab index to update.
+            field: A field name which was updated. If given, the title
+                   is only set if the given field is in the template.
+        """
+        title_format = config.val.window.title_format
+        if field is not None and ('{' + field + '}') not in title_format:
+            return
+
         idx = self.currentIndex()
         if idx == -1:
             # (e.g. last tab removed)
@@ -183,7 +194,6 @@ class TabbedBrowser(tabwidget.TabWidget):
         fields = self.get_tab_fields(idx)
         fields['id'] = self._win_id
 
-        title_format = config.val.window.title_format
         title = title_format.format(**fields)
         self.window().setWindowTitle(title)
 
@@ -402,6 +412,7 @@ class TabbedBrowser(tabwidget.TabWidget):
 
     @pyqtSlot('QUrl')
     @pyqtSlot('QUrl', bool)
+    @pyqtSlot('QUrl', bool, bool)
     def tabopen(self, url=None, background=None, related=True, idx=None, *,
                 ignore_tabs_are_windows=False):
         """Open a new tab with a given URL.
@@ -696,8 +707,8 @@ class TabbedBrowser(tabwidget.TabWidget):
             log.webview.debug("Not updating scroll position because index is "
                               "-1")
             return
-        self._update_window_title()
-        self._update_tab_title(idx)
+        self._update_window_title('scroll_pos')
+        self._update_tab_title(idx, 'scroll_pos')
 
     def _on_renderer_process_terminated(self, tab, status, code):
         """Show an error when a renderer process terminated."""

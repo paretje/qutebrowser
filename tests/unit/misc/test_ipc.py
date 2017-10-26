@@ -294,7 +294,6 @@ class TestListen:
 
     @pytest.mark.posix
     def test_permissions_posix(self, ipc_server):
-        # pylint: disable=no-member,useless-suppression
         ipc_server.listen()
         sockfile = ipc_server._server.fullServerName()
         sockdir = os.path.dirname(sockfile)
@@ -302,8 +301,10 @@ class TestListen:
         file_stat = os.stat(sockfile)
         dir_stat = os.stat(sockdir)
 
+        # pylint: disable=no-member,useless-suppression
         file_owner_ok = file_stat.st_uid == os.getuid()
         dir_owner_ok = dir_stat.st_uid == os.getuid()
+        # pylint: enable=no-member,useless-suppression
         file_mode_ok = file_stat.st_mode & 0o777 == 0o700
         dir_mode_ok = dir_stat.st_mode & 0o777 == 0o700
 
@@ -729,8 +730,6 @@ class TestSendOrListen:
             with pytest.raises(ipc.Error):
                 ipc.send_or_listen(args)
 
-        assert len(caplog.records) == 1
-
         error_msgs = [
             'Handling fatal misc.ipc.ListenError with --no-err-windows!',
             '',
@@ -740,7 +739,7 @@ class TestSendOrListen:
             ('exception text: Error while listening to IPC server: Error '
                 'string (error 4)'),
         ]
-        assert caplog.records[0].msg == '\n'.join(error_msgs)
+        assert caplog.records[-1].msg == '\n'.join(error_msgs)
 
 
 @pytest.mark.windows

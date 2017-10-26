@@ -11,15 +11,16 @@ Migrating older configurations
 ------------------------------
 
 qutebrowser does no automatic migration for the new configuration. However,
-there's a special link:qute://configdiff/old[configdiff] page in qutebrowser,
-which will show you the changes you did in your old configuration, compared to
-the old defaults.
+there's a special link:qute://configdiff/old[configdiff] page
+(`qute://configdiff/old`) in qutebrowser, which will show you the changes you
+did in your old configuration, compared to the old defaults.
 
 Other changes in default settings:
 
 - `<Up>` and `<Down>` in the completion now navigate through command history
-  instead of selecting completion items. You can get back the old behavior by
-  doing:
+  instead of selecting completion items. Use `<Tab>`/`<Shift-Tab>` to cycle
+  through the completion instead.
+  You can get back the old behavior by doing:
 +
 ----
 :bind -f -m command <Up> completion-item-focus prev
@@ -237,6 +238,9 @@ that via `import utils` as well.
 While it's in some cases possible to import code from the qutebrowser
 installation, doing so is unsupported and discouraged.
 
+To read config data from a different file with `c` and `config` available, you
+can use `config.source('otherfile.py')` in your `config.py`.
+
 Getting the config directory
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -344,6 +348,26 @@ def bind_chained(key, *commands):
     config.bind(key, ' ;; '.join(commands))
 
 bind_chained('<Escape>', 'clear-keychain', 'search')
+----
+
+Reading colors from Xresources
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can use something like this to read colors from an `~/.Xresources` file:
+
+[source,python]
+----
+def read_xresources(prefix):
+    props = {}
+    x = subprocess.run(['xrdb', '-query'], stdout=subprocess.PIPE)
+    lines = x.stdout.decode().split('\n')
+    for line in filter(lambda l : l.startswith(prefix), lines):
+        prop, _, value = line.partition(':\t')
+        props[prop] = value
+    return props
+
+xresources = read_xresources('*')
+c.colors.statusbar.normal.bg = xresources['*background']
 ----
 
 Avoiding flake8 errors

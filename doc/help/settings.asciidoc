@@ -96,13 +96,16 @@
 |<<colors.tabs.selected.odd.fg,colors.tabs.selected.odd.fg>>|Foreground color of selected odd tabs.
 |<<colors.webpage.bg,colors.webpage.bg>>|Background color for webpages if unset (or empty to use the theme's color)
 |<<completion.cmd_history_max_items,completion.cmd_history_max_items>>|How many commands to save in the command history.
+|<<completion.delay,completion.delay>>|Delay in ms before updating completions after typing a character.
 |<<completion.height,completion.height>>|The height of the completion, in px or as percentage of the window.
+|<<completion.min_chars,completion.min_chars>>|Minimum amount of characters needed to update completions.
 |<<completion.quick,completion.quick>>|Move on to the next part when there's only one possible completion left.
 |<<completion.scrollbar.padding,completion.scrollbar.padding>>|Padding of scrollbar handle in the completion window (in px).
 |<<completion.scrollbar.width,completion.scrollbar.width>>|Width of the scrollbar in the completion window (in px).
 |<<completion.show,completion.show>>|When to show the autocompletion window.
 |<<completion.shrink,completion.shrink>>|Shrink the completion to be smaller than the configured size if there are no scrollbars.
 |<<completion.timestamp_format,completion.timestamp_format>>|How to format timestamps (e.g. for the history completion).
+|<<completion.use_best_match,completion.use_best_match>>|Whether to execute the best-matching command on a partial match.
 |<<completion.web_history_max_items,completion.web_history_max_items>>|How many URLs to show in the web history.
 |<<confirm_quit,confirm_quit>>|Whether quitting the application requires a confirmation.
 |<<content.cache.appcache,content.cache.appcache>>|Whether support for the HTML 5 web application cache feature is enabled.
@@ -206,8 +209,8 @@
 |<<input.spatial_navigation,input.spatial_navigation>>|Enable Spatial Navigation.
 |<<keyhint.blacklist,keyhint.blacklist>>|Keychains that shouldn't be shown in the keyhint dialog.
 |<<keyhint.delay,keyhint.delay>>|Time from pressing a key to seeing the keyhint dialog (ms).
+|<<keyhint.radius,keyhint.radius>>|The rounding radius for the edges of the keyhint dialog.
 |<<messages.timeout,messages.timeout>>|Time (in ms) to show messages in the statusbar for.
-|<<messages.unfocused,messages.unfocused>>|Show messages in unfocused windows.
 |<<new_instance_open_target,new_instance_open_target>>|How to open links in an existing instance if a new one is launched.
 |<<new_instance_open_target_window,new_instance_open_target_window>>|Which window to choose when opening links as new tabs.
 |<<prompt.filebrowser,prompt.filebrowser>>|Show a filebrowser in upload/download prompts.
@@ -224,6 +227,7 @@
 |<<statusbar.position,statusbar.position>>|The position of the status bar.
 |<<tabs.background,tabs.background>>|Open new tabs (middleclick/ctrl+click) in the background.
 |<<tabs.close_mouse_button,tabs.close_mouse_button>>|On which mouse button to close tabs.
+|<<tabs.close_mouse_button_on_bar,tabs.close_mouse_button_on_bar>>|Behavior when the close mouse button is pressed on the tab bar.
 |<<tabs.favicons.scale,tabs.favicons.scale>>|Scaling for favicons in the tab bar.
 |<<tabs.favicons.show,tabs.favicons.show>>|Show favicons in the tab bar.
 |<<tabs.indicator_padding,tabs.indicator_padding>>|Padding for tab indicators
@@ -1311,6 +1315,14 @@ Type: <<types,Int>>
 
 Default: +pass:[100]+
 
+[[completion.delay]]
+=== completion.delay
+Delay in ms before updating completions after typing a character.
+
+Type: <<types,Int>>
+
+Default: +pass:[0]+
+
 [[completion.height]]
 === completion.height
 The height of the completion, in px or as percentage of the window.
@@ -1318,6 +1330,14 @@ The height of the completion, in px or as percentage of the window.
 Type: <<types,PercOrInt>>
 
 Default: +pass:[50%]+
+
+[[completion.min_chars]]
+=== completion.min_chars
+Minimum amount of characters needed to update completions.
+
+Type: <<types,Int>>
+
+Default: +pass:[1]+
 
 [[completion.quick]]
 === completion.quick
@@ -1372,6 +1392,14 @@ How to format timestamps (e.g. for the history completion).
 Type: <<types,TimestampTemplate>>
 
 Default: +pass:[%Y-%m-%d]+
+
+[[completion.use_best_match]]
+=== completion.use_best_match
+Whether to execute the best-matching command on a partial match.
+
+Type: <<types,Bool>>
+
+Default: +pass:[false]+
 
 [[completion.web_history_max_items]]
 === completion.web_history_max_items
@@ -2387,6 +2415,14 @@ Type: <<types,Int>>
 
 Default: +pass:[500]+
 
+[[keyhint.radius]]
+=== keyhint.radius
+The rounding radius for the edges of the keyhint dialog.
+
+Type: <<types,Int>>
+
+Default: +pass:[6]+
+
 [[messages.timeout]]
 === messages.timeout
 Time (in ms) to show messages in the statusbar for.
@@ -2395,14 +2431,6 @@ Set to 0 to never clear messages.
 Type: <<types,Int>>
 
 Default: +pass:[2000]+
-
-[[messages.unfocused]]
-=== messages.unfocused
-Show messages in unfocused windows.
-
-Type: <<types,Bool>>
-
-Default: +pass:[false]+
 
 [[new_instance_open_target]]
 === new_instance_open_target
@@ -2623,6 +2651,21 @@ Valid values:
  * +none+: Don't close tabs using the mouse.
 
 Default: +pass:[middle]+
+
+[[tabs.close_mouse_button_on_bar]]
+=== tabs.close_mouse_button_on_bar
+Behavior when the close mouse button is pressed on the tab bar.
+
+Type: <<types,String>>
+
+Valid values:
+
+ * +new-tab+: Open a new tab.
+ * +close-current+: Close the current tab.
+ * +close-last+: Close the last tab.
+ * +ignore+: Don't do anything.
+
+Default: +pass:[new-tab]+
 
 [[tabs.favicons.scale]]
 === tabs.favicons.scale

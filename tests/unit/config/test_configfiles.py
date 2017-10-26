@@ -109,6 +109,7 @@ class TestYaml:
         # WORKAROUND for https://github.com/PyCQA/pylint/issues/574
         # pylint: disable=superfluous-parens
         if 'magenta' in (old_config or ''):
+            # pylint: enable=superfluous-parens
             assert '  colors.hints.fg: magenta' in lines
         if insert:
             assert '  tabs.show: never' in lines
@@ -404,6 +405,7 @@ class TestConfigPy:
         """Test whether getting options works correctly."""
         # pylint: disable=bad-config-option
         config.val.colors.hints.fg = 'green'
+        # pylint: enable=bad-config-option
         if set_first:
             confpy.write('c.colors.hints.fg = "red"',
                          'assert {} == "red"'.format(get_line))
@@ -580,6 +582,52 @@ class TestConfigPy:
         assert isinstance(error.exception, ZeroDivisionError)
         assert error.traceback is not None
 
+    @pytest.mark.parametrize('location', ['abs', 'rel'])
+    def test_source(self, tmpdir, confpy, location):
+        if location == 'abs':
+            subfile = tmpdir / 'subfile.py'
+            arg = str(subfile)
+        else:
+            subfile = tmpdir / 'config' / 'subfile.py'
+            arg = 'subfile.py'
+
+        subfile.write_text("c.content.javascript.enabled = False",
+                           encoding='utf-8')
+        confpy.write("config.source({!r})".format(arg))
+        confpy.read()
+
+        assert not config.instance._values['content.javascript.enabled']
+
+    def test_source_errors(self, tmpdir, confpy):
+        subfile = tmpdir / 'config' / 'subfile.py'
+        subfile.write_text("c.foo = 42", encoding='utf-8')
+        confpy.write("config.source('subfile.py')")
+        error = confpy.read(error=True)
+
+        assert error.text == "While setting 'foo'"
+        assert isinstance(error.exception, configexc.NoOptionError)
+
+    def test_source_multiple_errors(self, tmpdir, confpy):
+        subfile = tmpdir / 'config' / 'subfile.py'
+        subfile.write_text("c.foo = 42", encoding='utf-8')
+        confpy.write("config.source('subfile.py')", "c.bar = 23")
+
+        with pytest.raises(configexc.ConfigFileErrors) as excinfo:
+            configfiles.read_config_py(confpy.filename)
+
+        errors = excinfo.value.errors
+        assert len(errors) == 2
+
+        for error in errors:
+            assert isinstance(error.exception, configexc.NoOptionError)
+
+    def test_source_not_found(self, confpy):
+        confpy.write("config.source('doesnotexist.py')")
+        error = confpy.read(error=True)
+
+        assert error.text == "Error while reading doesnotexist.py"
+        assert isinstance(error.exception, FileNotFoundError)
+
 
 class TestConfigPyWriter:
 
@@ -619,7 +667,7 @@ class TestConfigPyWriter:
 
             # Bindings for caret mode
             config.bind(',y', 'message-info caret', mode='caret')
-        """).strip()
+        """).lstrip()
 
     def test_binding_options_hidden(self):
         opt1 = configdata.DATA['bindings.default']
