@@ -25,6 +25,7 @@ import sys
 import logging
 import types
 import typing
+import enum
 
 import pytest
 
@@ -141,14 +142,6 @@ class TestRegister:
             pass
         assert cmdutils.cmd_dict['fun']._instance == 'foobar'
 
-    def test_kwargs(self):
-        """Make sure the other keyword arguments get passed to Command."""
-        @cmdutils.register(hide=True)
-        def fun():
-            """Blah."""
-            pass
-        assert cmdutils.cmd_dict['fun'].hide
-
     def test_star_args(self):
         """Check handling of *args."""
         @cmdutils.register()
@@ -243,7 +236,7 @@ class TestRegister:
         else:
             assert pos_args == [('arg', 'arg')]
 
-    Enum = usertypes.enum('Test', ['x', 'y'])
+    Enum = enum.Enum('Test', ['x', 'y'])
 
     @pytest.mark.parametrize('typ, inp, choices, expected', [
         (int, '42', None, 42),

@@ -87,8 +87,7 @@ def repeat(times: int, command, win_id):
         commandrunner.run_safely(command)
 
 
-@cmdutils.register(maxsplit=1, hide=True, no_cmd_split=True,
-                   no_replace_variables=True)
+@cmdutils.register(maxsplit=1, no_cmd_split=True, no_replace_variables=True)
 @cmdutils.argument('win_id', win_id=True)
 @cmdutils.argument('count', count=True)
 def run_with_count(count_arg: int, command, win_id, count=1):
@@ -104,7 +103,7 @@ def run_with_count(count_arg: int, command, win_id, count=1):
     runners.CommandRunner(win_id).run(command, count_arg * count)
 
 
-@cmdutils.register(hide=True)
+@cmdutils.register()
 def message_error(text):
     """Show an error message in the statusbar.
 
@@ -114,7 +113,7 @@ def message_error(text):
     message.error(text)
 
 
-@cmdutils.register(hide=True)
+@cmdutils.register()
 @cmdutils.argument('count', count=True)
 def message_info(text, count=1):
     """Show an info message in the statusbar.
@@ -127,7 +126,7 @@ def message_info(text, count=1):
         message.info(text)
 
 
-@cmdutils.register(hide=True)
+@cmdutils.register()
 def message_warning(text):
     """Show a warning message in the statusbar.
 
@@ -137,7 +136,7 @@ def message_warning(text):
     message.warning(text)
 
 
-@cmdutils.register(hide=True)
+@cmdutils.register()
 def clear_messages():
     """Clear all message notifications."""
     message.global_bridge.clear_messages.emit()
@@ -182,9 +181,17 @@ def debug_cache_stats():
     except ImportError:
         pass
 
+    tabbed_browser = objreg.get('tabbed-browser', scope='window',
+                                window='last-focused')
+    # pylint: disable=protected-access
+    tab_bar = tabbed_browser.tabBar()
+    tabbed_browser_info = tab_bar._minimum_tab_size_hint_helper.cache_info()
+    # pylint: enable=protected-access
+
     log.misc.debug('is_valid_prefix: {}'.format(prefix_info))
     log.misc.debug('_render_stylesheet: {}'.format(render_stylesheet_info))
     log.misc.debug('history: {}'.format(history_info))
+    log.misc.debug('tab width cache: {}'.format(tabbed_browser_info))
 
 
 @cmdutils.register(debug=True)
@@ -257,7 +264,7 @@ def debug_set_fake_clipboard(s=None):
         utils.fake_clipboard = s
 
 
-@cmdutils.register(hide=True)
+@cmdutils.register()
 @cmdutils.argument('win_id', win_id=True)
 @cmdutils.argument('count', count=True)
 def repeat_command(win_id, count=None):
@@ -339,7 +346,7 @@ def window_only(current_win_id):
             window.close()
 
 
-@cmdutils.register(hide=True)
+@cmdutils.register()
 def nop():
     """Do nothing."""
     return

@@ -71,7 +71,7 @@ class TabbedBrowser(tabwidget.TabWidget):
         _tab_insert_idx_left: Where to insert a new tab with
                               tabs.new_tab_position set to 'prev'.
         _tab_insert_idx_right: Same as above, for 'next'.
-        _undo_stack: List of UndoEntry objects of closed tabs.
+        _undo_stack: List of lists of UndoEntry objects of closed tabs.
         shutting_down: Whether we're currently shutting down.
         _local_marks: Jump markers local to each page
         _global_marks: Jump markers used across all pages
@@ -259,22 +259,24 @@ class TabbedBrowser(tabwidget.TabWidget):
     def tab_close_prompt_if_pinned(self, tab, force, yes_action):
         """Helper method for tab_close.
 
-        If tab is pinned, prompt. If everything is good, run yes_action.
+        If tab is pinned, prompt. If not, run yes_action.
+        If tab is destroyed, abort question.
         """
         if tab.data.pinned and not force:
             message.confirm_async(
                 title='Pinned Tab',
                 text="Are you sure you want to close a pinned tab?",
-                yes_action=yes_action, default=False)
+                yes_action=yes_action, default=False, abort_on=[tab.destroyed])
         else:
             yes_action()
 
-    def close_tab(self, tab, *, add_undo=True):
+    def close_tab(self, tab, *, add_undo=True, new_undo=True):
         """Close a tab.
 
         Args:
             tab: The QWebView to be closed.
             add_undo: Whether the tab close can be undone.
+            new_undo: Whether the undo entry should be a new item in the stack.
         """
         last_close = config.val.tabs.last_close
         count = self.count()
@@ -282,7 +284,7 @@ class TabbedBrowser(tabwidget.TabWidget):
         if last_close == 'ignore' and count == 1:
             return
 
-        self._remove_tab(tab, add_undo=add_undo)
+        self._remove_tab(tab, add_undo=add_undo, new_undo=new_undo)
 
         if count == 1:  # We just closed the last tab above.
             if last_close == 'close':
@@ -295,12 +297,13 @@ class TabbedBrowser(tabwidget.TabWidget):
             elif last_close == 'default-page':
                 self.openurl(config.val.url.default_page, newtab=True)
 
-    def _remove_tab(self, tab, *, add_undo=True, crashed=False):
+    def _remove_tab(self, tab, *, add_undo=True, new_undo=True, crashed=False):
         """Remove a tab from the tab list and delete it properly.
 
         Args:
             tab: The QWebView to be closed.
             add_undo: Whether the tab close can be undone.
+            new_undo: Whether the undo entry should be a new item in the stack.
             crashed: Whether we're closing a tab with crashed renderer process.
         """
         idx = self.indexOf(tab)
@@ -335,7 +338,10 @@ class TabbedBrowser(tabwidget.TabWidget):
             else:
                 entry = UndoEntry(tab.url(), history_data, idx,
                                   tab.data.pinned)
-                self._undo_stack.append(entry)
+                if new_undo or not self._undo_stack:
+                    self._undo_stack.append([entry])
+                else:
+                    self._undo_stack[-1].append(entry)
 
         tab.shutdown()
         self.removeTab(idx)
@@ -346,7 +352,7 @@ class TabbedBrowser(tabwidget.TabWidget):
             tab.deleteLater()
 
     def undo(self):
-        """Undo removing of a tab."""
+        """Undo removing of a tab or tabs."""
         # Remove unused tab which may be created after the last tab is closed
         last_close = config.val.tabs.last_close
         use_current_tab = False
@@ -365,16 +371,17 @@ class TabbedBrowser(tabwidget.TabWidget):
             use_current_tab = (only_one_tab_open and no_history and
                                last_close_url_used)
 
-        entry = self._undo_stack.pop()
+        for entry in reversed(self._undo_stack.pop()):
+            if use_current_tab:
+                self.openurl(entry.url, newtab=False)
+                newtab = self.widget(0)
+                use_current_tab = False
+            else:
+                newtab = self.tabopen(entry.url, background=False,
+                                      idx=entry.index)
 
-        if use_current_tab:
-            self.openurl(entry.url, newtab=False)
-            newtab = self.widget(0)
-        else:
-            newtab = self.tabopen(entry.url, background=False, idx=entry.index)
-
-        newtab.history.deserialize(entry.history)
-        self.set_tab_pinned(newtab, entry.pinned)
+            newtab.history.deserialize(entry.history)
+            self.set_tab_pinned(newtab, entry.pinned)
 
     @pyqtSlot('QUrl', bool)
     def openurl(self, url, newtab):

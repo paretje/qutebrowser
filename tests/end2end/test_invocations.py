@@ -70,7 +70,7 @@ def temp_basedir_env(tmpdir, short_tmpdir):
 
 
 @pytest.mark.linux
-def test_ascii_locale(request, server, tmpdir, quteproc_new):
+def test_downloads_with_ascii_locale(request, server, tmpdir, quteproc_new):
     """Test downloads with LC_ALL=C set.
 
     https://github.com/qutebrowser/qutebrowser/issues/908
@@ -100,6 +100,52 @@ def test_ascii_locale(request, server, tmpdir, quteproc_new):
 
     assert len(tmpdir.listdir()) == 1
     assert (tmpdir / '?-issue908.bin').exists()
+
+
+@pytest.mark.linux
+@pytest.mark.parametrize('url', ['/föö.html', 'file:///föö.html'])
+def test_open_with_ascii_locale(request, server, tmpdir, quteproc_new, url):
+    """Test opening non-ascii URL with LC_ALL=C set.
+
+    https://github.com/qutebrowser/qutebrowser/issues/1450
+    """
+    args = ['--temp-basedir'] + _base_args(request.config)
+    quteproc_new.start(args, env={'LC_ALL': 'C'})
+    quteproc_new.set_setting('url.auto_search', 'never')
+
+    # Test opening a file whose name contains non-ascii characters.
+    # No exception thrown means test success.
+    quteproc_new.send_cmd(':open {}'.format(url))
+
+    if not request.config.webengine:
+        line = quteproc_new.wait_for(message="Error while loading *: Error "
+                                     "opening /*: No such file or directory")
+        line.expected = True
+
+    quteproc_new.wait_for(message="load status for <* tab_id=* "
+                          "url='*/f%C3%B6%C3%B6.html'>: LoadStatus.error")
+
+
+@pytest.mark.linux
+def test_open_command_line_with_ascii_locale(request, server, tmpdir,
+                                             quteproc_new):
+    """Test opening file via command line with a non-ascii name with LC_ALL=C.
+
+    https://github.com/qutebrowser/qutebrowser/issues/1450
+    """
+    # The file does not actually have to exist because the relevant checks will
+    # all be called. No exception thrown means test success.
+    args = (['--temp-basedir'] + _base_args(request.config) +
+            ['/home/user/föö.html'])
+    quteproc_new.start(args, env={'LC_ALL': 'C'}, wait_focus=False)
+
+    if not request.config.webengine:
+        line = quteproc_new.wait_for(message="Error while loading *: Error "
+                                     "opening /*: No such file or directory")
+        line.expected = True
+
+    quteproc_new.wait_for(message="load status for <* tab_id=* "
+                          "url='*/f*.html'>: LoadStatus.error")
 
 
 @pytest.mark.linux
@@ -259,14 +305,13 @@ def test_command_on_start(request, quteproc_new):
 
 def test_launching_with_python2():
     try:
-        proc = subprocess.Popen(['python2', '-m', 'qutebrowser',
-                                '--no-err-windows'], stderr=subprocess.PIPE)
+        proc = subprocess.run(['python2', '-m', 'qutebrowser',
+                               '--no-err-windows'], stderr=subprocess.PIPE)
     except FileNotFoundError:
         pytest.skip("python2 not found")
-    _stdout, stderr = proc.communicate()
     assert proc.returncode == 1
     error = "At least Python 3.5 is required to run qutebrowser"
-    assert stderr.decode('ascii').startswith(error)
+    assert proc.stderr.decode('ascii').startswith(error)
 
 
 def test_initial_private_browsing(request, quteproc_new):

@@ -269,6 +269,28 @@ class TestKeyConfig:
                            match="Can't find binding 'foobar' in normal mode"):
             key_config_stub.unbind('foobar', mode='normal')
 
+    def test_unbound_twice(self, key_config_stub, config_stub, no_bindings):
+        """Try unbinding an already-unbound default key.
+
+        For custom-bound keys (in bindings.commands), it's okay to display an
+        error, as this isn't something you'd do in e.g a config.py anyways.
+
+        https://github.com/qutebrowser/qutebrowser/issues/3162
+        """
+        config_stub.val.bindings.default = {'normal': {'a': 'nop'}}
+        config_stub.val.bindings.commands = no_bindings
+
+        key_config_stub.unbind('a')
+        assert key_config_stub.get_command('a', mode='normal') is None
+        key_config_stub.unbind('a')
+        assert key_config_stub.get_command('a', mode='normal') is None
+
+    def test_empty_command(self, key_config_stub):
+        """Try binding a key to an empty command."""
+        message = "Can't add binding 'x' with empty command in normal mode"
+        with pytest.raises(configexc.KeybindingError, match=message):
+            key_config_stub.bind('x', ' ', mode='normal')
+
 
 class TestConfig:
 
@@ -579,7 +601,7 @@ class StyleObj(QObject):
 def test_get_stylesheet(config_stub):
     config_stub.val.colors.hints.fg = 'magenta'
     observer = config.StyleSheetObserver(
-        StyleObj(), stylesheet="{{ conf.colors.hints.fg }}")
+        StyleObj(), stylesheet="{{ conf.colors.hints.fg }}", update=False)
     assert observer._get_stylesheet() == 'magenta'
 
 

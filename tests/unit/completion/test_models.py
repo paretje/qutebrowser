@@ -44,6 +44,7 @@ def _check_completions(model, expected):
                 ...
             }
     """
+    __tracebackhide__ = True
     actual = {}
     assert model.rowCount() == len(expected)
     for i in range(0, model.rowCount()):
@@ -68,9 +69,10 @@ def cmdutils_stub(monkeypatch, stubs):
         'quit': stubs.FakeCommand(name='quit', desc='quit qutebrowser'),
         'open': stubs.FakeCommand(name='open', desc='open a url'),
         'prompt-yes': stubs.FakeCommand(name='prompt-yes', deprecated=True),
-        'scroll': stubs.FakeCommand(name='scroll',
+        'scroll': stubs.FakeCommand(
+            name='scroll',
             desc='Scroll the current tab in the given direction.',
-            hide=True),
+            modes=()),
     })
 
 
@@ -354,6 +356,50 @@ def test_url_completion(qtmodeltester, web_history_populated,
     })
 
 
+def test_url_completion_no_quickmarks(qtmodeltester, web_history_populated,
+                                      quickmark_manager_stub, bookmarks, info):
+    """Test that the quickmark category is gone with no quickmarks."""
+    model = urlmodel.url(info=info)
+    model.set_pattern('')
+    qtmodeltester.data_display_may_return_none = True
+    qtmodeltester.check(model)
+
+    _check_completions(model, {
+        "Bookmarks": [
+            ('https://github.com', 'GitHub', None),
+            ('https://python.org', 'Welcome to Python.org', None),
+            ('http://qutebrowser.org', 'qutebrowser | qutebrowser', None),
+        ],
+        "History": [
+            ('https://github.com', 'https://github.com', '2016-05-01'),
+            ('https://python.org', 'Welcome to Python.org', '2016-03-08'),
+            ('http://qutebrowser.org', 'qutebrowser', '2015-09-05'),
+        ],
+    })
+
+
+def test_url_completion_no_bookmarks(qtmodeltester, web_history_populated,
+                                     quickmarks, bookmark_manager_stub, info):
+    """Test that the bookmarks category is gone with no bookmarks."""
+    model = urlmodel.url(info=info)
+    model.set_pattern('')
+    qtmodeltester.data_display_may_return_none = True
+    qtmodeltester.check(model)
+
+    _check_completions(model, {
+        "Quickmarks": [
+            ('https://wiki.archlinux.org', 'aw', None),
+            ('https://wikipedia.org', 'wiki', None),
+            ('https://duckduckgo.com', 'ddg', None),
+        ],
+        "History": [
+            ('https://github.com', 'https://github.com', '2016-05-01'),
+            ('https://python.org', 'Welcome to Python.org', '2016-03-08'),
+            ('http://qutebrowser.org', 'qutebrowser', '2015-09-05'),
+        ],
+    })
+
+
 @pytest.mark.parametrize('url, title, pattern, rowcount', [
     ('example.com', 'Site Title', '', 1),
     ('example.com', 'Site Title', 'ex', 1),
@@ -380,7 +426,7 @@ def test_url_completion_pattern(web_history, quickmark_manager_stub,
     model = urlmodel.url(info=info)
     model.set_pattern(pattern)
     # 2, 0 is History
-    assert model.rowCount(model.index(2, 0)) == rowcount
+    assert model.rowCount(model.index(0, 0)) == rowcount
 
 
 def test_url_completion_delete_bookmark(qtmodeltester, bookmarks,
@@ -466,9 +512,9 @@ def test_session_completion(qtmodeltester, session_manager_stub):
     qtmodeltester.check(model)
 
     _check_completions(model, {
-        "Sessions": [('default', None, None),
-                     ('1', None, None),
-                     ('2', None, None)]
+        "Sessions": [('1', None, None),
+                     ('2', None, None),
+                     ('default', None, None)]
     })
 
 

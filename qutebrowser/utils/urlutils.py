@@ -26,7 +26,7 @@ import ipaddress
 import posixpath
 import urllib.parse
 
-from PyQt5.QtCore import QUrl
+from PyQt5.QtCore import QUrl, QUrlQuery
 from PyQt5.QtNetwork import QHostInfo, QHostAddress, QNetworkProxy
 
 from qutebrowser.config import config
@@ -372,10 +372,17 @@ def get_path_if_valid(pathstr, cwd=None, relative=False, check_exists=False):
         path = None
 
     if check_exists:
-        if path is not None and os.path.exists(path):
-            log.url.debug("URL is a local file")
-        else:
-            path = None
+        if path is not None:
+            try:
+                if os.path.exists(path):
+                    log.url.debug("URL is a local file")
+                else:
+                    path = None
+            except UnicodeEncodeError:
+                log.url.debug(
+                    "URL contains characters which are not present in the "
+                    "current locale")
+                path = None
 
     return path
 
@@ -613,6 +620,18 @@ def safe_display_string(qurl):
             return '({}) {}'.format(host, qurl.toDisplayString())
 
     return qurl.toDisplayString()
+
+
+def query_string(qurl):
+    """Get a query string for the given URL.
+
+    This is a WORKAROUND for:
+    https://www.riverbankcomputing.com/pipermail/pyqt/2017-November/039702.html
+    """
+    try:
+        return qurl.query()
+    except AttributeError:  # pragma: no cover
+        return QUrlQuery(qurl).query()
 
 
 class InvalidProxyTypeError(Exception):

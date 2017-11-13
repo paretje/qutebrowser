@@ -27,7 +27,6 @@ Module attributes:
 import json
 import os
 import time
-import urllib.parse
 import textwrap
 import mimetypes
 
@@ -37,7 +36,7 @@ from PyQt5.QtCore import QUrlQuery, QUrl
 import qutebrowser
 from qutebrowser.config import config, configdata, configexc, configdiff
 from qutebrowser.utils import (version, utils, jinja, log, message, docutils,
-                               objreg)
+                               objreg, urlutils)
 from qutebrowser.misc import objects
 
 
@@ -138,14 +137,23 @@ def data_for_url(url):
     """
     path = url.path()
     host = url.host()
+    query = urlutils.query_string(url)
     # A url like "qute:foo" is split as "scheme:path", not "scheme:host".
     log.misc.debug("url: {}, path: {}, host {}".format(
         url.toDisplayString(), path, host))
-    if path and not host:
+    if not path or not host:
         new_url = QUrl()
         new_url.setScheme('qute')
-        new_url.setHost(path)
+        # When path is absent, e.g. qute://help (with no trailing slash)
+        if host:
+            new_url.setHost(host)
+        # When host is absent, e.g. qute:help
+        else:
+            new_url.setHost(path)
+
         new_url.setPath('/')
+        if query:
+            new_url.setQuery(query)
         if new_url.host():  # path was a valid host
             raise Redirect(new_url)
 
@@ -275,9 +283,8 @@ def qute_plainlog(url):
     if log.ram_handler is None:
         text = "Log output was disabled."
     else:
-        try:
-            level = urllib.parse.parse_qs(url.query())['level'][0]
-        except KeyError:
+        level = QUrlQuery(url).queryItemValue('level')
+        if not level:
             level = 'vdebug'
         text = log.ram_handler.dump_log(html=False, level=level)
     html = jinja.render('pre.html', title='log', content=text)
@@ -295,9 +302,8 @@ def qute_log(url):
     if log.ram_handler is None:
         html_log = None
     else:
-        try:
-            level = urllib.parse.parse_qs(url.query())['level'][0]
-        except KeyError:
+        level = QUrlQuery(url).queryItemValue('level')
+        if not level:
             level = 'vdebug'
         html_log = log.ram_handler.dump_log(html=True, level=level)
 
@@ -308,7 +314,7 @@ def qute_log(url):
 @add_handler('gpl')
 def qute_gpl(_url):
     """Handler for qute://gpl. Return HTML content as string."""
-    return 'text/html', utils.read_file('html/LICENSE.html')
+    return 'text/html', utils.read_file('html/license.html')
 
 
 @add_handler('help')

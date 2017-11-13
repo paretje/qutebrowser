@@ -111,7 +111,6 @@ class TestEarlyInit:
     def test_autoconfig_yml(self, init_patch, config_tmpdir, caplog, args,
                             load_autoconfig, config_py, invalid_yaml):
         """Test interaction between config.py and autoconfig.yml."""
-        # pylint: disable=too-many-locals,too-many-branches
         # Prepare files
         autoconfig_file = config_tmpdir / 'autoconfig.yml'
         config_py_file = config_tmpdir / 'config.py'
@@ -203,12 +202,12 @@ class TestEarlyInit:
 
     @pytest.mark.parametrize('settings, size, family', [
         # Only fonts.monospace customized
-        ([('fonts.monospace', '"Comic Sans MS"')], 8, 'Comic Sans MS'),
+        ([('fonts.monospace', '"Comic Sans MS"')], 10, 'Comic Sans MS'),
         # fonts.monospace and font settings customized
         # https://github.com/qutebrowser/qutebrowser/issues/3096
         ([('fonts.monospace', '"Comic Sans MS"'),
-          ('fonts.tabs', '10pt monospace'),
-          ('fonts.keyhint', '10pt monospace')], 10, 'Comic Sans MS'),
+          ('fonts.tabs', '12pt monospace'),
+          ('fonts.keyhint', '12pt monospace')], 12, 'Comic Sans MS'),
     ])
     @pytest.mark.parametrize('method', ['temp', 'auto', 'py'])
     def test_monospace_fonts_init(self, init_patch, args, config_tmpdir,
@@ -251,7 +250,7 @@ class TestEarlyInit:
         config.instance.set_obj('fonts.monospace', '"Comic Sans MS"')
 
         assert 'fonts.keyhint' in changed_options  # Font
-        assert config.instance.get('fonts.keyhint') == '8pt "Comic Sans MS"'
+        assert config.instance.get('fonts.keyhint') == '10pt "Comic Sans MS"'
         assert 'fonts.tabs' in changed_options  # QtFont
         assert config.instance.get('fonts.tabs').family() == 'Comic Sans MS'
 
@@ -267,42 +266,25 @@ class TestEarlyInit:
         config.instance.set_str('fonts.web.family.standard', '')
         config.instance.set_str('fonts.monospace', 'Terminus')
 
-    def test_force_software_rendering(self, monkeypatch, config_stub):
-        """Setting force_software_rendering should set the environment var."""
-        envvar = 'QT_XCB_FORCE_SOFTWARE_OPENGL'
+    @pytest.mark.parametrize('config_opt, config_val, envvar, expected', [
+        ('qt.force_software_rendering', True,
+         'QT_XCB_FORCE_SOFTWARE_OPENGL', '1'),
+        ('qt.force_platform', 'toaster', 'QT_QPA_PLATFORM', 'toaster'),
+        ('qt.highdpi', True, 'QT_AUTO_SCREEN_SCALE_FACTOR', '1'),
+        ('window.hide_wayland_decoration', True,
+         'QT_WAYLAND_DISABLE_WINDOWDECORATION', '1')
+    ])
+    def test_env_vars(self, monkeypatch, config_stub,
+                      config_opt, config_val, envvar, expected):
+        """Check settings which set an environment variable."""
         monkeypatch.setattr(configinit.objects, 'backend',
                             usertypes.Backend.QtWebEngine)
         monkeypatch.delenv(envvar, raising=False)
 
-        config_stub.val.qt.force_software_rendering = True
-
+        config_stub.set_obj(config_opt, config_val)
         configinit._init_envvars()
 
-        assert os.environ[envvar] == '1'
-
-    def test_force_platform(self, monkeypatch, config_stub):
-        envvar = 'QT_QPA_PLATFORM'
-        monkeypatch.delenv(envvar, raising=False)
-
-        config_stub.val.qt.force_platform = 'toaster'
-
-        configinit._init_envvars()
-        assert os.environ[envvar] == 'toaster'
-
-    @pytest.mark.parametrize('old', ['1', '0', None])
-    @pytest.mark.parametrize('configval', [True, False])
-    def test_hide_wayland_decoration(self, monkeypatch, config_stub,
-                                     old, configval):
-        envvar = 'QT_WAYLAND_DISABLE_WINDOWDECORATION'
-        if old is None:
-            monkeypatch.delenv(envvar, raising=False)
-        else:
-            monkeypatch.setenv(envvar, old)
-
-        config_stub.val.window.hide_wayland_decoration = configval
-        configinit._init_envvars()
-
-        assert os.environ.get(envvar) == ('1' if configval else None)
+        assert os.environ[envvar] == expected
 
 
 @pytest.mark.parametrize('errors', [True, False])

@@ -347,19 +347,19 @@ def generate_commands(filename):
         f.write("= Commands\n\n")
         f.write(commands.__doc__)
         normal_cmds = []
-        hidden_cmds = []
+        other_cmds = []
         debug_cmds = []
         for name, cmd in cmdutils.cmd_dict.items():
             if cmd.deprecated:
                 continue
-            if cmd.hide:
-                hidden_cmds.append((name, cmd))
+            if usertypes.KeyMode.normal not in cmd.modes:
+                other_cmds.append((name, cmd))
             elif cmd.debug:
                 debug_cmds.append((name, cmd))
             else:
                 normal_cmds.append((name, cmd))
         normal_cmds.sort()
-        hidden_cmds.sort()
+        other_cmds.sort()
         debug_cmds.sort()
         f.write("\n")
         f.write("== Normal commands\n")
@@ -368,10 +368,10 @@ def generate_commands(filename):
         for name, cmd in normal_cmds:
             f.write(_get_command_doc(name, cmd))
         f.write("\n")
-        f.write("== Hidden commands\n")
+        f.write("== Commands not usable in normal mode\n")
         f.write(".Quick reference\n")
-        f.write(_get_command_quickref(hidden_cmds) + '\n')
-        for name, cmd in hidden_cmds:
+        f.write(_get_command_quickref(other_cmds) + '\n')
+        for name, cmd in other_cmds:
             f.write(_get_command_doc(name, cmd))
         f.write("\n")
         f.write("== Debugging commands\n")
@@ -416,6 +416,8 @@ def _generate_setting_option(f, opt):
     f.write('[[{}]]'.format(opt.name) + "\n")
     f.write("=== {}".format(opt.name) + "\n")
     f.write(opt.description + "\n")
+    if opt.restart:
+        f.write("This setting requires a restart.\n")
     f.write("\n")
     typ = opt.typ.get_name().replace(',', '&#44;')
     f.write('Type: <<types,{typ}>>\n'.format(typ=typ))
@@ -529,9 +531,9 @@ def regenerate_cheatsheet():
     ]
 
     for filename, x, y in files:
-        subprocess.check_call(['inkscape', '-e', filename, '-b', 'white',
-                               '-w', str(x), '-h', str(y),
-                               'misc/cheatsheet.svg'])
+        subprocess.run(['inkscape', '-e', filename, '-b', 'white',
+                        '-w', str(x), '-h', str(y),
+                        'misc/cheatsheet.svg'], check=True)
 
 
 def main():

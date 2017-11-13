@@ -24,6 +24,7 @@ import functools
 import math
 import re
 import html
+import enum
 from string import ascii_lowercase
 
 import attr
@@ -37,10 +38,9 @@ from qutebrowser.commands import userscripts, cmdexc, cmdutils, runners
 from qutebrowser.utils import usertypes, log, qtutils, message, objreg, utils
 
 
-Target = usertypes.enum('Target', ['normal', 'current', 'tab', 'tab_fg',
-                                   'tab_bg', 'window', 'yank', 'yank_primary',
-                                   'run', 'fill', 'hover', 'download',
-                                   'userscript', 'spawn'])
+Target = enum.Enum('Target', ['normal', 'current', 'tab', 'tab_fg', 'tab_bg',
+                              'window', 'yank', 'yank_primary', 'run', 'fill',
+                              'hover', 'download', 'userscript', 'spawn'])
 
 
 class HintingError(Exception):
@@ -617,8 +617,10 @@ class HintManager(QObject):
         """Start hinting.
 
         Args:
-            rapid: Whether to do rapid hinting. This is only possible with
-                   targets `tab` (with `tabs.background_tabs=true`), `tab-bg`,
+            rapid: Whether to do rapid hinting. With rapid hinting, the hint
+                   mode isn't left after a hint is followed, so you can easily
+                   open multiple links. This is only possible with targets
+                   `tab` (with `tabs.background_tabs=true`), `tab-bg`,
                    `window`, `run`, `hover`, `userscript` and `spawn`.
             add_history: Whether to add the spawned or yanked link to the
                          browsing history.
@@ -900,7 +902,7 @@ class HintManager(QObject):
         except HintingError as e:
             message.error(str(e))
 
-    @cmdutils.register(instance='hintmanager', scope='tab', hide=True,
+    @cmdutils.register(instance='hintmanager', scope='tab',
                        modes=[usertypes.KeyMode.hint])
     def follow_hint(self, keystring=None):
         """Follow a hint.

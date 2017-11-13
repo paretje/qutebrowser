@@ -32,22 +32,53 @@ Added
 - New `config.source(...)` method for `config.py` to source another file.
 - New `keyhint.radius` option to configure the edge rounding for the key hint
   widget.
+- `:edit-url` now handles the `--private` and `--related` flags, which have the
+  same effect they have with `:open`.
+- New `{line}` and `{column}` replacements for `editor.command` to position the
+  cursor correctly.
+- New `qute-pass` userscript as alternative to `password_fill` which allows
+  selecting accounts via rofi or any other dmenu-compatile application.
+- New `qt.highdpi` setting to turn on Qt's High-DPI scaling.
+- New `:completion-item-yank` command (bound to `<Ctrl-C>`) to yank the current
+  completion item text.
+- New `tabs.pinned.shrink` setting to (`true` by default) to make it possible
+  for pinned tabs and normal tabs to have the same size.
 
 Changed
 ~~~~~~~
 
+- Some tabs settings got renamed:
+  * `tabs.width.bar` -> `tabs.width`
+  * `tabs.width.indicator` -> `tabs.indicator.width`
+  * `tabs.indicator_padding` -> `tabs.indicator.padding`
 - High-DPI favicons are now used when available.
 - The `asciidoc2html.py` script now uses Pygments (which is already a dependency
   of qutebrowser) instead of `source-highlight` for syntax highlighting.
+- The `:buffer` command now doesn't require quoting anymore, similar to `:open`.
+- The `importer.py` script was largely rewritten and now also supports importing
+  from Firefox' `places.sqlite` file and Chrome/Chromium profiles.
+- Various internal refactorings to use Python 3.5 and ECMAscript 6 features
+- If the `window.hide_wayland_decoration` setting is False, but
+  `QT_WAYLAND_DISABLE_WINDOWDECORATION` is set in the environment,
+  the decorations are still hidden.
+- The `install_dict.py` script for QtWebEngine was renamed to `dictcli.py` and
+  can now also upgrade dictionaries correctly.
+- `:undo` now can re-open multiple tabs after `:tab-only` was used.
+- `:config-write-py` with a relative path now puts the file into the config
+  directory.
 
 Fixed
 ~~~~~
 
 - More consistent sizing for favicons with vertical tabs.
 - Using `:home` on pinned tabs is now prevented.
-- Fix crash with unknown file types loaded via qute://help
-- Scrolling performance improvements
-- Fix crash when `:tab-give` is used with an unknown window ID.
+- Fix crash with unknown file types loaded via qute://help.
+- Scrolling performance improvements.
+- Sites like `qute://help` now redirect to `qute://help/` to make sure links
+  work properly.
+- Fixes for the size calculation of pinned tabs in the tab bar.
+- Worked around a crash with PyQt 5.9.1 compiled against Qt < 5.9.1 when using
+  :yank or qute:// URLs.
 
 Deprecated
 ~~~~~~~~~~
@@ -61,14 +92,39 @@ Removed
 - The long-deprecated `:prompt-yes`, `:prompt-no`, `:paste-primary` and `:paste`
   commands have been removed.
 - The `messages.unfocused` option which wasn't used anymore was removed.
+- The `x[xtb]` default bindings got removed again as many users accidentally
+  triggered them.
 
-v1.0.3 (unreleased)
+v1.0.4 (unreleased)
 -------------------
 
 Fixed
 ~~~~~
 
+- The `qute://gpl` page now works correctly again.
+- Trying to bind an empty command now doesn't crash anymore.
+
+v1.0.3
+------
+
+Changed
+~~~~~~~
+
+- macOS and Windows builds are now built with PyQt 5.9.1 and Qt 5.9.2, including
+  various bugfixes, as well as security fixes from Chromium up to version
+  61.0.3163.79.
+- Performance improvements for tab rendering.
+- The :open-editor command is now not hidden anymore as it's also usable in
+  normal mode.
+
+Fixed
+~~~~~
+
 - Handle accessing a locked sqlite database gracefully
+- Abort pinned tab dialogs properly when a tab is closed e.g. by closing a
+  window
+- Unbinding a default keybinding twice now doesn't bind it again
+- Completions are now sorted correctly again when filtered
 
 v1.0.2
 ------
