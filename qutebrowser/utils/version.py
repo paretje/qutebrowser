@@ -28,9 +28,10 @@ import subprocess
 import importlib
 import collections
 import enum
-import pkg_resources
+import datetime
 
 import attr
+import pkg_resources
 from PyQt5.QtCore import PYQT_VERSION_STR, QLibraryInfo
 from PyQt5.QtNetwork import QSslSocket
 from PyQt5.QtGui import (QOpenGLContext, QOpenGLVersionProfile,
@@ -325,6 +326,14 @@ def _backend():
         return 'QtWebEngine (Chromium {})'.format(_chromium_version())
 
 
+def _uptime() -> datetime.timedelta:
+    launch_time = QApplication.instance().launch_time
+    time_delta = datetime.datetime.now() - launch_time
+    # Round off microseconds
+    time_delta -= datetime.timedelta(microseconds=time_delta.microseconds)
+    return time_delta
+
+
 def version():
     """Return a string with various version informations."""
     lines = ["qutebrowser v{}".format(qutebrowser.__version__)]
@@ -387,6 +396,11 @@ def version():
     ]
     for name, path in sorted(_path_info().items()):
         lines += ['{}: {}'.format(name, path)]
+
+    lines += [
+        '',
+        'Uptime: {}'.format(_uptime()),
+    ]
 
     return '\n'.join(lines)
 

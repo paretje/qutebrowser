@@ -43,6 +43,8 @@ Added
   completion item text.
 - New `tabs.pinned.shrink` setting to (`true` by default) to make it possible
   for pinned tabs and normal tabs to have the same size.
+_ New `content.windowed_fullscreen` setting to show e.g. a fullscreened video in
+  the window without fullscreening that window.
 
 Changed
 ~~~~~~~
@@ -66,6 +68,9 @@ Changed
 - `:undo` now can re-open multiple tabs after `:tab-only` was used.
 - `:config-write-py` with a relative path now puts the file into the config
   directory.
+- The `qute://version` page now also shows the uptime of qutebrowser.
+- qutebrowser now prompts to create a non-existing directory when starting a
+  download.
 
 Fixed
 ~~~~~
@@ -79,6 +84,9 @@ Fixed
 - Fixes for the size calculation of pinned tabs in the tab bar.
 - Worked around a crash with PyQt 5.9.1 compiled against Qt < 5.9.1 when using
   :yank or qute:// URLs.
+- Fixed crash when opening `qute://help/img`
+- Fixed `gU` (`:navigate up`) on `qute://help` and webservers not handling `..`
+  in a URL.
 
 Deprecated
 ~~~~~~~~~~
