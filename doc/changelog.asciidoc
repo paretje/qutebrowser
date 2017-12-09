@@ -21,6 +21,11 @@ v1.1.0 (unreleased)
 Added
 ~~~~~
 
+- Initial support for Greasemonkey scripts. There are still some rough edges,
+  but many scripts should already work.
+- There's now a `misc/Makefile` file in releases, which should help
+  distributions which package qutebrowser, as they can run something like
+  `make -f misc/Makefile DESTDIR="$pkgdir" install` now.
 - New `{current_url}` field for `window.title_format` and `tabs.title.format`.
 - New `colors.statusbar.passthrough.fg`/`.bg` settings.
 - New `completion.delay` and `completion.min_chars` settings to update the
@@ -46,6 +51,11 @@ Added
 - New `content.windowed_fullscreen` setting to show e.g. a fullscreened video in
   the window without fullscreening that window.
 - New `:edit-command` command to edit the commandline in an editor.
+- New `tabs.persist_mode_on_change` setting to keep the current mode when
+  switching tabs.
+- New `session.lazy_restore` setting which allows to not load pages immediately
+  when restoring a session.
+- New `hist_importer.py` script to import history from Firefox/Chromium.
 
 Changed
 ~~~~~~~
@@ -72,6 +82,20 @@ Changed
 - The `qute://version` page now also shows the uptime of qutebrowser.
 - qutebrowser now prompts to create a non-existing directory when starting a
   download.
+- Much improved user stylesheet handling which reduces flickering
+  and updates immediately after setting a stylesheet.
+- `:completion-item-focus` now has a `--history` flag which causes it to go
+  through the command history when no text was entered. The default bindings for
+  cursor keys in the completion changed to use that, so that they can be used
+  again to navigate through completion items when a text was entered.
+- `:debug-pyeval` now has a `--file` argument so it takes a filename instead of
+  a line of code.
+- `:jseval --file` now searches relative paths in a js/ subdir in qutebrowser's
+  data dir, e.g. `~/.local/share/qutebrowser/js`.
+- The current/default bindings are now shown in the :bind completion.
+- Empty categories are now hidden in the `:open` completion.
+- Search terms for URLs and titles can now be mixed when filtering the
+  completion.
 
 Fixed
 ~~~~~
@@ -88,6 +112,10 @@ Fixed
 - Fixed crash when opening `qute://help/img`
 - Fixed `gU` (`:navigate up`) on `qute://help` and webservers not handling `..`
   in a URL.
+- Using e.g. `-s backend webkit` to set the backend now works correctly.
+- Fixed crash when closing the tab an external editor was opened in.
+- When using `:search-next` before a search is finished, no warning about no
+  results being found is shown anymore.
 
 Deprecated
 ~~~~~~~~~~
@@ -104,8 +132,8 @@ Removed
 - The `x[xtb]` default bindings got removed again as many users accidentally
   triggered them.
 
-v1.0.4 (unreleased)
--------------------
+v1.0.4
+------
 
 Fixed
 ~~~~~
@@ -113,6 +141,9 @@ Fixed
 - The `qute://gpl` page now works correctly again.
 - Trying to bind an empty command now doesn't crash anymore.
 - Fixed crash when `:config-write-py` fails to write to the given path.
+- Fixed crash for some users when selecting a file with Qt 5.9.3
+- Improved handling for various SQL errors
+- Fix crash when setting content.cache.size to a big value (> 2 GB)
 
 v1.0.3
 ------

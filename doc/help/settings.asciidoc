@@ -222,7 +222,8 @@
 |<<qt.highdpi,qt.highdpi>>|Turn on Qt HighDPI scaling.
 |<<scrolling.bar,scrolling.bar>>|Show a scrollbar.
 |<<scrolling.smooth,scrolling.smooth>>|Enable smooth scrolling for web pages.
-|<<session_default_name,session_default_name>>|Name of the session to save by default.
+|<<session.default_name,session.default_name>>|Name of the session to save by default.
+|<<session.lazy_restore,session.lazy_restore>>|Load a restored tab as soon as it takes focus.
 |<<spellcheck.languages,spellcheck.languages>>|Languages to use for spell checking.
 |<<statusbar.hide,statusbar.hide>>|Hide the statusbar unless a message is shown.
 |<<statusbar.padding,statusbar.padding>>|Padding (in pixels) for the statusbar.
@@ -239,6 +240,7 @@
 |<<tabs.new_position.related,tabs.new_position.related>>|Position of new tabs opened from another tab.
 |<<tabs.new_position.unrelated,tabs.new_position.unrelated>>|Position of new tabs which aren't opened from another tab.
 |<<tabs.padding,tabs.padding>>|Padding (in pixels) around text for tabs.
+|<<tabs.persist_mode_on_change,tabs.persist_mode_on_change>>|Stay in insert/passthrough mode when switching tabs.
 |<<tabs.pinned.shrink,tabs.pinned.shrink>>|Shrink pinned tabs down to their contents.
 |<<tabs.position,tabs.position>>|Position of the tab bar.
 |<<tabs.select_on_remove,tabs.select_on_remove>>|Which tab to select when the focused tab is removed.
@@ -430,13 +432,13 @@ Default:
 * +pass:[&lt;Ctrl-U&gt;]+: +pass:[rl-unix-line-discard]+
 * +pass:[&lt;Ctrl-W&gt;]+: +pass:[rl-unix-word-rubout]+
 * +pass:[&lt;Ctrl-Y&gt;]+: +pass:[rl-yank]+
-* +pass:[&lt;Down&gt;]+: +pass:[command-history-next]+
+* +pass:[&lt;Down&gt;]+: +pass:[completion-item-focus --history next]+
 * +pass:[&lt;Escape&gt;]+: +pass:[leave-mode]+
 * +pass:[&lt;Return&gt;]+: +pass:[command-accept]+
 * +pass:[&lt;Shift-Delete&gt;]+: +pass:[completion-item-del]+
 * +pass:[&lt;Shift-Tab&gt;]+: +pass:[completion-item-focus prev]+
 * +pass:[&lt;Tab&gt;]+: +pass:[completion-item-focus next]+
-* +pass:[&lt;Up&gt;]+: +pass:[command-history-prev]+
+* +pass:[&lt;Up&gt;]+: +pass:[completion-item-focus --history prev]+
 - +pass:[hint]+:
 
 * +pass:[&lt;Ctrl-B&gt;]+: +pass:[hint all tab-bg]+
@@ -1455,6 +1457,7 @@ This setting is only available with the QtWebKit backend.
 [[content.cache.size]]
 === content.cache.size
 Size (in bytes) of the HTTP network cache. Null to use the default value.
+With QtWebEngine, the maximum supported value is 2147483647 (~2 GB).
 
 Type: <<types,Int>>
 
@@ -2554,14 +2557,22 @@ Type: <<types,Bool>>
 
 Default: +pass:[false]+
 
-[[session_default_name]]
-=== session_default_name
+[[session.default_name]]
+=== session.default_name
 Name of the session to save by default.
 If this is set to null, the session which was last loaded is saved.
 
 Type: <<types,SessionName>>
 
 Default: empty
+
+[[session.lazy_restore]]
+=== session.lazy_restore
+Load a restored tab as soon as it takes focus.
+
+Type: <<types,Bool>>
+
+Default: +pass:[false]+
 
 [[spellcheck.languages]]
 === spellcheck.languages
@@ -2797,6 +2808,14 @@ Default:
 - +pass:[left]+: +pass:[5]+
 - +pass:[right]+: +pass:[5]+
 - +pass:[top]+: +pass:[0]+
+
+[[tabs.persist_mode_on_change]]
+=== tabs.persist_mode_on_change
+Stay in insert/passthrough mode when switching tabs.
+
+Type: <<types,Bool>>
+
+Default: +pass:[false]+
 
 [[tabs.pinned.shrink]]
 === tabs.pinned.shrink

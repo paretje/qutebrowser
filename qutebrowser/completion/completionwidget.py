@@ -226,26 +226,40 @@ class CompletionView(QTreeView):
                        modes=[usertypes.KeyMode.command], scope='window')
     @cmdutils.argument('which', choices=['next', 'prev', 'next-category',
                                          'prev-category'])
-    def completion_item_focus(self, which):
+    @cmdutils.argument('history', flag='H')
+    def completion_item_focus(self, which, history=False):
         """Shift the focus of the completion menu to another item.
 
         Args:
             which: 'next', 'prev', 'next-category', or 'prev-category'.
+            history: Navigate through command history if no text was typed.
         """
+        if history:
+            status = objreg.get('status-command', scope='window',
+                                window=self._win_id)
+            if (status.text() == ':' or status.history.is_browsing() or
+                    not self._active):
+                if which == 'next':
+                    status.command_history_next()
+                    return
+                elif which == 'prev':
+                    status.command_history_prev()
+                    return
+                else:
+                    raise cmdexc.CommandError("Can't combine --history with "
+                                              "{}!".format(which))
+
         if not self._active:
             return
-        selmodel = self.selectionModel()
 
-        if which == 'next':
-            idx = self._next_idx(upwards=False)
-        elif which == 'prev':
-            idx = self._next_idx(upwards=True)
-        elif which == 'next-category':
-            idx = self._next_category_idx(upwards=False)
-        elif which == 'prev-category':
-            idx = self._next_category_idx(upwards=True)
-        else:  # pragma: no cover
-            raise ValueError("Invalid 'which' value {!r}".format(which))
+        selmodel = self.selectionModel()
+        indices = {
+            'next': self._next_idx(upwards=False),
+            'prev': self._next_idx(upwards=True),
+            'next-category': self._next_category_idx(upwards=False),
+            'prev-category': self._next_category_idx(upwards=True),
+        }
+        idx = indices[which]
 
         if not idx.isValid():
             return

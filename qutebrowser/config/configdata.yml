@@ -79,6 +79,9 @@ new_instance_open_target_window:
     When `new_instance_open_target` is not set to `window`, this is ignored.
 
 session_default_name:
+  renamed: session.default_name
+
+session.default_name:
   type:
     name: SessionName
     none_ok: true
@@ -87,6 +90,11 @@ session_default_name:
     Name of the session to save by default.
 
     If this is set to null, the session which was last loaded is saved.
+
+session.lazy_restore:
+  type: Bool
+  default: false
+  desc: Load a restored tab as soon as it takes focus.
 
 backend:
   type:
@@ -195,8 +203,10 @@ content.cache.size:
     none_ok: true
     minval: 0
     maxval: maxint64
-  desc: Size (in bytes) of the HTTP network cache. Null to use the default
-    value.
+  desc: >-
+    Size (in bytes) of the HTTP network cache. Null to use the default value.
+
+    With QtWebEngine, the maximum supported value is 2147483647 (~2 GB).
 
 # Defaults from QWebSettings::QWebSettings() in
 # qtwebkit/Source/WebKit/qt/Api/qwebsettings.cpp
@@ -1232,6 +1242,11 @@ tabs.padding:
     right: 5
   type: Padding
   desc: Padding (in pixels) around text for tabs.
+
+tabs.persist_mode_on_change:
+  default: false
+  type: Bool
+  desc: Stay in insert/passthrough mode when switching tabs.
 
 tabs.position:
   default: top
@@ -2276,8 +2291,8 @@ bindings.default:
     command:
       <Ctrl-P>: command-history-prev
       <Ctrl-N>: command-history-next
-      <Up>: command-history-prev
-      <Down>: command-history-next
+      <Up>: completion-item-focus --history prev
+      <Down>: completion-item-focus --history next
       <Shift-Tab>: completion-item-focus prev
       <Tab>: completion-item-focus next
       <Ctrl-Tab>: completion-item-focus next-category

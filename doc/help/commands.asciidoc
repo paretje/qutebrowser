@@ -47,12 +47,14 @@ It is possible to run or bind multiple commands by separating them with `;;`.
 |<<download-open,download-open>>|Open the last/[count]th download.
 |<<download-remove,download-remove>>|Remove the last/[count]th download from the list.
 |<<download-retry,download-retry>>|Retry the first failed/[count]th download.
+|<<edit-command,edit-command>>|Open an editor to modify the current command.
 |<<edit-url,edit-url>>|Navigate to a url formed in an external editor.
 |<<enter-mode,enter-mode>>|Enter a key mode.
 |<<fake-key,fake-key>>|Send a fake keypress or key string to the website or qutebrowser.
 |<<follow-selected,follow-selected>>|Follow the selected text.
 |<<forward,forward>>|Go forward in the history of the current tab.
 |<<fullscreen,fullscreen>>|Toggle fullscreen mode.
+|<<greasemonkey-reload,greasemonkey-reload>>|Re-read Greasemonkey scripts from disk.
 |<<help,help>>|Show help about a command or setting.
 |<<hint,hint>>|Start hinting.
 |<<history,history>>|Show browsing history.
@@ -407,6 +409,15 @@ Retry the first failed/[count]th download.
 ==== count
 The index of the download to retry.
 
+[[edit-command]]
+=== edit-command
+Syntax: +:edit-command [*--run*]+
+
+Open an editor to modify the current command.
+
+==== optional arguments
+* +*-r*+, +*--run*+: Run the command if the editor exits successfully.
+
 [[edit-url]]
 === edit-url
 Syntax: +:edit-url [*--bg*] [*--tab*] [*--window*] [*--private*] [*--related*] ['url']+
@@ -480,6 +491,12 @@ Toggle fullscreen mode.
 
 ==== optional arguments
 * +*-l*+, +*--leave*+: Only leave fullscreen if it was entered by the page.
+
+[[greasemonkey-reload]]
+=== greasemonkey-reload
+Re-read Greasemonkey scripts from disk.
+
+The scripts are read from a 'greasemonkey' subdirectory in qutebrowser's data directory (see `:version`).
 
 [[help]]
 === help
@@ -629,7 +646,10 @@ Evaluate a JavaScript string.
 * +'js-code'+: The string/file to evaluate.
 
 ==== optional arguments
-* +*-f*+, +*--file*+: Interpret js-code as a path to a file.
+* +*-f*+, +*--file*+: Interpret js-code as a path to a file. If the path is relative, the file is searched in a js/ subdir
+ in qutebrowser's data dir, e.g.
+ `~/.local/share/qutebrowser/js`.
+
 * +*-q*+, +*--quiet*+: Don't show resulting JS object.
 * +*-w*+, +*--world*+: Ignored on QtWebKit. On QtWebEngine, a world ID or name to run the snippet in.
 
@@ -1070,7 +1090,7 @@ Syntax: +:session-save [*--current*] [*--quiet*] [*--force*] [*--only-active-win
 Save a session.
 
 ==== positional arguments
-* +'name'+: The name of the session. If not given, the session configured in session_default_name is saved.
+* +'name'+: The name of the session. If not given, the session configured in session.default_name is saved.
 
 
 ==== optional arguments
@@ -1418,12 +1438,15 @@ Delete the current completion item.
 
 [[completion-item-focus]]
 === completion-item-focus
-Syntax: +:completion-item-focus 'which'+
+Syntax: +:completion-item-focus [*--history*] 'which'+
 
 Shift the focus of the completion menu to another item.
 
 ==== positional arguments
 * +'which'+: 'next', 'prev', 'next-category', or 'prev-category'.
+
+==== optional arguments
+* +*-H*+, +*--history*+: Navigate through command history if no text was typed.
 
 [[completion-item-yank]]
 === completion-item-yank
@@ -1773,7 +1796,7 @@ Change the log level for console logging.
 
 [[debug-pyeval]]
 === debug-pyeval
-Syntax: +:debug-pyeval [*--quiet*] 's'+
+Syntax: +:debug-pyeval [*--file*] [*--quiet*] 's'+
 
 Evaluate a python string and display the results as a web page.
 
@@ -1781,6 +1804,7 @@ Evaluate a python string and display the results as a web page.
 * +'s'+: The string to evaluate.
 
 ==== optional arguments
+* +*-f*+, +*--file*+: Interpret s as a path to file, also implies --quiet.
 * +*-q*+, +*--quiet*+: Don't show the output in a new tab.
 
 ==== note

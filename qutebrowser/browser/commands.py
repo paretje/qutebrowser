@@ -39,7 +39,7 @@ from qutebrowser.browser import (urlmarks, browsertab, inspector, navigate,
                                  webelem, downloads)
 from qutebrowser.keyinput import modeman
 from qutebrowser.utils import (message, usertypes, log, qtutils, urlutils,
-                               objreg, utils, debug)
+                               objreg, utils, debug, standarddir)
 from qutebrowser.utils.usertypes import KeyMode
 from qutebrowser.misc import editor, guiprocess
 from qutebrowser.completion.models import urlmodel, miscmodels
@@ -518,7 +518,7 @@ class CommandDispatcher:
         return newtab
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
-    @cmdutils.argument('index', completion=miscmodels.buffer)
+    @cmdutils.argument('index', completion=miscmodels.other_buffer)
     def tab_take(self, index):
         """Take a tab from another window.
 
@@ -1644,6 +1644,8 @@ class CommandDispatcher:
         """
         try:
             elem.set_value(text)
+        except webelem.OrphanedError as e:
+            message.error('Edited element vanished')
         except webelem.Error as e:
             raise cmdexc.CommandError(str(e))
 
@@ -2029,6 +2031,9 @@ class CommandDispatcher:
         Args:
             js_code: The string/file to evaluate.
             file: Interpret js-code as a path to a file.
+                  If the path is relative, the file is searched in a js/ subdir
+                  in qutebrowser's data dir, e.g.
+                  `~/.local/share/qutebrowser/js`.
             quiet: Don't show resulting JS object.
             world: Ignored on QtWebKit. On QtWebEngine, a world ID or name to
                    run the snippet in.
@@ -2058,6 +2063,9 @@ class CommandDispatcher:
 
         if file:
             path = os.path.expanduser(js_code)
+            if not os.path.isabs(path):
+                path = os.path.join(standarddir.data(), 'js', path)
+
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     js_code = f.read()

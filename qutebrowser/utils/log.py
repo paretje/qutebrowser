@@ -95,7 +95,8 @@ LOGGER_NAMES = [
     'commands', 'signals', 'downloads',
     'js', 'qt', 'rfc6266', 'ipc', 'shlexer',
     'save', 'message', 'config', 'sessions',
-    'webelem', 'prompt', 'network', 'sql'
+    'webelem', 'prompt', 'network', 'sql',
+    'greasemonkey'
 ]
 
 
@@ -144,6 +145,7 @@ webelem = logging.getLogger('webelem')
 prompt = logging.getLogger('prompt')
 network = logging.getLogger('network')
 sql = logging.getLogger('sql')
+greasemonkey = logging.getLogger('greasemonkey')
 domains = logging.getLogger('domains')
 
 
@@ -361,7 +363,7 @@ def qt_message_handler(msg_type, context, msg):
         # PNGs in Qt with broken color profile
         # https://bugreports.qt.io/browse/QTBUG-39788
         'libpng warning: iCCP: Not recognizing known sRGB profile that has '
-            'been edited',  # flake8: disable=E131
+            'been edited',  # noqa: E131
         'libpng warning: iCCP: known incorrect sRGB profile',
         # Hopefully harmless warning
         'OpenType support missing for script ',
@@ -420,8 +422,11 @@ def qt_message_handler(msg_type, context, msg):
             'libpng warning: iCCP: known incorrect sRGB profile',
             # https://bugreports.qt.io/browse/QTBUG-47154
             'virtual void QSslSocketBackendPrivate::transmit() SSLRead failed '
-                'with: -9805',  # flake8: disable=E131
+                'with: -9805',  # noqa: E131
         ]
+
+    if not msg:
+        msg = "Logged empty message!"
 
     if any(msg.strip().startswith(pattern) for pattern in suppressed_msgs):
         level = logging.DEBUG

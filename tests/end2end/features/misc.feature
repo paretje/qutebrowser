@@ -118,8 +118,8 @@ Feature: Various utility commands.
         And "No output or error" should be logged
 
     Scenario: :jseval --file using a file that doesn't exist as js-code
-        When I run :jseval --file nonexistentfile
-        Then the error "[Errno 2] No such file or directory: 'nonexistentfile'" should be shown
+        When I run :jseval --file /nonexistentfile
+        Then the error "[Errno 2] No such file or directory: '/nonexistentfile'" should be shown
         And "No output or error" should not be logged
 
     # :debug-webaction
@@ -466,6 +466,17 @@ Feature: Various utility commands.
         And I wait for "blah" in the log
         And I run :set-cmd-text :
         And I run :command-history-prev
+        And I run :command-accept
+        Then the message "blah" should be shown
+
+    Scenario: Calling previous command with :completion-item-focus
+        When I run :set-cmd-text :message-info blah
+        And I wait for "Entering mode KeyMode.command (reason: *)" in the log
+        And I run :command-accept
+        And I wait for "blah" in the log
+        And I run :set-cmd-text :
+        And I wait for "Entering mode KeyMode.command (reason: *)" in the log
+        And I run :completion-item-focus prev --history
         And I run :command-accept
         Then the message "blah" should be shown
 

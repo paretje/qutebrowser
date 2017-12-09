@@ -76,7 +76,7 @@ Feature: Special qute:// pages
     Scenario: Opening a link with qute://help/img/
         When the documentation is up to date
         And I open qute://help/img/ without waiting
-        Then "OSError while handling qute://* URL" should be logged
+        Then "*Error while * qute://*" should be logged
         And "* url='qute://help/img'* LoadStatus.error" should be logged
 
     # :history
@@ -113,6 +113,8 @@ Feature: Special qute:// pages
         And I wait for "Config option changed: ignore_case *" in the log
         Then the option ignore_case should be set to always
 
+    # Sometimes, an unrelated value gets set
+    @flaky
     Scenario: Focusing input fields in qute://settings and entering invalid value
         When I open qute://settings
         # scroll to the right - the table does not fit in the default screen
@@ -170,6 +172,15 @@ Feature: Special qute:// pages
         When I run :debug-pyeval 1/0
         And I wait until qute://pyeval/ is loaded
         Then the page should contain the plaintext "ZeroDivisionError"
+
+    Scenario: Running :pyveal with --file using a file that exists as python code
+        When I run :debug-pyeval --file (testdata)/misc/pyeval_file.py
+        Then the message "Hello World" should be shown
+        And "pyeval output: No error" should be logged
+
+    Scenario: Running :pyeval --file using a non existing file
+        When I run :debug-pyeval --file nonexistentfile
+        Then the error "[Errno 2] No such file or directory: 'nonexistentfile'" should be shown
 
     Scenario: Running :pyeval with --quiet
         When I run :debug-pyeval --quiet 1+1
