@@ -300,8 +300,16 @@ class Process(QObject):
 
     def terminate(self):
         """Clean up and shut down the process."""
-        self.proc.terminate()
-        self.proc.waitForFinished()
+        if not self.is_running():
+            return
+
+        if quteutils.is_windows:
+            self.proc.kill()
+        else:
+            self.proc.terminate()
+
+        ok = self.proc.waitForFinished()
+        assert ok
 
     def is_running(self):
         """Check if the process is currently running."""
@@ -327,7 +335,7 @@ class Process(QObject):
         if expected is None:
             return True
         elif isinstance(expected, regex_type):
-            return expected.match(value)
+            return expected.search(value)
         elif isinstance(value, (bytes, str)):
             return utils.pattern_match(pattern=expected, value=value)
         else:
