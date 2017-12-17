@@ -99,16 +99,17 @@ def get_argparser():
     subparsers = parser.add_subparsers(help='Command', dest='cmd')
     subparsers.required = True
     subparsers.add_parser('list',
-        help='Display the list of available languages.')
+                          help='Display the list of available languages.')
     subparsers.add_parser('update',
-        help='Update dictionaries')
+                          help='Update dictionaries')
     subparsers.add_parser('remove-old',
-        help='Remove old versions of dictionaries.')
+                          help='Remove old versions of dictionaries.')
 
     install_parser = subparsers.add_parser('install',
-        help='Install dictionaries')
+                                           help='Install dictionaries')
     install_parser.add_argument('language',
-        nargs='*', help="A list of languages to install.")
+                                nargs='*',
+                                help="A list of languages to install.")
 
     return parser
 
@@ -233,6 +234,7 @@ def install(languages):
 
 
 def update(languages):
+    """Update the given languages."""
     installed = [lang for lang in languages if lang.local_version is not None]
     for lang in installed:
         if lang.local_version < lang.remote_version:
@@ -244,6 +246,7 @@ def update(languages):
 
 
 def remove_old(languages):
+    """Remove old versions of languages."""
     installed = [lang for lang in languages if lang.local_version is not None]
     for lang in installed:
         local_files = spell.local_files(lang.code)

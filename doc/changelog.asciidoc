@@ -59,6 +59,8 @@ Added
 - New `{protocol}` replacement for `tabs.title.format` and friends.
 - New `-o` flag for `:spawn` to show stdout/stderr in a new tab.
 - Support for incremental search, with a new `search.incremental` setting.
+- New `--rapid` flag for `:command-accept` (bound to `Ctrl-Enter` by default),
+  which allows executing a command in the completion without closing it.
 
 Changed
 ~~~~~~~
@@ -128,6 +130,7 @@ Fixed
   results being found is shown anymore.
 - Fix :click-element with an ID containing non-alphanumeric characters.
 - Fix crash when a subprocess outputs data which is not decodable as UTF-8.
+- Fix crash when closing a tab immediately after hinting.
 
 Deprecated
 ~~~~~~~~~~
@@ -140,6 +143,8 @@ Removed
 
 - The long-deprecated `:prompt-yes`, `:prompt-no`, `:paste-primary` and `:paste`
   commands have been removed.
+- The invocation `:download <url> <dest>` which was deprecated in v0.5.0 was
+  removed, use `:download --dest <dest> <url>` instead.
 - The `messages.unfocused` option which wasn't used anymore was removed.
 - The `x[xtb]` default bindings got removed again as many users accidentally
   triggered them.

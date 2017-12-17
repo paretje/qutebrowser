@@ -149,8 +149,8 @@ class WebHistory(sql.SqlTable):
         if force:
             self._do_clear()
         else:
-            message.confirm_async(self._do_clear, title="Clear all browsing "
-                                  "history?")
+            message.confirm_async(yes_action=self._do_clear,
+                                  title="Clear all browsing history?")
 
     def _do_clear(self):
         with self._handle_sql_errors():
@@ -268,6 +268,7 @@ class WebHistory(sql.SqlTable):
             return
 
         def action():
+            """Actually run the import."""
             with debug.log_time(log.init, 'Import old history file to sqlite'):
                 try:
                     self._read(path)
@@ -340,7 +341,7 @@ class WebHistory(sql.SqlTable):
                 f.write('\n'.join(lines))
             message.info("Dumped history to {}".format(dest))
         except OSError as e:
-            raise cmdexc.CommandError('Could not write history: {}', e)
+            raise cmdexc.CommandError('Could not write history: {}'.format(e))
 
 
 def init(parent=None):

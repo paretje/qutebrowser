@@ -334,11 +334,9 @@ Write the current configuration to a config.py file.
 
 [[download]]
 === download
-Syntax: +:download [*--mhtml*] [*--dest* 'dest'] ['url'] ['dest-old']+
+Syntax: +:download [*--mhtml*] [*--dest* 'dest'] ['url']+
 
 Download a given URL, or current page if no URL given.
-
-The form `:download [url] [dest]` is deprecated, use `:download --dest [dest] [url]` instead.
 
 ==== positional arguments
 * +'url'+: The URL to download. If not given, download the current page.
@@ -518,7 +516,7 @@ Show help about a command or setting.
 
 [[hint]]
 === hint
-Syntax: +:hint [*--rapid*] [*--mode* 'mode'] [*--add-history*]
+Syntax: +:hint [*--mode* 'mode'] [*--add-history*] [*--rapid*]
      ['group'] ['target'] ['args' ['args' ...]]+
 
 Start hinting.
@@ -572,11 +570,6 @@ Start hinting.
 
 
 ==== optional arguments
-* +*-r*+, +*--rapid*+: Whether to do rapid hinting. With rapid hinting, the hint mode isn't left after a hint is followed, so you can easily
- open multiple links. This is only possible with targets
- `tab` (with `tabs.background_tabs=true`), `tab-bg`,
- `window`, `run`, `hover`, `userscript` and `spawn`.
-
 * +*-m*+, +*--mode*+: The hinting mode to use. 
 
  - `number`: Use numeric hints.
@@ -587,6 +580,11 @@ Start hinting.
 
 
 * +*-a*+, +*--add-history*+: Whether to add the spawned or yanked link to the browsing history.
+
+* +*-r*+, +*--rapid*+: Whether to do rapid hinting. With rapid hinting, the hint mode isn't left after a hint is followed, so you can easily
+ open multiple links. This is only possible with targets
+ `tab` (with `tabs.background_tabs=true`), `tab-bg`,
+ `window`, `run`, `hover`, `userscript` and `spawn`.
 
 
 ==== note
@@ -1423,7 +1421,12 @@ How many steps to zoom out.
 |==============
 [[command-accept]]
 === command-accept
+Syntax: +:command-accept [*--rapid*]+
+
 Execute the command currently in the commandline.
+
+==== optional arguments
+* +*-r*+, +*--rapid*+: Run the command without closing or clearing the command bar.
 
 [[command-history-next]]
 === command-history-next

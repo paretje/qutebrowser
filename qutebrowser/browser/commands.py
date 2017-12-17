@@ -673,7 +673,7 @@ class CommandDispatcher:
                 self._open(new_url, tab, bg, window, related=True)
             else:  # pragma: no cover
                 raise ValueError("Got called with invalid value {} for "
-                                "`where'.".format(where))
+                                 "`where'.".format(where))
         except navigate.Error as e:
             raise cmdexc.CommandError(e)
 
@@ -1425,27 +1425,14 @@ class CommandDispatcher:
             raise cmdexc.CommandError(e)
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
-    @cmdutils.argument('dest_old', hide=True)
-    def download(self, url=None, dest_old=None, *, mhtml_=False, dest=None):
+    def download(self, url=None, *, mhtml_=False, dest=None):
         """Download a given URL, or current page if no URL given.
-
-        The form `:download [url] [dest]` is deprecated, use `:download --dest
-        [dest] [url]` instead.
 
         Args:
             url: The URL to download. If not given, download the current page.
-            dest_old: (deprecated) Same as dest.
             dest: The file path to write the download to, or None to ask.
             mhtml_: Download the current page and all assets as mhtml file.
         """
-        if dest_old is not None:
-            message.warning(":download [url] [dest] is deprecated - use "
-                            ":download --dest [dest] [url]")
-            if dest is not None:
-                raise cmdexc.CommandError("Can't give two destinations for the"
-                                          " download.")
-            dest = dest_old
-
         # FIXME:qtwebengine do this with the QtWebEngine download manager?
         download_manager = objreg.get('qtnetwork-download-manager',
                                       scope='window', window=self._win_id)
@@ -1535,6 +1522,7 @@ class CommandDispatcher:
         dest = os.path.expanduser(dest)
 
         def callback(data):
+            """Write the data to disk."""
             try:
                 with open(dest, 'w', encoding='utf-8') as f:
                     f.write(data)
@@ -1750,7 +1738,7 @@ class CommandDispatcher:
                 message.info("Search hit TOP, continuing at BOTTOM")
         else:
             message.warning("Text '{}' not found on page!".format(text),
-                replace=True)
+                            replace=True)
 
     @cmdutils.register(instance='command-dispatcher', scope='window',
                        maxsplit=0)
@@ -2053,6 +2041,7 @@ class CommandDispatcher:
             jseval_cb = None
         else:
             def jseval_cb(out):
+                """Show the data returned from JS."""
                 if out is None:
                     # Getting the actual error (if any) seems to be difficult.
                     # The error does end up in

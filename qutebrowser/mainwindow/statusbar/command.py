@@ -26,7 +26,7 @@ from qutebrowser.keyinput import modeman, modeparsers
 from qutebrowser.commands import cmdexc, cmdutils
 from qutebrowser.misc import cmdhistory, editor
 from qutebrowser.misc import miscwidgets as misc
-from qutebrowser.utils import usertypes, log, objreg, message
+from qutebrowser.utils import usertypes, log, objreg, message, utils
 from qutebrowser.config import config
 
 
@@ -156,8 +156,12 @@ class Command(misc.MinimalLineEditMixin, misc.CommandLineEdit):
 
     @cmdutils.register(instance='status-command',
                        modes=[usertypes.KeyMode.command], scope='window')
-    def command_accept(self):
-        """Execute the command currently in the commandline."""
+    def command_accept(self, rapid=False):
+        """Execute the command currently in the commandline.
+
+        Args:
+            rapid: Run the command without closing or clearing the command bar.
+        """
         prefixes = {
             ':': '',
             '/': 'search -- ',
@@ -165,7 +169,9 @@ class Command(misc.MinimalLineEditMixin, misc.CommandLineEdit):
         }
         text = self.text()
         self.history.append(text)
-        modeman.leave(self._win_id, usertypes.KeyMode.command, 'cmd accept')
+        if not rapid:
+            modeman.leave(self._win_id, usertypes.KeyMode.command,
+                          'cmd accept')
         self.got_cmd[str].emit(prefixes[text[0]] + text[1:])
 
     @cmdutils.register(instance='status-command', scope='window')
@@ -215,8 +221,8 @@ class Command(misc.MinimalLineEditMixin, misc.CommandLineEdit):
         elif text[0] in modeparsers.STARTCHARS:
             super().set_prompt(text[0])
         else:
-            raise AssertionError("setText got called with invalid text "
-                                 "'{}'!".format(text))
+            raise utils.Unreachable("setText got called with invalid text "
+                                    "'{}'!".format(text))
         super().setText(text)
 
     def keyPressEvent(self, e):

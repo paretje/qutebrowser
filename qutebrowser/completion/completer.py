@@ -134,9 +134,7 @@ class Completer(QObject):
             return [], '', []
         parser = runners.CommandParser()
         result = parser.parse(text, fallback=True, keep=True)
-        # pylint: disable=not-an-iterable
         parts = [x for x in result.cmdline if x]
-        # pylint: enable=not-an-iterable
         pos = self._cmd.cursorPosition() - len(self._cmd.prefix())
         pos = min(pos, len(text))  # Qt treats 2-byte UTF-16 chars as 2 chars
         log.completion.debug('partitioning {} around position {}'.format(parts,
@@ -155,8 +153,7 @@ class Completer(QObject):
                     "partitioned: {} '{}' {}".format(prefix, center, postfix))
                 return prefix, center, postfix
 
-        # We should always return above
-        assert False, parts
+        raise utils.Unreachable("Not all parts consumed: {}".format(parts))
 
     @pyqtSlot(str)
     def on_selection_changed(self, text):
@@ -209,7 +206,7 @@ class Completer(QObject):
             log.completion.debug("Ignoring update because the length of "
                                  "the text is less than completion.min_chars.")
         elif (self._cmd.cursorPosition() == self._last_cursor_pos and
-                self._cmd.text() == self._last_text):
+              self._cmd.text() == self._last_text):
             log.completion.debug("Ignoring update because there were no "
                                  "changes.")
         else:
@@ -250,8 +247,8 @@ class Completer(QObject):
         if func != self._last_completion_func:
             self._last_completion_func = func
             args = (x for x in before_cursor[1:] if not x.startswith('-'))
-            with debug.log_time(log.completion,
-                    'Starting {} completion'.format(func.__name__)):
+            with debug.log_time(log.completion, 'Starting {} completion'
+                                .format(func.__name__)):
                 info = CompletionInfo(config=config.instance,
                                       keyconf=config.key_instance,
                                       win_id=self._win_id)
