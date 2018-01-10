@@ -61,6 +61,8 @@ Added
 - Support for incremental search, with a new `search.incremental` setting.
 - New `--rapid` flag for `:command-accept` (bound to `Ctrl-Enter` by default),
   which allows executing a command in the completion without closing it.
+- The `colors.completion.fg` setting can now be a list, allowing to specify
+  different colors for the three completion columns.
 
 Changed
 ~~~~~~~
@@ -108,6 +110,7 @@ Changed
   order, and mixed matches on URL/tite are possible.
 - The system's default encoding (rather than UTF-8) is now used to decode
   subprocess output.
+- qutebrowser now ensures it's focused again after an external editor is closed.
 
 Fixed
 ~~~~~
@@ -131,6 +134,8 @@ Fixed
 - Fix :click-element with an ID containing non-alphanumeric characters.
 - Fix crash when a subprocess outputs data which is not decodable as UTF-8.
 - Fix crash when closing a tab immediately after hinting.
+- Worked around issues in Qt 5.10 with loading progress never being finished.
+- Fixed a crash when writing a flag before a command (e.g. `:-w open `).
 
 Deprecated
 ~~~~~~~~~~
