@@ -15,6 +15,23 @@ breaking changes (such as renamed commands) can happen in minor releases.
 // `Fixed` for any bug fixes.
 // `Security` to invite users to upgrade in case of vulnerabilities.
 
+v1.2.0 (unreleased)
+-------------------
+
+Changed
+~~~~~~~
+
+- The `hist_importer.py` script now only imports URL schemes qutebrowser can
+  handle.
+- Deleting a prefix (`:`, `/` or `?`) via backspace now leaves command mode.
+- Angular 1 elements now get hints assigned.
+- `:tab-only` with pinned tabs now still closes unpinned tabs.
+
+Fixed
+~~~~~
+
+- Improved fullscreen handling with Qt 5.10.
+
 v1.1.1 (unreleased)
 -------------------
 

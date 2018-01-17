@@ -39,7 +39,7 @@ from qutebrowser.browser import (urlmarks, browsertab, inspector, navigate,
                                  webelem, downloads)
 from qutebrowser.keyinput import modeman
 from qutebrowser.utils import (message, usertypes, log, qtutils, urlutils,
-                               objreg, utils, debug, standarddir)
+                               objreg, utils, standarddir)
 from qutebrowser.utils.usertypes import KeyMode
 from qutebrowser.misc import editor, guiprocess
 from qutebrowser.completion.models import urlmodel, miscmodels
@@ -953,22 +953,25 @@ class CommandDispatcher:
                         (prev and i < cur_idx) or
                         (next_ and i > cur_idx))
 
-        # Check to see if we are closing any pinned tabs
-        if not force:
-            for i, tab in enumerate(self._tabbed_browser.widgets()):
-                if _to_close(i) and tab.data.pinned:
-                    self._tabbed_browser.tab_close_prompt_if_pinned(
-                        tab,
-                        force,
-                        lambda: self.tab_only(
-                            prev=prev, next_=next_, force=True))
-                    return
-
+        # close as many tabs as we can
         first_tab = True
+        pinned_tabs_cleanup = False
         for i, tab in enumerate(self._tabbed_browser.widgets()):
             if _to_close(i):
-                self._tabbed_browser.close_tab(tab, new_undo=first_tab)
-                first_tab = False
+                if force or not tab.data.pinned:
+                    self._tabbed_browser.close_tab(tab, new_undo=first_tab)
+                    first_tab = False
+                else:
+                    pinned_tabs_cleanup = tab
+
+        # Check to see if we would like to close any pinned tabs
+        if pinned_tabs_cleanup:
+            self._tabbed_browser.tab_close_prompt_if_pinned(
+                pinned_tabs_cleanup,
+                force,
+                lambda: self.tab_only(
+                    prev=prev, next_=next_, force=True),
+                text="Are you sure you want to close pinned tabs?")
 
     @cmdutils.register(instance='command-dispatcher', scope='window')
     def undo(self):
@@ -2196,11 +2199,4 @@ class CommandDispatcher:
             return
 
         window = self._tabbed_browser.window()
-        if window.isFullScreen():
-            window.setWindowState(
-                window.state_before_fullscreen & ~Qt.WindowFullScreen)
-        else:
-            window.state_before_fullscreen = window.windowState()
-            window.showFullScreen()
-        log.misc.debug('state before fullscreen: {}'.format(
-            debug.qflags_key(Qt, window.state_before_fullscreen)))
+        window.setWindowState(window.windowState() ^ Qt.WindowFullScreen)
