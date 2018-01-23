@@ -63,6 +63,9 @@ class ConfigCommands:
         If the option name ends with '?', the value of the option is shown
         instead.
 
+        Using :set without any arguments opens a page where settings can be
+        changed interactively.
+
         Args:
             option: The name of the option.
             value: The value to set.
@@ -96,18 +99,28 @@ class ConfigCommands:
     @cmdutils.register(instance='config-commands', maxsplit=1,
                        no_cmd_split=True, no_replace_variables=True)
     @cmdutils.argument('command', completion=configmodel.bind)
-    def bind(self, key, command=None, *, mode='normal', default=False):
+    @cmdutils.argument('win_id', win_id=True)
+    def bind(self, win_id, key=None, command=None, *, mode='normal',
+             default=False):
         """Bind a key to a command.
+
+        If no command is given, show the current binding for the given key.
+        Using :bind without any arguments opens a page showing all keybindings.
 
         Args:
             key: The keychain or special key (inside `<...>`) to bind.
-            command: The command to execute, with optional args, or None to
-                     print the current binding.
+            command: The command to execute, with optional args.
             mode: A comma-separated list of modes to bind the key in
                   (default: `normal`). See `:help bindings.commands` for the
                   available modes.
             default: If given, restore a default binding.
         """
+        if key is None:
+            tabbed_browser = objreg.get('tabbed-browser', scope='window',
+                                        window=win_id)
+            tabbed_browser.openurl(QUrl('qute://bindings'), newtab=True)
+            return
+
         if command is None:
             if default:
                 # :bind --default: Restore default
