@@ -187,7 +187,6 @@ class StatusBar(QWidget):
         if config.val.backend == 'webkit':
             from qutebrowser.mainwindow.statusbar import settings
             self.settings = settings.TabSettings()
-            self._hbox.addWidget(self.settings)
 
         self.percentage = percentage.Percentage()
         self.backforward = backforward.Backforward()
@@ -220,6 +219,10 @@ class StatusBar(QWidget):
             widget.hide()
             self._hbox.removeWidget(widget)
 
+        if config.val.backend == 'webkit':
+            self.settings.hide()
+            self._hbox.removeWidget(self.settings)
+
         tab = self._current_tab()
 
         # Read the list and set widgets accordingly
@@ -227,6 +230,9 @@ class StatusBar(QWidget):
             if segment == 'url':
                 self._hbox.addWidget(self.url)
                 self.url.show()
+                if config.val.backend == 'webkit':
+                    self._hbox.addWidget(self.settings)
+                    self.settings.show()
             elif segment == 'scroll':
                 self._hbox.addWidget(self.percentage)
                 self.percentage.show()
