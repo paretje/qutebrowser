@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2018 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -147,7 +147,8 @@ class BrowserPage(QWebPage):
                 title="Open external application for {}-link?".format(scheme),
                 text="URL: <b>{}</b>".format(
                     html.escape(url.toDisplayString())),
-                yes_action=functools.partial(QDesktopServices.openUrl, url))
+                yes_action=functools.partial(QDesktopServices.openUrl, url),
+                url=info.url.toString(QUrl.RemovePassword | QUrl.FullyEncoded))
             return True
         elif (info.domain, info.error) in ignored_errors:
             log.webview.debug("Ignored error on {}: {} (error domain: {}, "
@@ -219,8 +220,7 @@ class BrowserPage(QWebPage):
         """Prepare the web page for being deleted."""
         self._is_shutting_down = True
         self.shutting_down.emit()
-        download_manager = objreg.get('qtnetwork-download-manager',
-                                      scope='window', window=self._win_id)
+        download_manager = objreg.get('qtnetwork-download-manager')
         nam = self.networkAccessManager()
         if download_manager.has_downloads_with_nam(nam):
             nam.setParent(download_manager)
@@ -248,8 +248,7 @@ class BrowserPage(QWebPage):
         after this slot returns.
         """
         req = QNetworkRequest(request)
-        download_manager = objreg.get('qtnetwork-download-manager',
-                                      scope='window', window=self._win_id)
+        download_manager = objreg.get('qtnetwork-download-manager')
         download_manager.get_request(req, qnam=self.networkAccessManager())
 
     @pyqtSlot('QNetworkReply*')
@@ -263,8 +262,7 @@ class BrowserPage(QWebPage):
         here: http://mimesniff.spec.whatwg.org/
         """
         inline, suggested_filename = http.parse_content_disposition(reply)
-        download_manager = objreg.get('qtnetwork-download-manager',
-                                      scope='window', window=self._win_id)
+        download_manager = objreg.get('qtnetwork-download-manager')
         if not inline:
             # Content-Disposition: attachment -> force download
             download_manager.fetch(reply,

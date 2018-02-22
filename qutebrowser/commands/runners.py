@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2018 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -66,6 +66,9 @@ def replace_variables(win_id, arglist):
         'clipboard': utils.get_clipboard,
         'primary': lambda: utils.get_clipboard(selection=True),
     }
+    for key in list(variables):
+        modified_key = '{' + key + '}'
+        variables[modified_key] = lambda x=modified_key: x
     values = {}
     args = []
     tabbed_browser = objreg.get('tabbed-browser', scope='window',
@@ -162,7 +165,7 @@ class CommandParser:
             yield self.parse(sub, *args, **kwargs)
 
     def parse_all(self, *args, **kwargs):
-        """Wrapper over parse_all."""
+        """Wrapper over _parse_all_gen."""
         return list(self._parse_all_gen(*args, **kwargs))
 
     def parse(self, text, *, fallback=False, keep=False):

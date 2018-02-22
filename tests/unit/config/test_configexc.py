@@ -1,5 +1,5 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
-# Copyright 2015-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2015-2018 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 
 # This file is part of qutebrowser.
 #
@@ -74,7 +74,7 @@ def test_config_file_errors_str(errors):
     assert str(errors).splitlines() == [
         'Errors occurred while reading config.py:',
         '  Error text 1: Exception 1',
-        '  Error text 2: Exception 2',
+        '  Error text 2 - Exception: Exception 2',
     ]
 
 

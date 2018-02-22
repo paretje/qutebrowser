@@ -1,6 +1,6 @@
 # vim: ft=python fileencoding=utf-8 sts=4 sw=4 et:
 
-# Copyright 2014-2017 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
+# Copyright 2014-2018 Florian Bruhin (The Compiler) <mail@qutebrowser.org>
 #
 # This file is part of qutebrowser.
 #
@@ -253,7 +253,10 @@ class TabbedBrowser(tabwidget.TabWidget):
     def shutdown(self):
         """Try to shut down all tabs cleanly."""
         self.shutting_down = True
-        for tab in self.widgets():
+        # Reverse tabs so we don't have to recacluate tab titles over and over
+        # Removing first causes [2..-1] to be recomputed
+        # Removing the last causes nothing to be recomputed
+        for tab in reversed(self.widgets()):
             self._remove_tab(tab)
 
     def tab_close_prompt_if_pinned(
@@ -643,6 +646,9 @@ class TabbedBrowser(tabwidget.TabWidget):
     @pyqtSlot(int)
     def on_current_changed(self, idx):
         """Set last-focused-tab and leave hinting mode when focus changed."""
+        mode_on_change = config.val.tabs.mode_on_change
+        modes_to_save = [usertypes.KeyMode.insert,
+                         usertypes.KeyMode.passthrough]
         if idx == -1 or self.shutting_down:
             # closing the last tab (before quitting) or shutting down
             return
@@ -651,17 +657,23 @@ class TabbedBrowser(tabwidget.TabWidget):
             log.webview.debug("on_current_changed got called with invalid "
                               "index {}".format(idx))
             return
+        if self._now_focused is not None and mode_on_change == 'restore':
+            current_mode = modeman.instance(self._win_id).mode
+            if current_mode not in modes_to_save:
+                current_mode = usertypes.KeyMode.normal
+            self._now_focused.data.input_mode = current_mode
 
         log.modes.debug("Current tab changed, focusing {!r}".format(tab))
         tab.setFocus()
 
         modes_to_leave = [usertypes.KeyMode.hint, usertypes.KeyMode.caret]
-        if not config.val.tabs.persist_mode_on_change:
-            modes_to_leave += [usertypes.KeyMode.insert,
-                               usertypes.KeyMode.passthrough]
+        if mode_on_change != 'persist':
+            modes_to_leave += modes_to_save
         for mode in modes_to_leave:
             modeman.leave(self._win_id, mode, 'tab changed', maybe=True)
-
+        if mode_on_change == 'restore':
+            modeman.enter(self._win_id, tab.data.input_mode,
+                          'restore input mode for tab')
         if self._now_focused is not None:
             objreg.register('last-focused-tab', self._now_focused, update=True,
                             scope='window', window=self._win_id)
